@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: vera
+      POSTGRES_USER: vera
+      POSTGRES_PASSWORD: vera
+    ports:
+      - "5432:5432"
+    volumes:
+      - vera_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  vera_postgres_data:
