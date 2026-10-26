@@ -6,6 +6,7 @@ import '../widgets/bottom_nav_bar.dart';
 import '../widgets/moment_card.dart';
 import 'create_moment_screen.dart';
 import 'locked_moment_screen.dart';
+import 'profile_screen.dart';
 import 'unlocked_moment_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -175,7 +176,9 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Column(
               children: [
-                if (_selectedNavIndex == 1)
+                if (_selectedNavIndex == 3)
+                  const SizedBox.shrink()
+                else if (_selectedNavIndex == 1)
                   _DiscoverHeader(
                     scale: scale,
                     selectedCategory: _selectedCategory,
@@ -258,7 +261,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 // Feed / Moments List OR Empty State
                 Expanded(
-                  child: _selectedNavIndex == 1 && currentList.isEmpty
+                  child: _selectedNavIndex == 3
+                      ? ProfileScreen(
+                          scale: scale,
+                          onCreate: _navigateToCreateMoment,
+                        )
+                      : _selectedNavIndex == 1 && currentList.isEmpty
                       ? _NoDiscoverMatches(scale: scale)
                       : _selectedNavIndex == 2 &&
                               _selectedMessageTab == 0 &&
