@@ -76,70 +76,57 @@ class VeraBottomNavBar extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _NavItem(
-                      iconPainter: HomeIconPainter(
-                        isSelected: selectedIndex == 0,
-                      ),
+                      icon: Image.asset('assets/images/nav_home.png',
+                          fit: BoxFit.contain),
                       onTap: () => onTap(0),
                       scale: scale,
                     ),
                     SizedBox(width: 24 * scale),
                     _NavItem(
-                      iconPainter: SearchIconPainter(
-                        isSelected: selectedIndex == 1,
-                      ),
+                      icon: selectedIndex == 1
+                          ? CustomPaint(
+                              painter: SearchIconPainter(isSelected: true),
+                            )
+                          : Image.asset('assets/images/nav_search.png',
+                              fit: BoxFit.contain),
                       onTap: () => onTap(1),
                       scale: scale,
                     ),
                     SizedBox(width: 24 * scale),
                     _NavItem(
-                      iconPainter: MessageIconPainter(
-                        isSelected: selectedIndex == 2,
-                      ),
+                      icon: selectedIndex == 2
+                          ? CustomPaint(
+                              painter: MessageIconPainter(isSelected: true),
+                            )
+                          : Image.asset('assets/images/nav_messages.png',
+                              fit: BoxFit.contain),
                       onTap: () => onTap(2),
                       scale: scale,
                     ),
                     SizedBox(width: 24 * scale),
                     _NavItem(
-                      iconPainter: ProfileIconPainter(
-                        isSelected: selectedIndex == 3,
-                      ),
+                      icon: selectedIndex == 3
+                          ? Image.asset('assets/images/nav_profile.png',
+                              fit: BoxFit.contain)
+                          : CustomPaint(
+                              painter: ProfileIconPainter(isSelected: false),
+                            ),
                       onTap: () => onTap(3),
                       scale: scale,
                     ),
                   ],
                 ),
 
-                // Floating Gradient Plus Button (48x48)
+                // Figma create button asset (48x48)
                 GestureDetector(
                   onTap: onCreateMomentTap,
-                  child: Container(
+                  behavior: HitTestBehavior.opaque,
+                  child: SizedBox(
                     width: 48 * scale,
                     height: 48 * scale,
-                    padding: EdgeInsets.all(10 * scale),
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFF9044FB),
-                          Color(0xFFC057FF),
-                        ],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Color(0x669044FB),
-                          blurRadius: 12,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Icon(
-                        Icons.add_rounded,
-                        color: Colors.white,
-                        size: 24 * scale,
-                      ),
+                    child: Image.asset(
+                      'assets/images/nav_create_moment.png',
+                      fit: BoxFit.contain,
                     ),
                   ),
                 ),
@@ -154,12 +141,12 @@ class VeraBottomNavBar extends StatelessWidget {
 
 class _NavItem extends StatelessWidget {
   const _NavItem({
-    required this.iconPainter,
+    required this.icon,
     required this.onTap,
     required this.scale,
   });
 
-  final CustomPainter iconPainter;
+  final Widget icon;
   final VoidCallback onTap;
   final double scale;
 
@@ -171,9 +158,7 @@ class _NavItem extends StatelessWidget {
       child: SizedBox(
         width: 24 * scale,
         height: 24 * scale,
-        child: CustomPaint(
-          painter: iconPainter,
-        ),
+        child: icon,
       ),
     );
   }
@@ -310,13 +295,27 @@ class MessageIconPainter extends CustomPainter {
       ..lineTo(w * 0.08, h * 0.90)
       ..lineTo(w * 0.28, h * 0.80);
 
-    canvas.drawPath(path, strokePaint);
-    canvas.drawPath(tailPath, strokePaint);
+    if (isSelected) {
+      final fillPaint = Paint()
+        ..style = PaintingStyle.fill
+        ..shader = const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF8E37FF), Color(0xFFC857FF)],
+        ).createShader(Offset.zero & size);
+      canvas.drawRRect(rrect, fillPaint);
+      canvas.drawPath(tailPath, fillPaint);
+    } else {
+      canvas.drawPath(path, strokePaint);
+      canvas.drawPath(tailPath, strokePaint);
+    }
 
     final linePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.8
-      ..color = strokeColor.withAlpha(230)
+      ..color = isSelected
+          ? const Color(0xFF542075)
+          : strokeColor.withAlpha(230)
       ..strokeCap = StrokeCap.round;
 
     canvas.drawLine(
