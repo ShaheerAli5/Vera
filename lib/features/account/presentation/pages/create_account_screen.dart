@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'sign_in_screen.dart';
+import '../../../../core/theme/theme.dart';
 import '../../../home/presentation/pages/home_screen.dart';
 import '../../../../shared/widgets/vera_logo.dart';
 
@@ -179,9 +180,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                         height: 48 * scale,
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF9044FB), Color(0xFFC057FF), Color(0xFF9044FB)],
-                            ),
+                            gradient: VeraTheme.buttonGradient,
                             borderRadius: BorderRadius.circular(999),
                             boxShadow: const [
                               BoxShadow(
@@ -205,12 +204,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                             style: TextButton.styleFrom(
                               foregroundColor: Colors.white,
                               shape: const StadiumBorder(),
-                              padding: EdgeInsets.symmetric(horizontal: 24 * scale),
+                              padding: EdgeInsets.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
                             child: Text(
                               'Create account',
                               style: TextStyle(
+                                color: Colors.white,
                                 fontSize: 14 * scale,
                                 height: 1,
                                 fontWeight: FontWeight.w600,

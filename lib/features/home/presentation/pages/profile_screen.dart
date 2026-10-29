@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/moment_card.dart';
+import 'home_screen.dart';
+import 'locked_moment_screen.dart';
+import 'privacy_settings_screen.dart';
+import 'unlocked_moment_screen.dart';
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, required this.scale, required this.onCreate});
 
@@ -16,6 +22,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final scale = widget.scale;
+    final createdMoments = HomeScreen.sentMoments;
+    final receivedMoments = HomeScreen.forYouMoments.take(3).toList();
+    final currentList = _selectedTab == 0 ? createdMoments : receivedMoments;
 
     return Column(
       children: [
@@ -39,7 +48,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const Spacer(),
               IconButton(
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const PrivacySettingsScreen(),
+                    ),
+                  );
+                },
                 icon: Icon(
                   Icons.tune_rounded,
                   color: Colors.white,
@@ -89,7 +104,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               child: Image.network(
                                 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=256&auto=format&fit=crop',
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
+                                errorBuilder: (_, error, stackTrace) => Container(
                                   color: const Color(0xFF383145),
                                   alignment: Alignment.center,
                                   child: Icon(
@@ -135,13 +150,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _ProfileStat(
                           iconAsset: 'assets/images/profile_created.png',
                           label: 'Created',
-                          value: '0',
+                          value: createdMoments.length.toString(),
                           scale: scale,
                         ),
                         _ProfileStat(
                           iconAsset: 'assets/images/profile_received.png',
                           label: 'Received',
-                          value: '3',
+                          value: receivedMoments.length.toString(),
                           scale: scale,
                         ),
                         _ProfileStat(
@@ -173,73 +188,101 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                 ),
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    16 * scale,
-                    24 * scale,
-                    16 * scale,
-                    24 * scale,
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        _selectedTab == 0
-                            ? "You haven't sent a\nmoment yet"
-                            : "You haven't received a\nmoment yet",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: const Color(0xFFF4F2FF),
-                          fontSize: 24 * scale,
-                          height: 32 / 24,
-                          fontWeight: FontWeight.w500,
+                SizedBox(height: 16 * scale),
+                currentList.isEmpty
+                    ? Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          16 * scale,
+                          24 * scale,
+                          16 * scale,
+                          24 * scale,
                         ),
-                      ),
-                      SizedBox(height: 16 * scale),
-                      Text(
-                        _selectedTab == 0
-                            ? 'Moments you create appear here.'
-                            : 'Moments sent to you appear here.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: const Color(0xFFAAA6C2),
-                          fontSize: 14 * scale,
-                          height: 20 / 14,
-                        ),
-                      ),
-                      SizedBox(height: 16 * scale),
-                      SizedBox(
-                        width: 181 * scale,
-                        height: 46 * scale,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF9044FB), Color(0xFF4BBBEA)],
-                            ),
-                            borderRadius: BorderRadius.circular(999),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x558D42FF),
-                                blurRadius: 20,
-                                offset: Offset(0, 6),
+                        child: Column(
+                          children: [
+                            Text(
+                              _selectedTab == 0
+                                  ? "You haven't sent a\nmoment yet"
+                                  : "You haven't received a\nmoment yet",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: const Color(0xFFF4F2FF),
+                                fontSize: 24 * scale,
+                                height: 32 / 24,
+                                fontWeight: FontWeight.w500,
                               ),
-                            ],
-                          ),
-                          child: TextButton(
-                            onPressed: widget.onCreate,
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              shape: const StadiumBorder(),
                             ),
-                            child: Text(
-                              'Create a moment',
-                              style: TextStyle(fontSize: 14 * scale),
+                            SizedBox(height: 16 * scale),
+                            Text(
+                              _selectedTab == 0
+                                  ? 'Moments you create appear here.'
+                                  : 'Moments sent to you appear here.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: const Color(0xFFAAA6C2),
+                                fontSize: 14 * scale,
+                                height: 20 / 14,
+                              ),
                             ),
-                          ),
+                            SizedBox(height: 16 * scale),
+                            SizedBox(
+                              width: 181 * scale,
+                              height: 46 * scale,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF9044FB), Color(0xFF4BBBEA)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(999),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x558D42FF),
+                                      blurRadius: 20,
+                                      offset: Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: TextButton(
+                                  onPressed: widget.onCreate,
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    shape: const StadiumBorder(),
+                                  ),
+                                  child: Text(
+                                    'Create a moment',
+                                    style: TextStyle(fontSize: 14 * scale),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        padding: EdgeInsets.symmetric(horizontal: 16 * scale),
+                        itemCount: currentList.length,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding: EdgeInsets.only(bottom: 16 * scale),
+                            child: MomentCard(
+                              moment: currentList[index],
+                              scale: scale,
+                              onTap: () {
+                                final moment = currentList[index];
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => moment.isReadyToOpen
+                                        ? UnlockedMomentScreen(moment: moment)
+                                        : LockedMomentScreen(moment: moment),
+                                  ),
+                                );
+                              },
+                              showDiscoverActions: false,
+                            ),
+                          );
+                        },
                       ),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),

@@ -30,7 +30,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  firebase_core: ^4.2.1
   flutter_bloc: ^9.1.1
+  flutter_svg: ^2.0.17
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -70,6 +72,14 @@ flutter:
     - assets/images/profile_created.png
     - assets/images/profile_received.png
     - assets/images/profile_replies.png
+    - assets/images/send-2.png
+    - assets/images/sms-notification.png
+    - assets/images/unlock.png
+    - assets/images/user-tag.png
+    - assets/images/toggle-on-circle.png
+    - assets/images/export.svg
+    - assets/images/logout.svg
+    - assets/images/profile-delete.svg
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

@@ -62,40 +62,45 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
               ),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                    24 * scale, 20 * scale, 24 * scale, 104 * scale),
-                child: Column(
-                  children: [
-                    _SenderBadge(moment: moment, scale: scale),
-                    SizedBox(height: 16 * scale),
-                    _VideoPreview(moment: moment, scale: scale),
-                    SizedBox(height: 16 * scale),
-                    Container(
-                      width: 342 * scale,
-                      height: 82 * scale,
-                      padding: EdgeInsets.all(16 * scale),
-                      alignment: Alignment.centerLeft,
-                      decoration: BoxDecoration(
-                        color: const Color(0x3317182D),
-                        borderRadius: BorderRadius.circular(18 * scale),
-                        border: Border.all(
-                            color: const Color(0xFF373657), width: scale),
-                      ),
-                      child: Text(
-                        moment.message ??
-                            'Merry Christmas! I saved this view for you.\n'
-                                'Hope it makes your day.',
-                        style: TextStyle(
-                          color: const Color(0xFFF7F5FF),
-                          fontSize: 16 * scale,
-                          fontWeight: FontWeight.w400,
-                          height: 24 / 16,
+              child: Builder(
+                builder: (context) {
+                  final bottomPad = MediaQuery.paddingOf(context).bottom;
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                        24 * scale, 20 * scale, 24 * scale, 104 * scale + bottomPad),
+                    child: Column(
+                      children: [
+                        _SenderBadge(moment: moment, scale: scale),
+                        SizedBox(height: 16 * scale),
+                        _VideoPreview(moment: moment, scale: scale),
+                        SizedBox(height: 16 * scale),
+                        Container(
+                          width: 342 * scale,
+                          height: 82 * scale,
+                          padding: EdgeInsets.all(16 * scale),
+                          alignment: Alignment.centerLeft,
+                          decoration: BoxDecoration(
+                            color: const Color(0x3317182D),
+                            borderRadius: BorderRadius.circular(18 * scale),
+                            border: Border.all(
+                                color: const Color(0xFF373657), width: scale),
+                          ),
+                          child: Text(
+                            moment.message ??
+                                'Merry Christmas! I saved this view for you.\n'
+                                    'Hope it makes your day.',
+                            style: TextStyle(
+                              color: const Color(0xFFF7F5FF),
+                              fontSize: 16 * scale,
+                              fontWeight: FontWeight.w400,
+                              height: 24 / 16,
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
             _ReplyBar(
@@ -299,10 +304,11 @@ class _ReplyBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bottomPad = MediaQuery.paddingOf(context).bottom;
     return Container(
-      height: 88 * scale,
+      height: (88 * scale) + bottomPad,
       padding: EdgeInsets.fromLTRB(
-          24 * scale, 16 * scale, 24 * scale, 24 * scale),
+          24 * scale, 16 * scale, 24 * scale, 24 * scale + bottomPad),
       decoration: BoxDecoration(
         color: const Color(0xD9090A17),
         border: Border(

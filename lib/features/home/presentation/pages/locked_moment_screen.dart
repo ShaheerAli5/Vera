@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/theme.dart';
 import '../../domain/entities/moment.dart';
 
 class LockedMomentScreen extends StatelessWidget {
@@ -17,121 +18,125 @@ class LockedMomentScreen extends StatelessWidget {
       backgroundColor: const Color(0xFF080914),
       body: SafeArea(
         bottom: false,
-        child: Stack(
-          children: [
-            Column(
+        child: Builder(
+          builder: (context) {
+            final bottomPad = MediaQuery.paddingOf(context).bottom;
+            return Stack(
               children: [
-                SizedBox(
-                  height: 56 * scale,
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16 * scale),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: IconButton(
-                            onPressed: () => Navigator.of(context).maybePop(),
-                            icon: Icon(Icons.arrow_back_rounded,
-                                color: Colors.white, size: 22 * scale),
+                Column(
+                  children: [
+                    SizedBox(
+                      height: 56 * scale,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16 * scale),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: IconButton(
+                                onPressed: () => Navigator.of(context).maybePop(),
+                                icon: Icon(Icons.arrow_back_rounded,
+                                    color: Colors.white, size: 22 * scale),
+                                padding: EdgeInsets.zero,
+                                constraints: BoxConstraints.tightFor(
+                                  width: 40 * scale,
+                                  height: 40 * scale,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              'Locked moment',
+                              style: TextStyle(
+                                color: const Color(0xFFF7F5FF),
+                                fontSize: 16 * scale,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.fromLTRB(
+                            24 * scale, 20 * scale, 24 * scale, (104 * scale) + bottomPad),
+                        child: Column(
+                          children: [
+                            _LockedPreview(moment: moment, scale: scale),
+                            SizedBox(height: 16 * scale),
+                            _FromBadge(moment: moment, scale: scale),
+                            SizedBox(height: 16 * scale),
+                            _UnlockBanner(moment: moment, scale: scale),
+                            SizedBox(height: 16 * scale),
+                            _LockedContentPlaceholder(scale: scale),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    height: (88 * scale) + bottomPad,
+                    padding: EdgeInsets.fromLTRB(
+                        24 * scale, 16 * scale, 24 * scale, 24 * scale + bottomPad),
+                    decoration: BoxDecoration(
+                      color: const Color(0xD9090A17),
+                      border: Border(
+                        top: BorderSide(
+                            color: const Color(0x334B3B70), width: 1 * scale),
+                      ),
+                      borderRadius: BorderRadius.vertical(
+                        bottom: Radius.circular(44 * scale),
+                      ),
+                    ),
+                    child: SizedBox(
+                      height: 48 * scale,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: VeraTheme.buttonGradient,
+                          borderRadius: BorderRadius.circular(999),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x665A26B8),
+                              blurRadius: 20,
+                              offset: Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: TextButton(
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('This moment is still locked.'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            shape: const StadiumBorder(),
                             padding: EdgeInsets.zero,
-                            constraints: BoxConstraints.tightFor(
-                              width: 40 * scale,
-                              height: 40 * scale,
+                          ),
+                          child: Text(
+                            "Check if it's ready",
+                            style: TextStyle(
+                              fontSize: 14 * scale,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
-                        Text(
-                          'Locked moment',
-                          style: TextStyle(
-                            color: const Color(0xFFF7F5FF),
-                            fontSize: 16 * scale,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(
-                        24 * scale, 20 * scale, 24 * scale, 104 * scale),
-                    child: Column(
-                      children: [
-                        _LockedPreview(moment: moment, scale: scale),
-                        SizedBox(height: 16 * scale),
-                        _FromBadge(moment: moment, scale: scale),
-                        SizedBox(height: 16 * scale),
-                        _UnlockBanner(moment: moment, scale: scale),
-                        SizedBox(height: 16 * scale),
-                        _LockedContentPlaceholder(scale: scale),
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ],
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: Container(
-                height: 88 * scale,
-                padding: EdgeInsets.fromLTRB(
-                    24 * scale, 16 * scale, 24 * scale, 24 * scale),
-                decoration: BoxDecoration(
-                  color: const Color(0xD9090A17),
-                  border: Border(
-                    top: BorderSide(
-                        color: const Color(0x334B3B70), width: 1 * scale),
-                  ),
-                  borderRadius: BorderRadius.vertical(
-                    bottom: Radius.circular(44 * scale),
-                  ),
-                ),
-                child: SizedBox(
-                  height: 48 * scale,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF9044FB), Color(0xFFC04CF5)],
-                      ),
-                      borderRadius: BorderRadius.circular(999),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x665A26B8),
-                          blurRadius: 20,
-                          offset: Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: TextButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('This moment is still locked.'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        shape: const StadiumBorder(),
-                      ),
-                      child: Text(
-                        "Check if it's ready",
-                        style: TextStyle(
-                          fontSize: 14 * scale,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -259,39 +264,45 @@ class _UnlockBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 56 * scale,
-      padding: EdgeInsets.symmetric(horizontal: 16 * scale),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xCCDD4EFC), Color(0x8031367D)],
-        ),
-        borderRadius: BorderRadius.circular(20 * scale),
-        border: Border.all(color: const Color(0x55FFFFFF), width: 2 * scale),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            moment.unlockType == MomentUnlockType.location
-                ? Icons.location_on_rounded
-                : Icons.access_time_filled_rounded,
-            color: Colors.white,
-            size: 20 * scale,
-          ),
-          SizedBox(width: 12 * scale),
-          Expanded(
-            child: Text(
-              moment.unlockCondition,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 14 * scale,
-                fontWeight: FontWeight.w500,
-              ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20 * scale),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        child: Container(
+          height: 56 * scale,
+          padding: EdgeInsets.symmetric(horizontal: 16 * scale),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xCC9451FF), Color(0x8058C3F4)],
             ),
+            borderRadius: BorderRadius.circular(20 * scale),
+            border: Border.all(color: const Color(0x55FFFFFF), width: 2 * scale),
           ),
-        ],
+          child: Row(
+            children: [
+              Icon(
+                moment.unlockType == MomentUnlockType.location
+                    ? Icons.location_on_rounded
+                    : Icons.access_time_filled_rounded,
+                color: Colors.white,
+                size: 20 * scale,
+              ),
+              SizedBox(width: 12 * scale),
+              Expanded(
+                child: Text(
+                  moment.unlockCondition,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14 * scale,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

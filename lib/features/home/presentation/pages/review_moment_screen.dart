@@ -599,43 +599,42 @@ class _UploadingModalContentState extends State<_UploadingModalContent>
   Widget build(BuildContext context) {
     final scale = widget.scale;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.only(
-        topLeft: Radius.circular(24 * scale),
-        topRight: Radius.circular(24 * scale),
-        bottomLeft: Radius.circular(28 * scale),
-        bottomRight: Radius.circular(28 * scale),
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.viewInsetsOf(context).bottom +
+            MediaQuery.paddingOf(context).bottom,
       ),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFF16172E),
-                Color(0xFF0C0D1A),
-              ],
+      child: ClipRRect(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24 * scale),
+        ),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF16172E),
+                  Color(0xFF0C0D1A),
+                ],
+              ),
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(24 * scale),
+              ),
+              border: Border.all(
+                color: const Color(0xFF373657),
+                width: 1,
+              ),
             ),
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24 * scale),
-              topRight: Radius.circular(24 * scale),
-              bottomLeft: Radius.circular(28 * scale),
-              bottomRight: Radius.circular(28 * scale),
+            padding: EdgeInsets.fromLTRB(
+              24 * scale,
+              20 * scale,
+              24 * scale,
+              24 * scale + MediaQuery.paddingOf(context).bottom,
             ),
-            border: Border.all(
-              color: const Color(0xFF373657),
-              width: 1,
-            ),
-          ),
-          padding: EdgeInsets.fromLTRB(
-            24 * scale,
-            20 * scale,
-            24 * scale,
-            32 * scale,
-          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -716,6 +715,7 @@ class _UploadingModalContentState extends State<_UploadingModalContent>
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }

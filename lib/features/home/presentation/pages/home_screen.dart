@@ -6,6 +6,7 @@ import '../widgets/bottom_nav_bar.dart';
 import '../widgets/moment_card.dart';
 import 'create_moment_screen.dart';
 import 'locked_moment_screen.dart';
+import 'notifications_screen.dart';
 import 'profile_screen.dart';
 import 'unlocked_moment_screen.dart';
 
@@ -121,8 +122,11 @@ class _HomeScreenState extends State<HomeScreen> {
     _selectedMessageTab = widget.initialMessageTabIndex;
   }
 
+  bool get _isDiscoverMode =>
+      _selectedNavIndex == 1 || (_selectedNavIndex == 0 && _selectedTabIndex == 1);
+
   List<Moment> get _currentMoments {
-    if (_selectedNavIndex == 1) {
+    if (_isDiscoverMode) {
       final query = _searchQuery.trim().toLowerCase();
       return HomeScreen.discoverMoments.where((moment) {
         final matchesQuery = query.isEmpty ||
@@ -178,7 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 if (_selectedNavIndex == 3)
                   const SizedBox.shrink()
-                else if (_selectedNavIndex == 1)
+                else if (_isDiscoverMode)
                   _DiscoverHeader(
                     scale: scale,
                     selectedCategory: _selectedCategory,
@@ -208,7 +212,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       Row(
                         children: [
                           IconButton(
-                            onPressed: () {},
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const NotificationsScreen(),
+                                ),
+                              );
+                            },
                             icon: Icon(
                               Icons.notifications_outlined,
                               color: Colors.white,
@@ -266,7 +276,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           scale: scale,
                           onCreate: _navigateToCreateMoment,
                         )
-                      : _selectedNavIndex == 1 && currentList.isEmpty
+                      : _isDiscoverMode && currentList.isEmpty
                       ? _NoDiscoverMatches(scale: scale)
                       : _selectedNavIndex == 2 &&
                               _selectedMessageTab == 0 &&
@@ -287,9 +297,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       : ListView.builder(
                           key: ValueKey<int>(_selectedTabIndex),
                           padding: EdgeInsets.fromLTRB(
-                            (_selectedNavIndex == 0 ? 16 : 24) * scale,
+                            (_isDiscoverMode ? 24 : 16) * scale,
                             (_selectedNavIndex == 2 ? 16 : 8) * scale,
-                            (_selectedNavIndex == 0 ? 16 : 24) * scale,
+                            (_isDiscoverMode ? 24 : 16) * scale,
                             90 * scale,
                           ),
                           itemCount: currentList.length,
@@ -308,7 +318,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 );
                               },
                               showDiscoverActions:
-                                  _selectedNavIndex == 1 ||
+                                  _isDiscoverMode ||
                                   _selectedNavIndex == 2,
                             );
                           },

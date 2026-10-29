@@ -17,9 +17,10 @@ class VeraBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bottomPad = MediaQuery.paddingOf(context).bottom;
     return Container(
       width: double.infinity,
-      height: 88 * scale,
+      height: (88 * scale) + bottomPad,
       decoration: BoxDecoration(
         color: const Color(0x59090A17),
         borderRadius: BorderRadius.only(
@@ -46,7 +47,7 @@ class VeraBottomNavBar extends StatelessWidget {
               24 * scale,
               16 * scale,
               24 * scale,
-              24 * scale,
+              24 * scale + bottomPad,
             ),
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -76,8 +77,16 @@ class VeraBottomNavBar extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _NavItem(
-                      icon: Image.asset('assets/images/nav_home.png',
-                          fit: BoxFit.contain),
+                      icon: Image.asset(
+                        'assets/images/nav_home.png',
+                        fit: BoxFit.contain,
+                        color: selectedIndex == 0
+                            ? const Color(0xFFE291FF)
+                            : null,
+                        colorBlendMode: selectedIndex == 0
+                            ? BlendMode.srcIn
+                            : BlendMode.dst,
+                      ),
                       onTap: () => onTap(0),
                       scale: scale,
                     ),

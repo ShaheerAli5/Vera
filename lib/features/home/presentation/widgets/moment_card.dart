@@ -90,22 +90,13 @@ class MomentCard extends StatelessWidget {
                 top: 12 * scale,
                 right: 12 * scale,
                 child: SizedBox(
-                  width: 92 * scale,
                   height: 52 * scale,
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       _buildTopLock(scale),
                       SizedBox(width: 4 * scale),
-                      Expanded(
-                        child: IconButton(
-                          onPressed: () => _showMomentActions(context),
-                          icon: Icon(Icons.more_horiz_rounded,
-                              color: Colors.white, size: 22 * scale),
-                          constraints: const BoxConstraints.expand(),
-                          padding: EdgeInsets.zero,
-                          splashRadius: 18 * scale,
-                        ),
-                      ),
+                      _buildMoreButton(context, scale),
                     ],
                   ),
                 ),
@@ -281,6 +272,32 @@ class MomentCard extends StatelessWidget {
                 ? const Color(0xFF7DF0B0)
                 : Colors.white,
             size: 22 * scale,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMoreButton(BuildContext context, double scale) {
+    return ClipOval(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          width: 52 * scale,
+          height: 52 * scale,
+          decoration: BoxDecoration(
+            color: const Color(0x8C090A17),
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0x30FFFFFF)),
+          ),
+          child: IconButton(
+            onPressed: () => _showMomentActions(context),
+            icon: Icon(
+              Icons.more_horiz_rounded,
+              color: Colors.white,
+              size: 22 * scale,
+            ),
+            padding: EdgeInsets.zero,
           ),
         ),
       ),
@@ -616,52 +633,60 @@ class _MomentActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 48 * scale,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(999),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: isDestructive
-                  ? const LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                      colors: [
-                        Color(0x20FF6B8B),
-                        Color(0x12F7F5FF),
-                        Color(0x201E1A34),
-                      ],
-                    )
-                  : const LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                      colors: [
-                        Color(0x26F7F5FF),
-                        Color(0x12131724),
-                        Color(0x20F7F5FF),
-                      ],
-                    ),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(
-                color: const Color(0x44FFFFFF),
-                width: .8,
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: 48 * scale),
+      child: SizedBox(
+        width: double.infinity,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                  vertical: 12 * scale, horizontal: 16 * scale),
+              decoration: BoxDecoration(
+                gradient: isDestructive
+                    ? const LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          Color(0x20FF6B8B),
+                          Color(0x12F7F5FF),
+                          Color(0x201E1A34),
+                        ],
+                      )
+                    : const LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          Color(0x26F7F5FF),
+                          Color(0x12131724),
+                          Color(0x20F7F5FF),
+                        ],
+                      ),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: const Color(0x44FFFFFF),
+                  width: .8,
+                ),
               ),
-            ),
-            child: TextButton(
-              onPressed: onTap,
-              style: TextButton.styleFrom(
-                foregroundColor:
-                    isDestructive ? const Color(0xFFFF6B8B) : Colors.white,
-                shape: const StadiumBorder(),
-              ),
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14 * scale,
-                  fontWeight: FontWeight.w500,
+              child: TextButton(
+                onPressed: onTap,
+                style: TextButton.styleFrom(
+                  foregroundColor:
+                      isDestructive ? const Color(0xFFFF6B8B) : Colors.white,
+                  shape: const StadiumBorder(),
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14 * scale,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
