@@ -13,6 +13,13 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   bool _isPrivate = true;
+  final Set<String> _selectedRecipients = {};
+
+  void _toggleRecipient(String name) {
+    setState(() {
+      if (!_selectedRecipients.add(name)) _selectedRecipients.remove(name);
+    });
+  }
 
   @override
   void dispose() {
@@ -416,6 +423,8 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                               avatarColor: const Color(0xFF3B82F6),
                               name: 'Annas',
                               scale: scale,
+                              isSelected: _selectedRecipients.contains('Annas'),
+                              onTap: () => _toggleRecipient('Annas'),
                             ),
 
                             SizedBox(height: 10 * scale),
@@ -426,6 +435,8 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                               avatarColor: const Color(0xFF8B5CF6),
                               name: 'Marcus',
                               scale: scale,
+                              isSelected: _selectedRecipients.contains('Marcus'),
+                              onTap: () => _toggleRecipient('Marcus'),
                             ),
 
                             SizedBox(height: 20 * scale),
@@ -548,6 +559,9 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                         MaterialPageRoute<void>(
                           builder: (_) => ChooseConditionScreen(
                             isPrivate: _isPrivate,
+                            recipientName: _selectedRecipients.isEmpty
+                                ? null
+                                : _selectedRecipients.join(', '),
                           ),
                         ),
                       );
@@ -580,20 +594,22 @@ class _ContactCard extends StatefulWidget {
     required this.avatarColor,
     required this.name,
     required this.scale,
+    required this.isSelected,
+    required this.onTap,
   });
 
   final String initials;
   final Color avatarColor;
   final String name;
   final double scale;
+  final bool isSelected;
+  final VoidCallback onTap;
 
   @override
   State<_ContactCard> createState() => _ContactCardState();
 }
 
 class _ContactCardState extends State<_ContactCard> {
-  bool _isSelected = false;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -606,8 +622,8 @@ class _ContactCardState extends State<_ContactCard> {
       decoration: BoxDecoration(
         color: const Color(0xFF17182D),
         borderRadius: BorderRadius.circular(16 * widget.scale),
-        border: Border.all(
-          color: _isSelected
+          border: Border.all(
+            color: widget.isSelected
               ? VeraTheme.purpleBright
               : const Color(0x1AFFFFFF),
           width: 1,
@@ -648,15 +664,11 @@ class _ContactCardState extends State<_ContactCard> {
             ],
           ),
           GestureDetector(
-            onTap: () {
-              setState(() {
-                _isSelected = !_isSelected;
-              });
-            },
+            onTap: widget.onTap,
             behavior: HitTestBehavior.opaque,
             child: Icon(
-              _isSelected ? Icons.check_circle_rounded : Icons.add_rounded,
-              color: _isSelected ? VeraTheme.purpleBright : const Color(0xFF8A8EB3),
+              widget.isSelected ? Icons.check_circle_rounded : Icons.add_rounded,
+              color: widget.isSelected ? VeraTheme.purpleBright : const Color(0xFF8A8EB3),
               size: 20 * widget.scale,
             ),
           ),

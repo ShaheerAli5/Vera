@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'create_account_screen.dart';
+import '../../../../core/theme/theme.dart';
 import '../../../home/presentation/pages/home_screen.dart';
 
 class SignInScreen extends StatelessWidget {
@@ -162,17 +163,11 @@ class SignInScreen extends StatelessWidget {
                           height: 48 * scale,
                           child: DecoratedBox(
                             decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFF9044FB),
-                                      Color(0xFFC057FF),
-                                      Color(0xFF9044FB),
-                                    ],
-                                  ),
+                                  gradient: VeraTheme.buttonGradient,
                                   borderRadius: BorderRadius.circular(999),
                                   boxShadow: const [
                                     BoxShadow(
-                                      color: Color(0x77A03BFF),
+                                      color: VeraTheme.glowPurple,
                                       blurRadius: 22,
                                       spreadRadius: 1,
                                       offset: Offset(0, 6),

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "615422190489",
+    "project_id": "vera-2a46c",
+    "storage_bucket": "vera-2a46c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:615422190489:android:023ebe417dce5dca29a908",
+        "android_client_info": {
+          "package_name": "com.example.vera"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDzIRdhQjDHkEAtjpY_ISAI1KXfItk9kug"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

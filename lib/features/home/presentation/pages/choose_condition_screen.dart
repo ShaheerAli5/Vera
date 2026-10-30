@@ -6,9 +6,11 @@ class ChooseConditionScreen extends StatefulWidget {
   const ChooseConditionScreen({
     super.key,
     this.isPrivate = true,
+    this.recipientName,
   });
 
   final bool isPrivate;
+  final String? recipientName;
 
   @override
   State<ChooseConditionScreen> createState() => _ChooseConditionScreenState();
@@ -536,6 +538,7 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                                 ? 'Date & time (UTC+05:00)'
                                 : 'Location condition (200m radius)',
                             isPrivate: widget.isPrivate,
+                            recipientName: widget.recipientName,
                           ),
                         ),
                       );

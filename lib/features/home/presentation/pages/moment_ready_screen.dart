@@ -259,7 +259,10 @@ class MomentReadyScreen extends StatelessWidget {
                           onPressed: () {
                             Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute<void>(
-                                builder: (_) => const HomeScreen(initialTabIndex: 2),
+                                builder: (_) => const HomeScreen(
+                                  initialNavIndex: 2,
+                                  initialMessageTabIndex: 1,
+                                ),
                               ),
                               (route) => false,
                             );
@@ -269,7 +272,7 @@ class MomentReadyScreen extends StatelessWidget {
                             shape: const StadiumBorder(),
                           ),
                           child: Text(
-                            'View in Your moments',
+                            'View in Sent messages',
                             style: TextStyle(
                               fontSize: 14 * scale,
                               fontWeight: FontWeight.w600,
@@ -328,7 +331,15 @@ class MomentReadyScreen extends StatelessWidget {
                           height: 48 * scale,
                           child: OutlinedButton(
                             onPressed: () {
-                              Navigator.of(context).popUntil((route) => route.isFirst);
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const HomeScreen(
+                                    initialNavIndex: 2,
+                                    initialMessageTabIndex: 1,
+                                  ),
+                                ),
+                                (route) => false,
+                              );
                             },
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Colors.white,
@@ -340,7 +351,7 @@ class MomentReadyScreen extends StatelessWidget {
                               shape: const StadiumBorder(),
                             ),
                             child: Text(
-                              'View in Your moments',
+                              'View in Sent messages',
                               style: TextStyle(
                                 fontSize: 14 * scale,
                                 fontWeight: FontWeight.w600,

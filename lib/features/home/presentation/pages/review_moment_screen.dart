@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/theme.dart';
+import '../../domain/entities/moment.dart';
+import 'home_screen.dart';
 import 'moment_ready_screen.dart';
 
 class ReviewMomentScreen extends StatelessWidget {
@@ -12,6 +14,7 @@ class ReviewMomentScreen extends StatelessWidget {
     this.condition = 'October 25, 2026 · 9:00 AM',
     this.conditionSubtitle = 'Date & time (UTC+05:00)',
     this.isPrivate = false,
+    this.recipientName,
   });
 
   final String title;
@@ -20,6 +23,7 @@ class ReviewMomentScreen extends StatelessWidget {
   final String condition;
   final String conditionSubtitle;
   final bool isPrivate;
+  final String? recipientName;
 
   void _showUploadingModal(BuildContext context, double scale) {
     showModalBottomSheet<void>(
@@ -33,6 +37,28 @@ class ReviewMomentScreen extends StatelessWidget {
           scale: scale,
           onComplete: () {
             Navigator.of(modalContext).pop();
+            final isTimeLocked = conditionSubtitle.startsWith('Date & time');
+            final createdMoment = Moment(
+              id: 'sent_${DateTime.now().microsecondsSinceEpoch}',
+              userName: 'You',
+              userAvatarUrl:
+                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200',
+              timeAgo: 'Just now',
+              backgroundImageUrl:
+                  'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=800',
+              unlockCondition: isTimeLocked ? 'Opens $condition' : condition,
+              unlockType: isTimeLocked
+                  ? MomentUnlockType.time
+                  : MomentUnlockType.location,
+              sentBadgeTitle: isPrivate
+                  ? 'To ${recipientName ?? 'John Travolta'}'
+                  : 'To Everyone (public)',
+              sentBadgeSubtitle: isPrivate
+                  ? '2h ago'
+                  : 'Pending Moderator review',
+              isPublicSentMoment: !isPrivate,
+            );
+            HomeScreen.sentMoments.insert(0, createdMoment);
             Navigator.of(context).pushReplacement(
               MaterialPageRoute<void>(
                 builder: (_) => MomentReadyScreen(
@@ -573,43 +599,42 @@ class _UploadingModalContentState extends State<_UploadingModalContent>
   Widget build(BuildContext context) {
     final scale = widget.scale;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.only(
-        topLeft: Radius.circular(24 * scale),
-        topRight: Radius.circular(24 * scale),
-        bottomLeft: Radius.circular(28 * scale),
-        bottomRight: Radius.circular(28 * scale),
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.viewInsetsOf(context).bottom +
+            MediaQuery.paddingOf(context).bottom,
       ),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0xFF16172E),
-                Color(0xFF0C0D1A),
-              ],
+      child: ClipRRect(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24 * scale),
+        ),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF16172E),
+                  Color(0xFF0C0D1A),
+                ],
+              ),
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(24 * scale),
+              ),
+              border: Border.all(
+                color: const Color(0xFF373657),
+                width: 1,
+              ),
             ),
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(24 * scale),
-              topRight: Radius.circular(24 * scale),
-              bottomLeft: Radius.circular(28 * scale),
-              bottomRight: Radius.circular(28 * scale),
+            padding: EdgeInsets.fromLTRB(
+              24 * scale,
+              20 * scale,
+              24 * scale,
+              24 * scale + MediaQuery.paddingOf(context).bottom,
             ),
-            border: Border.all(
-              color: const Color(0xFF373657),
-              width: 1,
-            ),
-          ),
-          padding: EdgeInsets.fromLTRB(
-            24 * scale,
-            20 * scale,
-            24 * scale,
-            32 * scale,
-          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -690,6 +715,7 @@ class _UploadingModalContentState extends State<_UploadingModalContent>
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }

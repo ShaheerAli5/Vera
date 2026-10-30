@@ -39,7 +39,11 @@ abstract final class VeraTheme {
   );
 
   static const LinearGradient buttonGradient = LinearGradient(
-    colors: [purple, purpleBright, purple],
+    colors: [
+      Color(0xFF9451FF),
+      Color(0xFF557AFB),
+      Color(0xFF58C3F4),
+    ],
   );
 
   static const LinearGradient bannerGradient = LinearGradient(

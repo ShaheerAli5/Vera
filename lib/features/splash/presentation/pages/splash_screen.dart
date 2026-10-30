@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../account/presentation/pages/create_account_screen.dart';
 import '../../../account/presentation/pages/sign_in_screen.dart';
+import '../../../../core/theme/theme.dart';
 import '../../../../shared/widgets/vera_logo.dart';
 
 class SplashScreen extends StatelessWidget {
@@ -85,13 +86,7 @@ class SplashScreen extends StatelessWidget {
                                 height: 48 * scale,
                                 child: DecoratedBox(
                                   decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Color(0xFF9044FB),
-                                        Color(0xFFC057FF),
-                                        Color(0xFF9044FB),
-                                      ],
-                                    ),
+                                    gradient: VeraTheme.buttonGradient,
                                     borderRadius: BorderRadius.circular(999),
                                   ),
                                   child: TextButton(
