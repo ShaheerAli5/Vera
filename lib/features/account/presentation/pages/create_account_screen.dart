@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/layout/responsive.dart';
 import 'sign_in_screen.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../home/presentation/pages/home_screen.dart';
@@ -20,8 +21,12 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
-    final scale = (screen.width / 390).clamp(.82, 1.12);
-    final contentWidth = (screen.width - 48 * scale).clamp(0.0, 342 * scale);
+    final scale = VeraResponsive.scale(screen.width);
+    final contentWidth = VeraResponsive.contentWidth(
+      screen.width,
+      maxWidth: VeraResponsive.formMaxWidth,
+      horizontalPadding: 24 * scale,
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFF080914),
@@ -34,7 +39,12 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(24 * scale, 8 * scale, 24 * scale, 32 * scale),
-                  child: Column(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: VeraResponsive.formMaxWidth,
+                      ),
+                      child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       SizedBox(
@@ -244,6 +254,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                         ),
                       ),
                     ],
+                      ),
+                    ),
                   ),
                 ),
               ),

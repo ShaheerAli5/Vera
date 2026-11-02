@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/layout/responsive.dart';
 import '../../../../shared/widgets/vera_logo.dart';
 import '../../domain/entities/moment.dart';
 import '../widgets/bottom_nav_bar.dart';
@@ -169,7 +170,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
-    final scale = (screen.width / 393).clamp(.82, 1.12);
+    final scale = VeraResponsive.scale(screen.width);
     final currentList = _currentMoments;
 
     return Scaffold(
@@ -414,7 +415,10 @@ class _EmptyMomentsState extends StatelessWidget {
       ),
       child: Center(
         child: Container(
-          width: 345 * scale,
+          width: VeraResponsive.contentWidth(
+            MediaQuery.sizeOf(context).width,
+            horizontalPadding: 24 * scale,
+          ),
           height: 264 * scale,
           padding: EdgeInsets.fromLTRB(
             16 * scale,

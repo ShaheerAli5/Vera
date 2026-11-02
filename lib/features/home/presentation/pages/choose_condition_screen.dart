@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
 import 'review_moment_screen.dart';
 
@@ -29,7 +30,8 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
-    final scale = (screen.width / 390).clamp(.82, 1.12);
+    final scale = VeraResponsive.scale(screen.width, designWidth: 390);
+    final contentWidth = VeraResponsive.contentWidth(screen.width, horizontalPadding: 24 * scale);
 
     return Scaffold(
       backgroundColor: VeraTheme.background,
@@ -169,7 +171,7 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           SizedBox(
-                            width: 345 * scale,
+                            width: contentWidth,
                             height: 32 * scale,
                             child: Text(
                               'Privacy',
@@ -189,7 +191,7 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                             onTap: () => setState(() => _isDateTimeCondition = true),
                             behavior: HitTestBehavior.opaque,
                             child: Container(
-                              width: 345 * scale,
+                              width: contentWidth,
                               height: 68 * scale,
                               padding: EdgeInsets.symmetric(
                                 horizontal: 16 * scale,
@@ -264,7 +266,7 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                             onTap: () => setState(() => _isDateTimeCondition = false),
                             behavior: HitTestBehavior.opaque,
                             child: Container(
-                              width: 345 * scale,
+                              width: contentWidth,
                               height: 68 * scale,
                               padding: EdgeInsets.symmetric(
                                 horizontal: 16 * scale,
@@ -357,7 +359,7 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                             ),
                             SizedBox(height: 16 * scale),
                             SizedBox(
-                              width: 345 * scale,
+                              width: contentWidth,
                               height: 48 * scale,
                               child: TextField(
                                 controller: _dateController,
@@ -445,7 +447,7 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                             SizedBox(height: 10 * scale),
 
                             Container(
-                              width: 345 * scale,
+                              width: contentWidth,
                               height: 48 * scale,
                               padding: EdgeInsets.symmetric(
                                   horizontal: 16 * scale),
@@ -504,7 +506,7 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                 24 * scale,
               ),
               child: SizedBox(
-                width: 345 * scale,
+                width: contentWidth,
                 height: 48 * scale,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
@@ -593,7 +595,10 @@ class _LocationPresetCardState extends State<_LocationPresetCard> {
       },
       behavior: HitTestBehavior.opaque,
       child: Container(
-        width: 345 * widget.scale,
+        width: VeraResponsive.contentWidth(
+          MediaQuery.sizeOf(context).width,
+          horizontalPadding: 24 * widget.scale,
+        ),
         height: 48 * widget.scale,
         margin: EdgeInsets.only(bottom: 12 * widget.scale),
         padding: EdgeInsets.symmetric(horizontal: 16 * widget.scale),

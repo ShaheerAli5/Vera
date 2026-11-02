@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
 import 'choose_audience_screen.dart';
 
@@ -193,7 +194,8 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
-    final scale = (screen.width / 390).clamp(.82, 1.12);
+    final scale = VeraResponsive.scale(screen.width, designWidth: 390);
+    final contentWidth = VeraResponsive.contentWidth(screen.width, horizontalPadding: 24 * scale);
 
     return Scaffold(
       backgroundColor: VeraTheme.background,
@@ -325,7 +327,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           SizedBox(
-                            width: 345 * scale,
+                            width: contentWidth,
                             height: 32 * scale,
                             child: Text(
                               'Give your moment a title',
@@ -341,7 +343,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                           SizedBox(height: 16 * scale),
                           // Title Input Box
                           SizedBox(
-                            width: 345 * scale,
+                            width: contentWidth,
                             height: 48 * scale,
                             child: TextField(
                               controller: _titleController,
@@ -381,7 +383,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                       Padding(
                         padding: EdgeInsets.symmetric(horizontal: 24 * scale),
                         child: Container(
-                          width: 345 * scale,
+                          width: contentWidth,
                           height: 180 * scale,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(20 * scale),
@@ -601,7 +603,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                 children: [
                   // Notice Label
                   SizedBox(
-                    width: 345 * scale,
+                    width: contentWidth,
                     height: 24 * scale,
                     child: Center(
                       child: Text(
@@ -677,7 +679,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
 
                   // Continue Button
                   SizedBox(
-                    width: 345 * scale,
+                    width: contentWidth,
                     height: 48 * scale,
                     child: DecoratedBox(
                       decoration: BoxDecoration(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/layout/responsive.dart';
 import '../../../account/presentation/pages/create_account_screen.dart';
 import '../../../account/presentation/pages/sign_in_screen.dart';
 import '../../../../core/theme/theme.dart';
@@ -11,8 +12,12 @@ class SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
-    final scale = (screen.width / 393).clamp(.82, 1.12);
-    final actionsWidth = (screen.width - 48 * scale).clamp(0.0, 345 * scale);
+    final scale = VeraResponsive.scale(screen.width);
+    final actionsWidth = VeraResponsive.contentWidth(
+      screen.width,
+      maxWidth: VeraResponsive.formMaxWidth,
+      horizontalPadding: 24 * scale,
+    );
     final compact = screen.height < 740;
 
     return Scaffold(

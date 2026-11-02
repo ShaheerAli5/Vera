@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -56,7 +57,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final scale = (MediaQuery.sizeOf(context).width / 393).clamp(.82, 1.12);
+    final scale = VeraResponsive.scale(MediaQuery.sizeOf(context).width);
 
     List<Map<String, dynamic>> filteredNotifications = _notifications.where((n) {
       if (_selectedTab == 1) return !(n['isRead'] as bool);

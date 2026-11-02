@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/layout/responsive.dart';
+import '../../../../core/widgets/vera_popup.dart';
 import '../../domain/entities/moment.dart';
 
 class UnlockedMomentScreen extends StatefulWidget {
@@ -23,7 +25,9 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
   @override
   Widget build(BuildContext context) {
     final moment = widget.moment;
-    final scale = (MediaQuery.sizeOf(context).width / 393).clamp(.82, 1.12);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final scale = VeraResponsive.scale(screenWidth);
+    final contentWidth = VeraResponsive.contentWidth(screenWidth, horizontalPadding: 24 * scale);
 
     return Scaffold(
       backgroundColor: const Color(0xFF080914),
@@ -75,7 +79,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                         _VideoPreview(moment: moment, scale: scale),
                         SizedBox(height: 16 * scale),
                         Container(
-                          width: 342 * scale,
+                          width: contentWidth,
                           height: 82 * scale,
                           padding: EdgeInsets.all(16 * scale),
                           alignment: Alignment.centerLeft,
@@ -110,11 +114,10 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                 final reply = _replyController.text.trim();
                 if (reply.isEmpty) return;
                 _replyController.clear();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Reply sent.'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
+                VeraPopup.show(
+                  context,
+                  title: 'Reply sent',
+                  message: 'Your message is on its way.',
                 );
               },
             ),

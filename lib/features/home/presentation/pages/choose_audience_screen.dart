@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
 import 'choose_condition_screen.dart';
 
@@ -31,7 +32,8 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
-    final scale = (screen.width / 390).clamp(.82, 1.12);
+    final scale = VeraResponsive.scale(screen.width, designWidth: 390);
+    final contentWidth = VeraResponsive.contentWidth(screen.width, horizontalPadding: 24 * scale);
 
     return Scaffold(
       backgroundColor: VeraTheme.background,
@@ -170,7 +172,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                         children: [
                           // Heading Text (345 x 32)
                           SizedBox(
-                            width: 345 * scale,
+                            width: contentWidth,
                             height: 32 * scale,
                             child: Text(
                               'Privacy',
@@ -190,7 +192,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                             onTap: () => setState(() => _isPrivate = true),
                             behavior: HitTestBehavior.opaque,
                             child: Container(
-                              width: 345 * scale,
+                              width: contentWidth,
                               height: 68 * scale,
                               padding: EdgeInsets.symmetric(
                                 horizontal: 16 * scale,
@@ -263,7 +265,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                             onTap: () => setState(() => _isPrivate = false),
                             behavior: HitTestBehavior.opaque,
                             child: Container(
-                              width: 345 * scale,
+                              width: contentWidth,
                               height: 68 * scale,
                               padding: EdgeInsets.symmetric(
                                 horizontal: 16 * scale,
@@ -365,7 +367,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                           children: [
                             // Heading Text (345 x 32)
                             SizedBox(
-                              width: 345 * scale,
+                              width: contentWidth,
                               height: 32 * scale,
                               child: Text(
                                 'Who should get it?',
@@ -382,7 +384,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
 
                             // Search Field (div.input: Fill 345 x Fixed 48, radius 12, fill #17182D)
                             SizedBox(
-                              width: 345 * scale,
+                              width: contentWidth,
                               height: 48 * scale,
                               child: TextField(
                                 controller: _searchController,
@@ -423,6 +425,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                               avatarColor: const Color(0xFF3B82F6),
                               name: 'Annas',
                               scale: scale,
+                              width: contentWidth,
                               isSelected: _selectedRecipients.contains('Annas'),
                               onTap: () => _toggleRecipient('Annas'),
                             ),
@@ -435,6 +438,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                               avatarColor: const Color(0xFF8B5CF6),
                               name: 'Marcus',
                               scale: scale,
+                              width: contentWidth,
                               isSelected: _selectedRecipients.contains('Marcus'),
                               onTap: () => _toggleRecipient('Marcus'),
                             ),
@@ -538,7 +542,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                 24 * scale,
               ),
               child: SizedBox(
-                width: 345 * scale,
+                width: contentWidth,
                 height: 48 * scale,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
@@ -594,6 +598,7 @@ class _ContactCard extends StatefulWidget {
     required this.avatarColor,
     required this.name,
     required this.scale,
+    required this.width,
     required this.isSelected,
     required this.onTap,
   });
@@ -602,6 +607,7 @@ class _ContactCard extends StatefulWidget {
   final Color avatarColor;
   final String name;
   final double scale;
+  final double width;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -613,7 +619,7 @@ class _ContactCardState extends State<_ContactCard> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 345 * widget.scale,
+      width: widget.width,
       height: 48 * widget.scale,
       padding: EdgeInsets.symmetric(
         horizontal: 12 * widget.scale,

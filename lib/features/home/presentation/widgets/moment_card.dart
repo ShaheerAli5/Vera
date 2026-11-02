@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-
 import '../../domain/entities/moment.dart';
 
 class MomentCard extends StatelessWidget {

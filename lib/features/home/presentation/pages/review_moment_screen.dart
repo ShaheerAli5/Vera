@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
 import '../../domain/entities/moment.dart';
 import 'home_screen.dart';
@@ -78,7 +79,8 @@ class ReviewMomentScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
-    final scale = (screen.width / 390).clamp(.82, 1.12);
+    final scale = VeraResponsive.scale(screen.width, designWidth: 390);
+    final contentWidth = VeraResponsive.contentWidth(screen.width, horizontalPadding: 24 * scale);
 
     return Scaffold(
       backgroundColor: VeraTheme.background,
@@ -209,7 +211,7 @@ class ReviewMomentScreen extends StatelessWidget {
                   children: [
                     // Heading Text (345 x 32)
                     SizedBox(
-                      width: 345 * scale,
+                      width: contentWidth,
                       height: 32 * scale,
                       child: Text(
                         'Review your moment',
@@ -227,7 +229,7 @@ class ReviewMomentScreen extends StatelessWidget {
 
                     // Card 1: Content Summary Card
                     Container(
-                      width: 345 * scale,
+                      width: contentWidth,
                       height: 120 * scale,
                       padding: EdgeInsets.all(12 * scale),
                       decoration: BoxDecoration(
@@ -359,7 +361,7 @@ class ReviewMomentScreen extends StatelessWidget {
 
                     // Card 2: Audience Summary Card
                     Container(
-                      width: 345 * scale,
+                      width: contentWidth,
                       height: 88 * scale,
                       padding: EdgeInsets.all(12 * scale),
                       decoration: BoxDecoration(
@@ -431,7 +433,7 @@ class ReviewMomentScreen extends StatelessWidget {
 
                     // Card 3: Unlock Condition Summary Card
                     Container(
-                      width: 345 * scale,
+                      width: contentWidth,
                       height: 88 * scale,
                       padding: EdgeInsets.all(12 * scale),
                       decoration: BoxDecoration(
@@ -520,7 +522,7 @@ class ReviewMomentScreen extends StatelessWidget {
                 24 * scale,
               ),
               child: SizedBox(
-                width: 345 * scale,
+                width: contentWidth,
                 height: 48 * scale,
                 child: DecoratedBox(
                   decoration: BoxDecoration(

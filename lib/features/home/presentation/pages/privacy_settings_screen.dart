@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../../core/layout/responsive.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/theme/theme.dart';
+import '../../../../core/widgets/vera_popup.dart';
 
 class PrivacySettingsScreen extends StatefulWidget {
   const PrivacySettingsScreen({super.key});
@@ -30,7 +32,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final scale = (MediaQuery.sizeOf(context).width / 393).clamp(.82, 1.12);
+    final scale = VeraResponsive.scale(MediaQuery.sizeOf(context).width);
 
     return Scaffold(
       backgroundColor: VeraTheme.background,
@@ -316,11 +318,11 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                                         setState(() {
                                           _blockedUsers.removeAt(i);
                                         });
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('Unblocked ${user['name']}'),
-                                            behavior: SnackBarBehavior.floating,
-                                          ),
+                                        VeraPopup.show(
+                                          context,
+                                          title: 'User unblocked',
+                                          message: '${user['name']} can contact you again.',
+                                          icon: Icons.person_add_alt_1_rounded,
                                         );
                                       },
                                       style: TextButton.styleFrom(
@@ -358,11 +360,12 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                           iconAsset: 'assets/images/export.svg',
                           fallbackIcon: Icons.upload_rounded,
                           onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Exporting data...'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
+                            VeraPopup.show(
+                              context,
+                              title: 'Preparing your export',
+                              message: 'We’re gathering your account data.',
+                              icon: Icons.file_download_outlined,
+                              accent: const Color(0xFF9E8BFF),
                             );
                           },
                           scale: scale,

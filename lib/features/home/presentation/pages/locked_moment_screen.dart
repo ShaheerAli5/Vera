@@ -2,7 +2,9 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
+import '../../../../core/widgets/vera_popup.dart';
 import '../../domain/entities/moment.dart';
 
 class LockedMomentScreen extends StatelessWidget {
@@ -12,7 +14,7 @@ class LockedMomentScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scale = (MediaQuery.sizeOf(context).width / 393).clamp(.82, 1.12);
+    final scale = VeraResponsive.scale(MediaQuery.sizeOf(context).width);
 
     return Scaffold(
       backgroundColor: const Color(0xFF080914),
@@ -110,11 +112,12 @@ class LockedMomentScreen extends StatelessWidget {
                         ),
                         child: TextButton(
                           onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('This moment is still locked.'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
+                            VeraPopup.show(
+                              context,
+                              title: 'Still locked',
+                              message: 'This moment isn’t ready to open yet.',
+                              icon: Icons.lock_outline_rounded,
+                              accent: const Color(0xFF8CB8FF),
                             );
                           },
                           style: TextButton.styleFrom(

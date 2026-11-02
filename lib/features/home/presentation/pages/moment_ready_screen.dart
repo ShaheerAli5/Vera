@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
+import '../../../../core/widgets/vera_popup.dart';
 import 'home_screen.dart';
 
 class MomentReadyScreen extends StatelessWidget {
@@ -22,7 +24,8 @@ class MomentReadyScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
-    final scale = (screen.width / 390).clamp(.82, 1.12);
+    final scale = VeraResponsive.scale(screen.width, designWidth: 390);
+    final contentWidth = VeraResponsive.contentWidth(screen.width, horizontalPadding: 24 * scale);
 
     final subtitleText = isPublic
         ? 'Your public moment was sent for review. It appears in Discover once approved.'
@@ -93,7 +96,7 @@ class MomentReadyScreen extends StatelessWidget {
 
                     // Moment Summary Card
                     Container(
-                      width: 345 * scale,
+                      width: contentWidth,
                       padding: EdgeInsets.all(12 * scale),
                       decoration: BoxDecoration(
                         color: const Color(0xFF17182D),
@@ -191,8 +194,11 @@ class MomentReadyScreen extends StatelessWidget {
                           GestureDetector(
                             onTap: () {
                               Clipboard.setData(ClipboardData(text: shareUrl));
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Link copied to clipboard!')),
+                              VeraPopup.show(
+                                context,
+                                title: 'Link copied',
+                                message: 'Your moment link is ready to share.',
+                                icon: Icons.link_rounded,
                               );
                             },
                             behavior: HitTestBehavior.opaque,
@@ -240,7 +246,7 @@ class MomentReadyScreen extends StatelessWidget {
               ),
               child: isPublic
                   ? SizedBox(
-                      width: 345 * scale,
+                      width: contentWidth,
                       height: 48 * scale,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
@@ -286,7 +292,7 @@ class MomentReadyScreen extends StatelessWidget {
                       children: [
                         // Primary Button: Share Link
                         SizedBox(
-                          width: 345 * scale,
+                          width: contentWidth,
                           height: 48 * scale,
                           child: DecoratedBox(
                             decoration: BoxDecoration(
@@ -304,8 +310,11 @@ class MomentReadyScreen extends StatelessWidget {
                             child: TextButton(
                               onPressed: () {
                                 Clipboard.setData(ClipboardData(text: shareUrl));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Link copied to clipboard!')),
+                                VeraPopup.show(
+                                  context,
+                                  title: 'Link copied',
+                                  message: 'Your moment link is ready to share.',
+                                  icon: Icons.link_rounded,
                                 );
                               },
                               style: TextButton.styleFrom(
@@ -327,7 +336,7 @@ class MomentReadyScreen extends StatelessWidget {
 
                         // Secondary Button: View in Your moments
                         SizedBox(
-                          width: 345 * scale,
+                          width: contentWidth,
                           height: 48 * scale,
                           child: OutlinedButton(
                             onPressed: () {
