@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/layout/responsive.dart';
 import 'sign_in_screen.dart';
+import 'verify_email_screen.dart';
 import '../../../../core/theme/theme.dart';
+import '../../../../core/widgets/vera_popup.dart';
 import '../../../home/presentation/pages/home_screen.dart';
 import '../../../../shared/widgets/vera_logo.dart';
 
@@ -201,16 +203,44 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                             ],
                           ),
                           child: TextButton(
-                            onPressed: _canSubmit
-                                ? () {
-                                    Navigator.of(context).pushAndRemoveUntil(
-                                      MaterialPageRoute<void>(
-                                        builder: (_) => const HomeScreen(),
-                                      ),
-                                      (route) => false,
-                                    );
-                                  }
-                                : null,
+                            onPressed: () {
+                              if (_name.trim().isEmpty) {
+                                VeraPopup.show(
+                                  context,
+                                  title: 'Name required',
+                                  message: 'Please enter your name to continue.',
+                                  icon: Icons.person_outline_rounded,
+                                  accent: VeraTheme.warning,
+                                );
+                                return;
+                              }
+                              if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(_email.trim())) {
+                                VeraPopup.show(
+                                  context,
+                                  title: 'Valid email required',
+                                  message: 'Please enter a valid email address (e.g. name@example.com).',
+                                  icon: Icons.email_outlined,
+                                  accent: VeraTheme.warning,
+                                );
+                                return;
+                              }
+                              if (!_acceptedTerms) {
+                                VeraPopup.show(
+                                  context,
+                                  title: 'Terms & Conditions',
+                                  message: 'Please accept the Terms of Use and Privacy Policy.',
+                                  icon: Icons.gavel_rounded,
+                                  accent: VeraTheme.warning,
+                                );
+                                return;
+                              }
+
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => VerifyEmailScreen(email: _email.trim()),
+                                ),
+                              );
+                            },
                             style: TextButton.styleFrom(
                               foregroundColor: Colors.white,
                               shape: const StadiumBorder(),
@@ -266,10 +296,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     );
   }
 
-  bool get _canSubmit =>
-      _name.trim().isNotEmpty &&
-      RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(_email.trim()) &&
-      _acceptedTerms;
+
 }
 
 class _InputField extends StatelessWidget {
