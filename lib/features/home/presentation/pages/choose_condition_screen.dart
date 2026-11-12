@@ -1,25 +1,265 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
+import '../../data/models/create_moment_params.dart';
 import 'review_moment_screen.dart';
 
 class ChooseConditionScreen extends StatefulWidget {
   const ChooseConditionScreen({
     super.key,
+    required this.title,
+    required this.category,
+    required this.teaser,
+    this.message,
     this.isPrivate = true,
-    this.recipientName,
+    this.recipientUserIds = const [],
+    this.recipientNames,
+    this.inviteEmails = const [],
+    this.mediaFile,
+    this.mediaBytes,
+    this.isVideo = false,
   });
 
+  final String title;
+  final String category;
+  final String teaser;
+  final String? message;
   final bool isPrivate;
-  final String? recipientName;
+  final List<String> recipientUserIds;
+  final String? recipientNames;
+  final List<String> inviteEmails;
+  final XFile? mediaFile;
+  final Uint8List? mediaBytes;
+  final bool isVideo;
 
   @override
   State<ChooseConditionScreen> createState() => _ChooseConditionScreenState();
 }
 
 class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
-  bool _isDateTimeCondition = false; // Default to Location or Date & Time toggle
+  bool _isDateTimeCondition = true;
+  late DateTime _selectedDateTime;
   final TextEditingController _dateController = TextEditingController();
+  late String _timezone;
+
+  final List<Map<String, dynamic>> _locationPresets = const [
+    {
+      'flag': '🇯🇵',
+      'name': 'Tokyo Tower',
+      'latitude': 35.6586,
+      'longitude': 139.7454,
+      'radiusM': 200,
+    },
+    {
+      'flag': '🇫🇷',
+      'name': 'Eiffel Tower',
+      'latitude': 48.8584,
+      'longitude': 2.2945,
+      'radiusM': 200,
+    },
+    {
+      'flag': '🇮🇸',
+      'name': 'Reykjavik harbor',
+      'latitude': 64.1508,
+      'longitude': -21.9406,
+      'radiusM': 200,
+    },
+  ];
+  String _selectedLocation = 'Tokyo Tower';
+  final String _selectedRadius = '200m';
+
+  Map<String, dynamic> get _activeLocationPreset =>
+      _locationPresets.firstWhere(
+        (loc) => loc['name'] == _selectedLocation,
+        orElse: () => _locationPresets.first,
+      );
+
+  @override
+  void initState() {
+    super.initState();
+    _isDateTimeCondition = true;
+    _timezone = MomentUnlockRule.normalizeIanaTimezone(DateTime.now().timeZoneName);
+    _selectedDateTime = DateTime.now()
+        .add(const Duration(days: 1))
+        .copyWith(hour: 9, minute: 0, second: 0, millisecond: 0);
+    _updateDateController();
+  }
+
+  void _showTimezonePicker(double scale) {
+    const timezones = [
+      {'id': 'Asia/Karachi', 'label': 'Asia/Karachi (PKT)'},
+      {'id': 'UTC', 'label': 'UTC (Coordinated Universal Time)'},
+      {'id': 'Asia/Dubai', 'label': 'Asia/Dubai (GST)'},
+      {'id': 'Asia/Kolkata', 'label': 'Asia/Kolkata (IST)'},
+      {'id': 'Europe/London', 'label': 'Europe/London (GMT / BST)'},
+      {'id': 'Europe/Paris', 'label': 'Europe/Paris (CET / CEST)'},
+      {'id': 'America/New_York', 'label': 'America/New_York (Eastern Time)'},
+      {'id': 'America/Chicago', 'label': 'America/Chicago (Central Time)'},
+      {'id': 'America/Denver', 'label': 'America/Denver (Mountain Time)'},
+      {'id': 'America/Los_Angeles', 'label': 'America/Los_Angeles (Pacific Time)'},
+      {'id': 'Asia/Singapore', 'label': 'Asia/Singapore (SGT)'},
+      {'id': 'Asia/Tokyo', 'label': 'Asia/Tokyo (JST)'},
+      {'id': 'Australia/Sydney', 'label': 'Australia/Sydney (AEST)'},
+    ];
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withAlpha(160),
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.7,
+          ),
+          decoration: BoxDecoration(
+            color: const Color(0xFF16172E),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(24 * scale),
+              topRight: Radius.circular(24 * scale),
+            ),
+            border: Border.all(
+              color: const Color(0x333F4356),
+              width: scale,
+            ),
+          ),
+          padding: EdgeInsets.fromLTRB(
+            24 * scale,
+            24 * scale,
+            24 * scale,
+            36 * scale,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Select Timezone (IANA)',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18 * scale,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: 16 * scale),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: timezones.length,
+                  separatorBuilder: (context, index) => Divider(
+                    color: const Color(0x1AFFFFFF),
+                    height: 1 * scale,
+                  ),
+                  itemBuilder: (context, index) {
+                    final tz = timezones[index];
+                    final isSelected = _timezone.toLowerCase() == tz['id']!.toLowerCase();
+                    return ListTile(
+                      contentPadding: EdgeInsets.symmetric(
+                        vertical: 4 * scale,
+                        horizontal: 8 * scale,
+                      ),
+                      title: Text(
+                        tz['label']!,
+                        style: TextStyle(
+                          color: isSelected ? VeraTheme.purpleBright : Colors.white,
+                          fontSize: 14 * scale,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                      trailing: isSelected
+                          ? Icon(
+                              Icons.check_circle_rounded,
+                              color: VeraTheme.purpleBright,
+                              size: 20 * scale,
+                            )
+                          : null,
+                      onTap: () {
+                        setState(() => _timezone = tz['id']!);
+                        Navigator.of(sheetContext).pop();
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _updateDateController() {
+    final monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    final m = monthNames[_selectedDateTime.month - 1];
+    final d = _selectedDateTime.day;
+    final y = _selectedDateTime.year;
+    final hour = _selectedDateTime.hour > 12
+        ? _selectedDateTime.hour - 12
+        : (_selectedDateTime.hour == 0 ? 12 : _selectedDateTime.hour);
+    final min = _selectedDateTime.minute.toString().padLeft(2, '0');
+    final ampm = _selectedDateTime.hour >= 12 ? 'PM' : 'AM';
+    _dateController.text = '$m $d, $y · $hour:$min $ampm';
+  }
+
+  Future<void> _pickDateTime() async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _selectedDateTime,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: VeraTheme.purple,
+              onPrimary: Colors.white,
+              surface: Color(0xFF17182D),
+              onSurface: Colors.white,
+            ),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
+    );
+    if (pickedDate == null || !mounted) return;
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(
+        hour: _selectedDateTime.hour,
+        minute: _selectedDateTime.minute,
+      ),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: VeraTheme.purple,
+              onPrimary: Colors.white,
+              surface: Color(0xFF17182D),
+              onSurface: Colors.white,
+            ),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
+    );
+    if (pickedTime == null || !mounted) return;
+
+    setState(() {
+      _selectedDateTime = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedTime.hour,
+        pickedTime.minute,
+      );
+      _updateDateController();
+    });
+  }
 
   @override
   void dispose() {
@@ -109,7 +349,7 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
               ),
             ),
 
-            // 3-Step Progress Bar (Step 1, 2 and 3 Active)
+            // 3-Step Progress Bar
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24 * scale, vertical: 6 * scale),
               child: Row(
@@ -244,7 +484,7 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                                         ),
                                         SizedBox(height: 2 * scale),
                                         Text(
-                                          'Your audience will be able access the moment on a specific date and time',
+                                          'Your audience will be able to access the moment on a specific date and time',
                                           style: TextStyle(
                                             color: const Color(0xFFD4D4E8),
                                             fontSize: 11.5 * scale,
@@ -319,7 +559,7 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                                         ),
                                         SizedBox(height: 2 * scale),
                                         Text(
-                                          'Your audience will be able access the moment on a specific location',
+                                          'Your audience will be able to access the moment at a specific location',
                                           style: TextStyle(
                                             color: const Color(0xFFD4D4E8),
                                             fontSize: 11.5 * scale,
@@ -363,6 +603,8 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                               height: 48 * scale,
                               child: TextField(
                                 controller: _dateController,
+                                readOnly: true,
+                                onTap: _pickDateTime,
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 14 * scale,
@@ -373,10 +615,13 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                                     color: const Color(0xFF8A8EB3),
                                     fontSize: 14 * scale,
                                   ),
-                                  suffixIcon: Icon(
-                                    Icons.calendar_today_outlined,
-                                    color: const Color(0xFF8A8EB3),
-                                    size: 20 * scale,
+                                  suffixIcon: GestureDetector(
+                                    onTap: _pickDateTime,
+                                    child: Icon(
+                                      Icons.calendar_today_outlined,
+                                      color: const Color(0xFF8A8EB3),
+                                      size: 20 * scale,
+                                    ),
                                   ),
                                   filled: true,
                                   fillColor: const Color(0xFF17182D),
@@ -389,6 +634,45 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                                         BorderRadius.circular(12 * scale),
                                     borderSide: BorderSide.none,
                                   ),
+                                ),
+                              ),
+                            ),
+                            SizedBox(height: 10 * scale),
+                            GestureDetector(
+                              onTap: () => _showTimezonePicker(scale),
+                              child: Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 14 * scale,
+                                  vertical: 8 * scale,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0x3317182D),
+                                  borderRadius: BorderRadius.circular(10 * scale),
+                                  border: Border.all(color: const Color(0x22FFFFFF)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.public_rounded,
+                                      size: 16 * scale,
+                                      color: VeraTheme.purpleBright,
+                                    ),
+                                    SizedBox(width: 8 * scale),
+                                    Text(
+                                      'Timezone: $_timezone',
+                                      style: TextStyle(
+                                        color: const Color(0xFFD4D4E8),
+                                        fontSize: 12 * scale,
+                                      ),
+                                    ),
+                                    SizedBox(width: 6 * scale),
+                                    Icon(
+                                      Icons.arrow_drop_down_rounded,
+                                      size: 18 * scale,
+                                      color: const Color(0xFF8A8EB3),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -416,26 +700,23 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                             ),
                             SizedBox(height: 16 * scale),
 
-                            // Location Preset Cards
-                            _LocationPresetCard(
-                              flag: '🇯🇵',
-                              name: 'Tokyo Tower',
-                              scale: scale,
-                            ),
-                            _LocationPresetCard(
-                              flag: '🇫🇷',
-                              name: 'Eiffel Tower',
-                              scale: scale,
-                            ),
-                            _LocationPresetCard(
-                              flag: '🇮🇸',
-                              name: 'Reykjavik harbor',
-                              scale: scale,
-                            ),
+                            // Dynamic Location Preset Cards
+                            ..._locationPresets.map((loc) {
+                              final name = loc['name']!;
+                              final flag = loc['flag']!;
+                              return _LocationPresetCard(
+                                flag: flag,
+                                name: name,
+                                scale: scale,
+                                isSelected: _selectedLocation == name,
+                                onTap: () =>
+                                    setState(() => _selectedLocation = name),
+                              );
+                            }),
 
                             SizedBox(height: 12 * scale),
 
-                            // Unlock Radius Sub-heading & Dropdown
+                            // Unlock Radius Sub-heading
                             Text(
                               'Unlock radius',
                               style: TextStyle(
@@ -465,7 +746,7 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                                     MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    '200m',
+                                    _selectedRadius,
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 14 * scale,
@@ -473,9 +754,9 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                                     ),
                                   ),
                                   Icon(
-                                    Icons.keyboard_arrow_down_rounded,
+                                    Icons.location_pin,
                                     color: const Color(0xFF8A8EB3),
-                                    size: 22 * scale,
+                                    size: 20 * scale,
                                   ),
                                 ],
                               ),
@@ -526,21 +807,42 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => ReviewMomentScreen(
-                            title: widget.isPrivate
-                                ? 'To my best friend'
-                                : 'Midnight at the tower',
+                            title: widget.title,
+                            category: widget.category,
+                            teaser: widget.teaser,
+                            message: widget.message,
                             audience: widget.isPrivate ? 'Private' : 'Public',
                             audienceSubtitle: widget.isPrivate
                                 ? 'Only select recipients'
                                 : 'Discoverable by other users',
                             condition: _isDateTimeCondition
-                                ? 'October 25, 2026 · 9:00 AM'
-                                : "Opens when you're at Tokyo Tower",
+                                ? _dateController.text
+                                : "Opens when you're at $_selectedLocation",
                             conditionSubtitle: _isDateTimeCondition
-                                ? 'Date & time (UTC+05:00)'
-                                : 'Location condition (200m radius)',
+                                ? 'Date & time ($_timezone)'
+                                : '$_selectedLocation ($_selectedRadius radius)',
                             isPrivate: widget.isPrivate,
-                            recipientName: widget.recipientName,
+                            recipientUserIds: widget.recipientUserIds,
+                            recipientName: widget.recipientNames,
+                            inviteEmails: widget.inviteEmails,
+                            unlockRuleType:
+                                _isDateTimeCondition ? 'DATE' : 'LOCATION',
+                            unlockAt:
+                                _selectedDateTime.toUtc().toIso8601String(),
+                            timezone: _timezone,
+                            latitude: _isDateTimeCondition
+                                ? null
+                                : (_activeLocationPreset['latitude'] as num?)?.toDouble(),
+                            longitude: _isDateTimeCondition
+                                ? null
+                                : (_activeLocationPreset['longitude'] as num?)?.toDouble(),
+                            radiusM: _isDateTimeCondition
+                                ? null
+                                : (_activeLocationPreset['radiusM'] as num?)?.toInt(),
+                            placeName: _isDateTimeCondition ? null : _selectedLocation,
+                            mediaFile: widget.mediaFile,
+                            mediaBytes: widget.mediaBytes,
+                            isVideo: widget.isVideo,
                           ),
                         ),
                       );
@@ -567,46 +869,39 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
   }
 }
 
-class _LocationPresetCard extends StatefulWidget {
+class _LocationPresetCard extends StatelessWidget {
   const _LocationPresetCard({
     required this.flag,
     required this.name,
     required this.scale,
+    required this.isSelected,
+    required this.onTap,
   });
 
   final String flag;
   final String name;
   final double scale;
-
-  @override
-  State<_LocationPresetCard> createState() => _LocationPresetCardState();
-}
-
-class _LocationPresetCardState extends State<_LocationPresetCard> {
-  bool _isSelected = false;
+  final bool isSelected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          _isSelected = !_isSelected;
-        });
-      },
+      onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: VeraResponsive.contentWidth(
           MediaQuery.sizeOf(context).width,
-          horizontalPadding: 24 * widget.scale,
+          horizontalPadding: 24 * scale,
         ),
-        height: 48 * widget.scale,
-        margin: EdgeInsets.only(bottom: 12 * widget.scale),
-        padding: EdgeInsets.symmetric(horizontal: 16 * widget.scale),
+        height: 48 * scale,
+        margin: EdgeInsets.only(bottom: 12 * scale),
+        padding: EdgeInsets.symmetric(horizontal: 16 * scale),
         decoration: BoxDecoration(
           color: const Color(0xFF17182D),
-          borderRadius: BorderRadius.circular(12 * widget.scale),
+          borderRadius: BorderRadius.circular(12 * scale),
           border: Border.all(
-            color: _isSelected
+            color: isSelected
                 ? VeraTheme.purpleBright
                 : const Color(0x1AFFFFFF),
             width: 1,
@@ -615,18 +910,26 @@ class _LocationPresetCardState extends State<_LocationPresetCard> {
         child: Row(
           children: [
             Text(
-              widget.flag,
-              style: TextStyle(fontSize: 18 * widget.scale),
+              flag,
+              style: TextStyle(fontSize: 18 * scale),
             ),
-            SizedBox(width: 12 * widget.scale),
-            Text(
-              widget.name,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 14 * widget.scale,
-                fontWeight: FontWeight.w600,
+            SizedBox(width: 12 * scale),
+            Expanded(
+              child: Text(
+                name,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14 * scale,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
+            if (isSelected)
+              Icon(
+                Icons.check_circle_rounded,
+                color: VeraTheme.purpleBright,
+                size: 20 * scale,
+              ),
           ],
         ),
       ),

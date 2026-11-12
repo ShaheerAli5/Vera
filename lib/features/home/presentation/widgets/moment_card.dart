@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../domain/entities/moment.dart';
+import '../pages/edit_moment_screen.dart';
 
 class MomentCard extends StatelessWidget {
   const MomentCard({
@@ -9,12 +10,14 @@ class MomentCard extends StatelessWidget {
     required this.scale,
     this.showDiscoverActions = false,
     this.onTap,
+    this.onMomentUpdated,
   });
 
   final Moment moment;
   final double scale;
   final bool showDiscoverActions;
   final VoidCallback? onTap;
+  final ValueChanged<Moment>? onMomentUpdated;
 
   @override
   Widget build(BuildContext context) {
@@ -43,23 +46,37 @@ class MomentCard extends StatelessWidget {
             // Background Image with Blur
             ImageFiltered(
               imageFilter: ImageFilter.blur(sigmaX: 7, sigmaY: 7),
-              child: Image.network(
-                moment.backgroundImageUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF1E2B45),
-                        Color(0xFF0F172A),
-                        Color(0xFF2C1338),
-                      ],
+              child: moment.backgroundImageUrl.isNotEmpty
+                  ? Image.network(
+                      moment.backgroundImageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Color(0xFF1E2B45),
+                              Color(0xFF0F172A),
+                              Color(0xFF2C1338),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )
+                  : Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Color(0xFF1E2B45),
+                            Color(0xFF0F172A),
+                            Color(0xFF2C1338),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
             ),
 
             // Dark gradient overlay
@@ -213,15 +230,21 @@ class MomentCard extends StatelessWidget {
                   height: 40 * scale,
                   decoration: const BoxDecoration(shape: BoxShape.circle),
                   child: ClipOval(
-                    child: Image.network(
-                      moment.userAvatarUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: const Color(0xFF6B42FF),
-                        child: Icon(Icons.person, size: 20 * scale,
-                            color: Colors.white),
-                      ),
-                    ),
+                    child: moment.userAvatarUrl.isNotEmpty
+                        ? Image.network(
+                            moment.userAvatarUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              color: const Color(0xFF6B42FF),
+                              child: Icon(Icons.person, size: 20 * scale,
+                                  color: Colors.white),
+                            ),
+                          )
+                        : Container(
+                            color: const Color(0xFF6B42FF),
+                            child: Icon(Icons.person, size: 20 * scale,
+                                color: Colors.white),
+                          ),
                   ),
                 ),
               SizedBox(width: 10 * scale),
@@ -391,6 +414,22 @@ class MomentCard extends StatelessWidget {
                     ),
                   ),
                   SizedBox(height: 24 * responsiveScale),
+                  _MomentActionButton(
+                    label: 'Edit moment',
+                    scale: responsiveScale,
+                    onTap: () async {
+                      Navigator.of(sheetContext).pop();
+                      final updated = await Navigator.of(context).push<Moment>(
+                        MaterialPageRoute<Moment>(
+                          builder: (_) => EditMomentScreen(moment: moment),
+                        ),
+                      );
+                      if (updated != null && onMomentUpdated != null) {
+                        onMomentUpdated!(updated);
+                      }
+                    },
+                  ),
+                  SizedBox(height: 16 * responsiveScale),
                   _MomentActionButton(
                     label: 'Report moment',
                     scale: responsiveScale,

@@ -1,7 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/widgets/vera_popup.dart';
+import '../../../../main.dart' show ApiClientScope;
+import '../../data/datasources/moments_remote_data_source.dart';
+import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
 
 class UnlockedMomentScreen extends StatefulWidget {
@@ -15,6 +20,69 @@ class UnlockedMomentScreen extends StatefulWidget {
 
 class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
   final TextEditingController _replyController = TextEditingController();
+  late Moment _currentMoment;
+  bool _isLoading = false;
+  Uint8List? _mediaBytes;
+  bool _isLoadingMedia = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentMoment = widget.moment;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_currentMoment.message == null || _currentMoment.message!.isEmpty) {
+        _fetchFullMoment();
+      }
+      _fetchMediaStream();
+    });
+  }
+
+  Future<void> _fetchMediaStream() async {
+    if (_currentMoment.id.isEmpty || _isLoadingMedia) return;
+    setState(() => _isLoadingMedia = true);
+
+    try {
+      final client = ApiClientScope.of(context);
+      final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+      final stream = await repo.getMomentMedia(_currentMoment.id);
+
+      if (!mounted) return;
+      setState(() {
+        _mediaBytes = stream.bytes;
+        _isLoadingMedia = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoadingMedia = false);
+    }
+  }
+
+  Future<void> _fetchFullMoment() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final client = ApiClientScope.of(context);
+      final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+      final model = await repo.getMomentContent(_currentMoment.id);
+      final entity = model.toEntity();
+
+      if (!mounted) return;
+      setState(() {
+        _currentMoment = _currentMoment.copyWith(
+          message: entity.message,
+          backgroundImageUrl: (entity.backgroundImageUrl.isNotEmpty && !entity.backgroundImageUrl.contains('api/v1/moments'))
+              ? entity.backgroundImageUrl
+              : _currentMoment.backgroundImageUrl,
+          openedAt: entity.openedAt ?? _currentMoment.openedAt,
+        );
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -24,7 +92,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final moment = widget.moment;
+    final moment = _currentMoment;
     final screenWidth = MediaQuery.sizeOf(context).width;
     final scale = VeraResponsive.scale(screenWidth);
     final contentWidth = VeraResponsive.contentWidth(screenWidth, horizontalPadding: 24 * scale);
@@ -76,11 +144,16 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                       children: [
                         _SenderBadge(moment: moment, scale: scale),
                         SizedBox(height: 16 * scale),
-                        _VideoPreview(moment: moment, scale: scale),
+                        _VideoPreview(
+                          moment: moment,
+                          scale: scale,
+                          mediaBytes: _mediaBytes,
+                          isLoadingMedia: _isLoadingMedia,
+                        ),
                         SizedBox(height: 16 * scale),
                         Container(
                           width: contentWidth,
-                          height: 82 * scale,
+                          constraints: BoxConstraints(minHeight: 82 * scale),
                           padding: EdgeInsets.all(16 * scale),
                           alignment: Alignment.centerLeft,
                           decoration: BoxDecoration(
@@ -89,17 +162,29 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                             border: Border.all(
                                 color: const Color(0xFF373657), width: scale),
                           ),
-                          child: Text(
-                            moment.message ??
-                                'Merry Christmas! I saved this view for you.\n'
-                                    'Hope it makes your day.',
-                            style: TextStyle(
-                              color: const Color(0xFFF7F5FF),
-                              fontSize: 16 * scale,
-                              fontWeight: FontWeight.w400,
-                              height: 24 / 16,
-                            ),
-                          ),
+                          child: _isLoading
+                              ? Center(
+                                  child: SizedBox(
+                                    width: 20 * scale,
+                                    height: 20 * scale,
+                                    child: const CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Color(0xFF9044FB),
+                                    ),
+                                  ),
+                                )
+                              : Text(
+                                  (moment.message != null &&
+                                          moment.message!.isNotEmpty)
+                                      ? moment.message!
+                                      : 'No message provided for this moment.',
+                                  style: TextStyle(
+                                    color: const Color(0xFFF7F5FF),
+                                    fontSize: 16 * scale,
+                                    fontWeight: FontWeight.w400,
+                                    height: 24 / 16,
+                                  ),
+                                ),
                         ),
                       ],
                     ),
@@ -147,19 +232,27 @@ class _SenderBadge extends StatelessWidget {
       child: Row(
         children: [
           ClipOval(
-            child: Image.network(
-              moment.userAvatarUrl,
-              width: 36 * scale,
-              height: 36 * scale,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => Container(
-                width: 36 * scale,
-                height: 36 * scale,
-                color: const Color(0xFF6B42FF),
-                child: Icon(Icons.person,
-                    color: Colors.white, size: 18 * scale),
-              ),
-            ),
+            child: moment.userAvatarUrl.isNotEmpty
+                ? Image.network(
+                    moment.userAvatarUrl,
+                    width: 36 * scale,
+                    height: 36 * scale,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      width: 36 * scale,
+                      height: 36 * scale,
+                      color: const Color(0xFF6B42FF),
+                      child: Icon(Icons.person,
+                          color: Colors.white, size: 18 * scale),
+                    ),
+                  )
+                : Container(
+                    width: 36 * scale,
+                    height: 36 * scale,
+                    color: const Color(0xFF6B42FF),
+                    child: Icon(Icons.person,
+                        color: Colors.white, size: 18 * scale),
+                  ),
           ),
           SizedBox(width: 10 * scale),
           Column(
@@ -191,10 +284,17 @@ class _SenderBadge extends StatelessWidget {
 }
 
 class _VideoPreview extends StatelessWidget {
-  const _VideoPreview({required this.moment, required this.scale});
+  const _VideoPreview({
+    required this.moment,
+    required this.scale,
+    this.mediaBytes,
+    this.isLoadingMedia = false,
+  });
 
   final Moment moment;
   final double scale;
+  final Uint8List? mediaBytes;
+  final bool isLoadingMedia;
 
   @override
   Widget build(BuildContext context) {
@@ -206,19 +306,51 @@ class _VideoPreview extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Image.network(
-              moment.backgroundImageUrl,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF124552), Color(0xFF51352F)],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
+            if (mediaBytes != null && mediaBytes!.isNotEmpty)
+              Image.memory(
+                mediaBytes!,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    _buildFallbackImage(),
+              )
+            else
+              _buildFallbackImage(),
+            if (isLoadingMedia)
+              Positioned(
+                top: 14 * scale,
+                right: 14 * scale,
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 10 * scale,
+                    vertical: 4 * scale,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0x99000000),
+                    borderRadius: BorderRadius.circular(20 * scale),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 10 * scale,
+                        height: 10 * scale,
+                        child: const CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(width: 6 * scale),
+                      Text(
+                        'Streaming...',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11 * scale,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -288,6 +420,22 @@ class _VideoPreview extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFallbackImage() {
+    return Image.network(
+      moment.backgroundImageUrl,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => const DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF124552), Color(0xFF51352F)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
         ),
       ),
     );

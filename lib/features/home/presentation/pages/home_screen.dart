@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/layout/responsive.dart';
+import '../../../../main.dart' show ApiClientScope;
 import '../../../../shared/widgets/vera_logo.dart';
+import '../../data/datasources/moments_remote_data_source.dart';
+import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/moment_card.dart';
@@ -26,84 +29,8 @@ class HomeScreen extends StatefulWidget {
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 
-  static const List<Moment> forYouMoments = [
-    Moment(
-      id: 'fy_1',
-      userName: 'John Travolta',
-      userAvatarUrl:
-          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200',
-      timeAgo: '2h ago',
-      backgroundImageUrl:
-          'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=800',
-      unlockCondition: "Opens when you're at Tokyo\nTower",
-      unlockType: MomentUnlockType.location,
-      isReadyToOpen: false,
-    ),
-    Moment(
-      id: 'fy_2',
-      userName: 'John Travolta',
-      userAvatarUrl:
-          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200',
-      timeAgo: '2h ago',
-      backgroundImageUrl:
-          'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=800',
-      unlockCondition: "Opens Oct 1, 2026, 8:00 AM",
-      unlockType: MomentUnlockType.time,
-      isReadyToOpen: false,
-    ),
-    Moment(
-      id: 'fy_3',
-      userName: 'John Travolta',
-      userAvatarUrl:
-          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200',
-      timeAgo: '2h ago',
-      backgroundImageUrl:
-          'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=800',
-      unlockCondition: "Opens when you're at Tokyo\nTower",
-      unlockType: MomentUnlockType.location,
-      isReadyToOpen: true,
-    ),
-  ];
-
-  static const List<Moment> discoverMoments = [
-    Moment(
-      id: 'disc_1',
-      userName: 'John Travolta',
-      userAvatarUrl:
-          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200',
-      timeAgo: '2h ago',
-      backgroundImageUrl:
-          'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=800',
-      unlockCondition: "Opens when you're at Tokyo\nTower",
-      unlockType: MomentUnlockType.location,
-      isReadyToOpen: false,
-    ),
-    Moment(
-      id: 'disc_2',
-      userName: 'John Travolta',
-      userAvatarUrl:
-          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200',
-      timeAgo: '2h ago',
-      backgroundImageUrl:
-          'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=800',
-      unlockCondition: "Opens when you're at Tokyo\nTower",
-      unlockType: MomentUnlockType.location,
-      isReadyToOpen: false,
-    ),
-    Moment(
-      id: 'disc_3',
-      userName: 'Sarah Connor',
-      userAvatarUrl:
-          'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200',
-      timeAgo: '5h ago',
-      backgroundImageUrl:
-          'https://images.unsplash.com/photo-1514565131-fce0801e5785?q=80&w=800',
-      unlockCondition: "Opens when you're at Shibuya\nCrossing",
-      unlockType: MomentUnlockType.location,
-      isReadyToOpen: false,
-    ),
-  ];
-
+  static const List<Moment> forYouMoments = [];
+  static const List<Moment> discoverMoments = [];
   static const List<Moment> yourMoments = [];
   static final List<Moment> sentMoments = [];
 }
@@ -115,6 +42,12 @@ class _HomeScreenState extends State<HomeScreen> {
   String _searchQuery = '';
   String _selectedCategory = 'All';
 
+  bool _isLoadingMoments = false;
+  String? _momentsError;
+  List<Moment> _fetchedYourMoments = [];
+  List<Moment> _fetchedInboxMoments = [];
+  bool _hasLoadedOnce = false;
+
   @override
   void initState() {
     super.initState();
@@ -123,48 +56,97 @@ class _HomeScreenState extends State<HomeScreen> {
     _selectedMessageTab = widget.initialMessageTabIndex;
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_hasLoadedOnce) {
+      _hasLoadedOnce = true;
+      _fetchMoments();
+    }
+  }
+
+  Future<void> _fetchMoments({int page = 1, int limit = 20}) async {
+    setState(() {
+      _isLoadingMoments = true;
+      _momentsError = null;
+    });
+
+    try {
+      final client = ApiClientScope.of(context);
+      final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+
+      final results = await Future.wait([
+        repo.getMoments(page: page, limit: limit),
+        repo.getInboxMoments(page: page, limit: limit),
+      ]);
+
+      final myMomentsResponse = results[0];
+      final inboxMomentsResponse = results[1];
+
+      final mappedYour = myMomentsResponse.moments.map((m) => m.toEntity()).toList();
+      final mappedInbox = inboxMomentsResponse.moments.map((m) => m.toEntity()).toList();
+
+      if (!mounted) return;
+      setState(() {
+        _fetchedYourMoments = mappedYour;
+        _fetchedInboxMoments = mappedInbox;
+        HomeScreen.sentMoments.clear();
+        _isLoadingMoments = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _momentsError = e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
+        _isLoadingMoments = false;
+      });
+    }
+  }
+
   bool get _isDiscoverMode =>
       _selectedNavIndex == 1 || (_selectedNavIndex == 0 && _selectedTabIndex == 1);
 
   List<Moment> get _currentMoments {
     if (_isDiscoverMode) {
       final query = _searchQuery.trim().toLowerCase();
-      return HomeScreen.discoverMoments.where((moment) {
+      return _fetchedYourMoments.where((moment) {
+        if (!moment.isPublicSentMoment || moment.status != 'PUBLISHED') {
+          return false;
+        }
         final matchesQuery = query.isEmpty ||
-            '${moment.userName} ${moment.unlockCondition}'
+            '${moment.title ?? ''} ${moment.userName} ${moment.unlockCondition}'
                 .toLowerCase()
                 .contains(query);
         final matchesCategory = _selectedCategory == 'All' ||
-            (_selectedCategory == 'Travel' &&
-                moment.unlockCondition.toLowerCase().contains('tokyo')) ||
-            (_selectedCategory == 'Nature' &&
-                moment.unlockCondition.toLowerCase().contains('nature')) ||
-            (_selectedCategory == 'Love' &&
-                moment.userName.toLowerCase().contains('love'));
+            (moment.title != null && moment.title!.toLowerCase().contains(_selectedCategory.toLowerCase())) ||
+            moment.unlockCondition.toLowerCase().contains(_selectedCategory.toLowerCase());
         return matchesQuery && matchesCategory;
       }).toList();
     }
     if (_selectedNavIndex == 2) {
-      if (_selectedMessageTab == 0) return const [];
-      return HomeScreen.sentMoments;
+      if (_selectedMessageTab == 0) return _fetchedInboxMoments;
+      return _fetchedYourMoments;
     }
     switch (_selectedTabIndex) {
       case 1:
-        return HomeScreen.discoverMoments;
+        return _fetchedYourMoments
+            .where((m) => m.isPublicSentMoment && m.status == 'PUBLISHED')
+            .toList();
       case 2:
-        return HomeScreen.yourMoments;
       case 0:
       default:
-        return HomeScreen.forYouMoments;
+        return _fetchedYourMoments;
     }
   }
 
-  void _navigateToCreateMoment() {
-    Navigator.of(context).push(
+  void _navigateToCreateMoment() async {
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => const CreateMomentScreen(),
       ),
     );
+    if (mounted) {
+      _fetchMoments();
+    }
   }
 
   @override
@@ -276,7 +258,62 @@ class _HomeScreenState extends State<HomeScreen> {
                       ? ProfileScreen(
                           scale: scale,
                           onCreate: _navigateToCreateMoment,
+                          moments: _fetchedYourMoments,
                         )
+                      : _isLoadingMoments && currentList.isEmpty
+                          ? Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2 * scale,
+                                color: const Color(0xFF9044FB),
+                              ),
+                            )
+                      : _selectedTabIndex == 2 &&
+                              _momentsError != null &&
+                              currentList.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 24 * scale),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.cloud_off_rounded,
+                                      color: const Color(0xFF8A8EB3),
+                                      size: 40 * scale,
+                                    ),
+                                    SizedBox(height: 12 * scale),
+                                    Text(
+                                      'Failed to load moments',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16 * scale,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    SizedBox(height: 6 * scale),
+                                    Text(
+                                      _momentsError!,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: const Color(0xFF8A8EB3),
+                                        fontSize: 12 * scale,
+                                      ),
+                                    ),
+                                    SizedBox(height: 16 * scale),
+                                    TextButton(
+                                      onPressed: () => _fetchMoments(),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: const Color(0xFF9044FB),
+                                      ),
+                                      child: Text(
+                                        'Try again',
+                                        style: TextStyle(fontSize: 13 * scale),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
                       : _isDiscoverMode && currentList.isEmpty
                       ? _NoDiscoverMatches(scale: scale)
                       : _selectedNavIndex == 2 &&
@@ -295,34 +332,77 @@ class _HomeScreenState extends State<HomeScreen> {
                               scale: scale,
                               onCreateMomentTap: _navigateToCreateMoment,
                             )
-                      : ListView.builder(
-                          key: ValueKey<int>(_selectedTabIndex),
-                          padding: EdgeInsets.fromLTRB(
-                            (_isDiscoverMode ? 24 : 16) * scale,
-                            (_selectedNavIndex == 2 ? 16 : 8) * scale,
-                            (_isDiscoverMode ? 24 : 16) * scale,
-                            90 * scale,
+                      : RefreshIndicator(
+                          onRefresh: () => _fetchMoments(),
+                          color: const Color(0xFF9044FB),
+                          backgroundColor: const Color(0xFF17182D),
+                          child: ListView.builder(
+                            key: ValueKey<int>(_selectedTabIndex),
+                            padding: EdgeInsets.fromLTRB(
+                              (_isDiscoverMode ? 24 : 16) * scale,
+                              (_selectedNavIndex == 2 ? 16 : 8) * scale,
+                              (_isDiscoverMode ? 24 : 16) * scale,
+                              90 * scale,
+                            ),
+                            itemCount: currentList.length,
+                            itemBuilder: (context, index) {
+                              return MomentCard(
+                                moment: currentList[index],
+                                scale: scale,
+                                onTap: () async {
+                                  final moment = currentList[index];
+                                  final result = await Navigator.of(context).push<Moment>(
+                                    MaterialPageRoute<Moment>(
+                                      builder: (_) => moment.isReadyToOpen
+                                          ? UnlockedMomentScreen(moment: moment)
+                                          : LockedMomentScreen(moment: moment),
+                                    ),
+                                  );
+                                  if (result != null && mounted) {
+                                    setState(() {
+                                      if (result.id.startsWith('__DELETED__:')) {
+                                        final deletedId = result.id.replaceFirst('__DELETED__:', '');
+                                        _fetchedYourMoments.removeWhere((m) => m.id == deletedId);
+                                        _fetchedInboxMoments.removeWhere((m) => m.id == deletedId);
+                                        HomeScreen.sentMoments.removeWhere((m) => m.id == deletedId);
+                                      } else {
+                                        final i = _fetchedYourMoments.indexWhere((m) => m.id == result.id);
+                                        if (i >= 0) {
+                                          _fetchedYourMoments[i] = result;
+                                        }
+                                        final j = _fetchedInboxMoments.indexWhere((m) => m.id == result.id);
+                                        if (j >= 0) {
+                                          _fetchedInboxMoments[j] = result;
+                                        }
+                                      }
+                                    });
+                                  }
+                                },
+                                onMomentUpdated: (updated) {
+                                  setState(() {
+                                    if (updated.id.startsWith('__DELETED__:')) {
+                                      final deletedId = updated.id.replaceFirst('__DELETED__:', '');
+                                      _fetchedYourMoments.removeWhere((m) => m.id == deletedId);
+                                      _fetchedInboxMoments.removeWhere((m) => m.id == deletedId);
+                                      HomeScreen.sentMoments.removeWhere((m) => m.id == deletedId);
+                                    } else {
+                                      final i = _fetchedYourMoments.indexWhere((m) => m.id == updated.id);
+                                      if (i >= 0) {
+                                        _fetchedYourMoments[i] = updated;
+                                      }
+                                      final j = _fetchedInboxMoments.indexWhere((m) => m.id == updated.id);
+                                      if (j >= 0) {
+                                        _fetchedInboxMoments[j] = updated;
+                                      }
+                                    }
+                                  });
+                                },
+                                showDiscoverActions:
+                                    _isDiscoverMode ||
+                                    _selectedNavIndex == 2,
+                              );
+                            },
                           ),
-                          itemCount: currentList.length,
-                          itemBuilder: (context, index) {
-                            return MomentCard(
-                              moment: currentList[index],
-                              scale: scale,
-                              onTap: () {
-                                final moment = currentList[index];
-                                Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => moment.isReadyToOpen
-                                        ? UnlockedMomentScreen(moment: moment)
-                                        : LockedMomentScreen(moment: moment),
-                                  ),
-                                );
-                              },
-                              showDiscoverActions:
-                                  _isDiscoverMode ||
-                                  _selectedNavIndex == 2,
-                            );
-                          },
                         ),
                 ),
               ],
@@ -861,7 +941,7 @@ class _DiscoverHeader extends StatelessWidget {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _categories.length,
-              separatorBuilder: (_, __) => SizedBox(width: 8 * scale),
+              separatorBuilder: (_, _) => SizedBox(width: 8 * scale),
               itemBuilder: (context, index) {
                 final (label, icon) = _categories[index];
                 final selected = selectedCategory == label;

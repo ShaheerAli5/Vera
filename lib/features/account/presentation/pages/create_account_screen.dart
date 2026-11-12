@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/network/api_exception.dart';
+import '../../../../main.dart' show ApiClientScope;
 import '../../../../core/layout/responsive.dart';
+import '../../../home/presentation/pages/home_screen.dart';
 import 'sign_in_screen.dart';
 import 'verify_email_screen.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/widgets/vera_popup.dart';
-import '../../../home/presentation/pages/home_screen.dart';
 import '../../../../shared/widgets/vera_logo.dart';
+import '../../data/datasources/account_remote_data_source.dart';
+import '../../data/repositories/account_repository_impl.dart';
 
 class CreateAccountScreen extends StatefulWidget {
   const CreateAccountScreen({super.key});
@@ -18,7 +22,93 @@ class CreateAccountScreen extends StatefulWidget {
 class _CreateAccountScreenState extends State<CreateAccountScreen> {
   String _name = '';
   String _email = '';
+  String _password = '';
   bool _acceptedTerms = false;
+  bool _isSubmitting = false;
+
+  Future<void> _createAccount() async {
+    if (_isSubmitting) return;
+    if (_name.trim().isEmpty) {
+      _showValidation('Name required', 'Please enter your name to continue.', Icons.person_outline_rounded);
+      return;
+    }
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(_email.trim())) {
+      _showValidation('Valid email required', 'Please enter a valid email address.', Icons.email_outlined);
+      return;
+    }
+    if (_password.length < 8) {
+      _showValidation('Password required', 'Use a password with at least 8 characters.', Icons.lock_outline_rounded);
+      return;
+    }
+    if (!_acceptedTerms) {
+      _showValidation('Terms & Conditions', 'Please accept the Terms of Use and Privacy Policy.', Icons.gavel_rounded);
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    try {
+      final repository = AccountRepositoryImpl(
+        AccountRemoteDataSource(ApiClientScope.of(context)),
+      );
+      final user = await repository.register(
+        name: _name.trim(),
+        email: _email.trim(),
+        password: _password,
+      );
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => VerifyEmailScreen(email: user.email),
+        ),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      VeraPopup.show(
+        context,
+        title: _errorTitle(error.statusCode),
+        message: error.message,
+        icon: Icons.error_outline_rounded,
+        accent: VeraTheme.warning,
+      );
+    } on FormatException catch (error) {
+      if (!mounted) return;
+      VeraPopup.show(
+        context,
+        title: 'Unexpected server response',
+        message: error.message,
+        icon: Icons.error_outline_rounded,
+        accent: VeraTheme.warning,
+      );
+    } catch (_) {
+      if (!mounted) return;
+      VeraPopup.show(
+        context,
+        title: 'Could not connect',
+        message: 'Please check your connection and try again.',
+        icon: Icons.wifi_off_rounded,
+        accent: VeraTheme.warning,
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  String _errorTitle(int statusCode) => switch (statusCode) {
+        409 => 'Account already exists',
+        422 => 'Check your details',
+        429 => 'Please wait a moment',
+        _ => 'Registration failed',
+      };
+
+  void _showValidation(String title, String message, IconData icon) {
+    VeraPopup.show(
+      context,
+      title: title,
+      message: message,
+      icon: icon,
+      accent: VeraTheme.warning,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -137,6 +227,14 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                               keyboardType: TextInputType.emailAddress,
                             ),
                             SizedBox(height: 16 * scale),
+                            _InputField(
+                              label: 'Password',
+                              hint: 'At least 8 characters',
+                              onChanged: (value) => setState(() => _password = value),
+                              scale: scale,
+                              obscureText: true,
+                            ),
+                            SizedBox(height: 16 * scale),
                             SizedBox(
                               height: 28 * scale,
                               child: InkWell(
@@ -203,51 +301,23 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                             ],
                           ),
                           child: TextButton(
-                            onPressed: () {
-                              if (_name.trim().isEmpty) {
-                                VeraPopup.show(
-                                  context,
-                                  title: 'Name required',
-                                  message: 'Please enter your name to continue.',
-                                  icon: Icons.person_outline_rounded,
-                                  accent: VeraTheme.warning,
-                                );
-                                return;
-                              }
-                              if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(_email.trim())) {
-                                VeraPopup.show(
-                                  context,
-                                  title: 'Valid email required',
-                                  message: 'Please enter a valid email address (e.g. name@example.com).',
-                                  icon: Icons.email_outlined,
-                                  accent: VeraTheme.warning,
-                                );
-                                return;
-                              }
-                              if (!_acceptedTerms) {
-                                VeraPopup.show(
-                                  context,
-                                  title: 'Terms & Conditions',
-                                  message: 'Please accept the Terms of Use and Privacy Policy.',
-                                  icon: Icons.gavel_rounded,
-                                  accent: VeraTheme.warning,
-                                );
-                                return;
-                              }
-
-                              Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => VerifyEmailScreen(email: _email.trim()),
-                                ),
-                              );
-                            },
+                            onPressed: _isSubmitting ? null : _createAccount,
                             style: TextButton.styleFrom(
                               foregroundColor: Colors.white,
                               shape: const StadiumBorder(),
                               padding: EdgeInsets.zero,
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
-                            child: Text(
+                            child: _isSubmitting
+                                ? SizedBox(
+                                    width: 18 * scale,
+                                    height: 18 * scale,
+                                    child: const CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Text(
                               'Create account',
                               style: TextStyle(
                                 color: Colors.white,
@@ -307,6 +377,7 @@ class _InputField extends StatelessWidget {
     required this.scale,
     this.keyboardType,
     this.textCapitalization = TextCapitalization.none,
+    this.obscureText = false,
   });
 
   final String label;
@@ -315,6 +386,7 @@ class _InputField extends StatelessWidget {
   final double scale;
   final TextInputType? keyboardType;
   final TextCapitalization textCapitalization;
+  final bool obscureText;
 
   @override
   Widget build(BuildContext context) {
@@ -336,6 +408,7 @@ class _InputField extends StatelessWidget {
             onChanged: onChanged,
             keyboardType: keyboardType,
             textCapitalization: textCapitalization,
+            obscureText: obscureText,
             style: TextStyle(color: Colors.white, fontSize: 14 * scale),
             cursorColor: const Color(0xFFB45BFF),
             decoration: InputDecoration(

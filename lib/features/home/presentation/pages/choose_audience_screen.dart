@@ -1,10 +1,30 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
+import '../../../../core/widgets/vera_popup.dart';
 import 'choose_condition_screen.dart';
 
 class ChooseAudienceScreen extends StatefulWidget {
-  const ChooseAudienceScreen({super.key});
+  const ChooseAudienceScreen({
+    super.key,
+    required this.title,
+    required this.category,
+    required this.teaser,
+    this.message,
+    this.mediaFile,
+    this.mediaBytes,
+    this.isVideo = false,
+  });
+
+  final String title;
+  final String category;
+  final String teaser;
+  final String? message;
+  final XFile? mediaFile;
+  final Uint8List? mediaBytes;
+  final bool isVideo;
 
   @override
   State<ChooseAudienceScreen> createState() => _ChooseAudienceScreenState();
@@ -14,11 +34,21 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   bool _isPrivate = true;
-  final Set<String> _selectedRecipients = {};
 
-  void _toggleRecipient(String name) {
+  final Set<String> _selectedRecipientIds = {};
+  final Map<String, String> _recipientNamesMap = {};
+  final List<String> _inviteEmails = [];
+  String _searchQuery = '';
+
+  void _toggleRecipient(String id, String name) {
     setState(() {
-      if (!_selectedRecipients.add(name)) _selectedRecipients.remove(name);
+      if (_selectedRecipientIds.contains(id)) {
+        _selectedRecipientIds.remove(id);
+        _recipientNamesMap.remove(id);
+      } else {
+        _selectedRecipientIds.add(id);
+        _recipientNamesMap[id] = name;
+      }
     });
   }
 
@@ -40,14 +70,14 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Top Navigation Bar (div.nav: 390 x 56)
+            // Top Navigation Bar
             SizedBox(
               height: 56 * scale,
               child: Padding(
                 padding: EdgeInsets.symmetric(horizontal: 12 * scale),
                 child: Row(
                   children: [
-                    // Back Button Frame (Back: 48 x 48, radius 24)
+                    // Back Button Frame
                     GestureDetector(
                       onTap: () => Navigator.of(context).maybePop(),
                       behavior: HitTestBehavior.opaque,
@@ -67,7 +97,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                       ),
                     ),
 
-                    // Nav Item Frame (h1: Fill 254 x 24 Hug)
+                    // Nav Item Frame
                     Expanded(
                       child: Padding(
                         padding: EdgeInsets.only(left: 16 * scale),
@@ -90,7 +120,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                       ),
                     ),
 
-                    // Step Meta (span.nav-meta: Fixed 64 x 22 Hug)
+                    // Step Meta
                     SizedBox(
                       width: 64 * scale,
                       height: 22 * scale,
@@ -111,7 +141,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
               ),
             ),
 
-            // 3-Step Progress Bar (Step 1 and 2 Active)
+            // 3-Step Progress Bar
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 24 * scale, vertical: 6 * scale),
               child: Row(
@@ -159,7 +189,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Section 1: Privacy (div.seg:margin - Padding Top 16, H 24, Bottom 16, Gap 16)
+                    // Section 1: Privacy
                     Padding(
                       padding: EdgeInsets.fromLTRB(
                         24 * scale,
@@ -170,7 +200,6 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Heading Text (345 x 32)
                           SizedBox(
                             width: contentWidth,
                             height: 32 * scale,
@@ -187,7 +216,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                           ),
                           SizedBox(height: 16 * scale),
 
-                          // Privacy Option 1: Private (Frame 1618874370: Fill 345 x Hug 68, radius 16)
+                          // Option 1: Private
                           GestureDetector(
                             onTap: () => setState(() => _isPrivate = true),
                             behavior: HitTestBehavior.opaque,
@@ -260,7 +289,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
 
                           SizedBox(height: 12 * scale),
 
-                          // Privacy Option 2: Public (Frame 1618874369: Fill 345 x Fixed 68, radius 16)
+                          // Option 2: Public
                           GestureDetector(
                             onTap: () => setState(() => _isPrivate = false),
                             behavior: HitTestBehavior.opaque,
@@ -334,7 +363,6 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                       ),
                     ),
 
-                    // Conditional Content: Moderation Notice for Public OR Recipient Selection for Private
                     if (!_isPrivate) ...[
                       Padding(
                         padding: EdgeInsets.fromLTRB(
@@ -365,7 +393,6 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Heading Text (345 x 32)
                             SizedBox(
                               width: contentWidth,
                               height: 32 * scale,
@@ -382,18 +409,20 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                             ),
                             SizedBox(height: 16 * scale),
 
-                            // Search Field (div.input: Fill 345 x Fixed 48, radius 12, fill #17182D)
+                            // Dynamic Search Field
                             SizedBox(
                               width: contentWidth,
                               height: 48 * scale,
                               child: TextField(
                                 controller: _searchController,
+                                onChanged: (val) =>
+                                    setState(() => _searchQuery = val.trim()),
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 14 * scale,
                                 ),
                                 decoration: InputDecoration(
-                                  hintText: 'Search people...',
+                                  hintText: 'Search people or enter User ID...',
                                   hintStyle: TextStyle(
                                     color: const Color(0xFF8A8EB3),
                                     fontSize: 14 * scale,
@@ -403,6 +432,19 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                     color: const Color(0xFF8A8EB3),
                                     size: 20 * scale,
                                   ),
+                                  suffixIcon: _searchQuery.isNotEmpty
+                                      ? GestureDetector(
+                                          onTap: () {
+                                            _searchController.clear();
+                                            setState(() => _searchQuery = '');
+                                          },
+                                          child: Icon(
+                                            Icons.clear_rounded,
+                                            color: const Color(0xFF8A8EB3),
+                                            size: 18 * scale,
+                                          ),
+                                        )
+                                      : null,
                                   filled: true,
                                   fillColor: const Color(0xFF17182D),
                                   contentPadding: EdgeInsets.symmetric(
@@ -410,7 +452,8 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                     vertical: 12 * scale,
                                   ),
                                   border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12 * scale),
+                                    borderRadius:
+                                        BorderRadius.circular(12 * scale),
                                     borderSide: BorderSide.none,
                                   ),
                                 ),
@@ -419,33 +462,138 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
 
                             SizedBox(height: 12 * scale),
 
-                            // Person Card 1: Annas (Frame 1618874370: Fill 345 x Hug 48, radius 16)
-                            _ContactCard(
-                              initials: 'A',
-                              avatarColor: const Color(0xFF3B82F6),
-                              name: 'Annas',
-                              scale: scale,
-                              width: contentWidth,
-                              isSelected: _selectedRecipients.contains('Annas'),
-                              onTap: () => _toggleRecipient('Annas'),
-                            ),
+                            // If search query is entered, offer to add as email or user ID
+                            if (_searchQuery.isNotEmpty) ...[
+                              if (_searchQuery.contains('@'))
+                                _ContactCard(
+                                  initials: '@',
+                                  avatarColor: VeraTheme.purpleBright,
+                                  name: 'Invite email: $_searchQuery',
+                                  scale: scale,
+                                  width: contentWidth,
+                                  isSelected: _inviteEmails.contains(_searchQuery),
+                                  onTap: () {
+                                    if (!_inviteEmails.contains(_searchQuery)) {
+                                      setState(() => _inviteEmails.add(_searchQuery));
+                                    }
+                                    _searchController.clear();
+                                    setState(() => _searchQuery = '');
+                                  },
+                                )
+                              else
+                                _ContactCard(
+                                  initials: _searchQuery[0].toUpperCase(),
+                                  avatarColor: VeraTheme.purple,
+                                  name: 'Add recipient User ID: $_searchQuery',
+                                  scale: scale,
+                                  width: contentWidth,
+                                  isSelected: _selectedRecipientIds.contains(_searchQuery),
+                                  onTap: () {
+                                    _toggleRecipient(_searchQuery, _searchQuery);
+                                    _searchController.clear();
+                                    setState(() => _searchQuery = '');
+                                  },
+                                ),
+                              SizedBox(height: 10 * scale),
+                            ],
+
+                            // Selected recipient user IDs
+                            if (_selectedRecipientIds.isNotEmpty) ...[
+                              Text(
+                                'Selected recipient IDs',
+                                style: TextStyle(
+                                  color: const Color(0xFFD4D4E8),
+                                  fontSize: 13 * scale,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              SizedBox(height: 8 * scale),
+                              Wrap(
+                                spacing: 8 * scale,
+                                runSpacing: 8 * scale,
+                                children: _selectedRecipientIds.map((id) {
+                                  return Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 12 * scale,
+                                      vertical: 6 * scale,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF231742),
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(
+                                        color: VeraTheme.purpleBright.withAlpha(100),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.person_outline_rounded,
+                                          size: 14 * scale,
+                                          color: VeraTheme.purpleBright,
+                                        ),
+                                        SizedBox(width: 4 * scale),
+                                        Text(
+                                          id,
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12 * scale,
+                                          ),
+                                        ),
+                                        SizedBox(width: 6 * scale),
+                                        GestureDetector(
+                                          onTap: () => setState(() {
+                                            _selectedRecipientIds.remove(id);
+                                            _recipientNamesMap.remove(id);
+                                          }),
+                                          child: Icon(
+                                            Icons.close_rounded,
+                                            size: 14 * scale,
+                                            color: Colors.white70,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                              SizedBox(height: 12 * scale),
+                            ] else if (_inviteEmails.isEmpty && _searchQuery.isEmpty) ...[
+                              Container(
+                                width: contentWidth,
+                                padding: EdgeInsets.all(14 * scale),
+                                decoration: BoxDecoration(
+                                  color: const Color(0x2217182D),
+                                  borderRadius: BorderRadius.circular(12 * scale),
+                                  border: Border.all(color: const Color(0x1AFFFFFF)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.info_outline_rounded,
+                                      color: const Color(0xFF8A8EB3),
+                                      size: 18 * scale,
+                                    ),
+                                    SizedBox(width: 10 * scale),
+                                    Expanded(
+                                      child: Text(
+                                        'Enter a recipient User ID or email address below to select who can unlock this moment.',
+                                        style: TextStyle(
+                                          color: const Color(0xFF8A8EB3),
+                                          fontSize: 12 * scale,
+                                          height: 1.3,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(height: 12 * scale),
+                            ],
 
                             SizedBox(height: 10 * scale),
 
-                            // Person Card 2: Marcus (Frame 1618874370: Fill 345 x Hug 48, radius 16)
-                            _ContactCard(
-                              initials: 'M',
-                              avatarColor: const Color(0xFF8B5CF6),
-                              name: 'Marcus',
-                              scale: scale,
-                              width: contentWidth,
-                              isSelected: _selectedRecipients.contains('Marcus'),
-                              onTap: () => _toggleRecipient('Marcus'),
-                            ),
-
-                            SizedBox(height: 20 * scale),
-
-                            // Frame 2147224484: Fill 345 x Hug 78 (Invite by email)
+                            // Frame: Invite by email
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -459,7 +607,6 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                 ),
                                 SizedBox(height: 10 * scale),
 
-                                // Invite Email Row
                                 Row(
                                   children: [
                                     Expanded(
@@ -493,27 +640,89 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                       ),
                                     ),
                                     SizedBox(width: 10 * scale),
-                                    Container(
-                                      width: 68 * scale,
-                                      height: 48 * scale,
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF17182D),
-                                        borderRadius:
-                                            BorderRadius.circular(12 * scale),
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          'Add',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 13.5 * scale,
-                                            fontWeight: FontWeight.w600,
+                                    GestureDetector(
+                                      onTap: () {
+                                        final email =
+                                            _emailController.text.trim();
+                                        if (email.isNotEmpty &&
+                                            email.contains('@')) {
+                                          setState(() {
+                                            if (!_inviteEmails
+                                                .contains(email)) {
+                                              _inviteEmails.add(email);
+                                            }
+                                            _emailController.clear();
+                                          });
+                                        }
+                                      },
+                                      child: Container(
+                                        width: 68 * scale,
+                                        height: 48 * scale,
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF17182D),
+                                          borderRadius:
+                                              BorderRadius.circular(12 * scale),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            'Add',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 13.5 * scale,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
+                                if (_inviteEmails.isNotEmpty) ...[
+                                  SizedBox(height: 10 * scale),
+                                  Wrap(
+                                    spacing: 8 * scale,
+                                    runSpacing: 8 * scale,
+                                    children: _inviteEmails.map((email) {
+                                      return Container(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 12 * scale,
+                                          vertical: 6 * scale,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF231742),
+                                          borderRadius:
+                                              BorderRadius.circular(999),
+                                          border: Border.all(
+                                            color: VeraTheme.purpleBright
+                                                .withAlpha(100),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              email,
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 12 * scale,
+                                              ),
+                                            ),
+                                            SizedBox(width: 6 * scale),
+                                            GestureDetector(
+                                              onTap: () => setState(() =>
+                                                  _inviteEmails.remove(email)),
+                                              child: const Icon(
+                                                Icons.close_rounded,
+                                                size: 14,
+                                                color: Colors.white70,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ],
                               ],
                             ),
                           ],
@@ -525,7 +734,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
               ),
             ),
 
-            // Bottom Navigation Action Container (nav bar: 393 x 88, radius bottom 44)
+            // Bottom Navigation Action Container
             Container(
               height: 88 * scale,
               decoration: const BoxDecoration(
@@ -559,13 +768,90 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                   ),
                   child: TextButton(
                     onPressed: () {
+                      final typedEmail = _emailController.text.trim();
+                      final emails = List<String>.from(_inviteEmails);
+                      if (typedEmail.isNotEmpty &&
+                          typedEmail.contains('@') &&
+                          !emails.contains(typedEmail)) {
+                        emails.add(typedEmail);
+                      }
+
+                      final typedSearch = _searchController.text.trim();
+                      if (typedSearch.isNotEmpty) {
+                        if (typedSearch.contains('@') && !emails.contains(typedSearch)) {
+                          emails.add(typedSearch);
+                        } else if (!typedSearch.contains('@') &&
+                            !_selectedRecipientIds.contains(typedSearch)) {
+                          _selectedRecipientIds.add(typedSearch);
+                        }
+                      }
+
+                      // Move any email strings mistakenly added to _selectedRecipientIds into emails
+                      for (final id in _selectedRecipientIds) {
+                        if (id.contains('@') && !emails.contains(id)) {
+                          emails.add(id);
+                        }
+                      }
+
+                      final uuidRegex = RegExp(
+                        r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+                      );
+                      final validRecipientIds = _selectedRecipientIds
+                          .where((id) => uuidRegex.hasMatch(id))
+                          .toList();
+
+                      // If user entered a non-UUID and non-email ID
+                      final invalidIds = _selectedRecipientIds
+                          .where((id) => !id.contains('@') && !uuidRegex.hasMatch(id))
+                          .toList();
+
+                      if (_isPrivate && invalidIds.isNotEmpty && emails.isEmpty && validRecipientIds.isEmpty) {
+                        VeraPopup.show(
+                          context,
+                          title: 'Invalid User ID',
+                          message:
+                              'User IDs must be a valid 36-character UUID, or use an email address to invite recipients.',
+                          icon: Icons.error_outline_rounded,
+                          accent: VeraTheme.warning,
+                        );
+                        return;
+                      }
+
+                      if (_isPrivate &&
+                          validRecipientIds.isEmpty &&
+                          emails.isEmpty) {
+                        VeraPopup.show(
+                          context,
+                          title: 'Recipient required',
+                          message:
+                              'Please enter a recipient User ID or invite by email for your private moment.',
+                          icon: Icons.person_add_outlined,
+                          accent: VeraTheme.warning,
+                        );
+                        return;
+                      }
+
+                      final recipientNamesList = [
+                        ...validRecipientIds,
+                        ...emails,
+                      ];
+
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => ChooseConditionScreen(
+                            title: widget.title,
+                            category: widget.category,
+                            teaser: widget.teaser,
+                            message: widget.message,
                             isPrivate: _isPrivate,
-                            recipientName: _selectedRecipients.isEmpty
-                                ? null
-                                : _selectedRecipients.join(', '),
+                            recipientUserIds: validRecipientIds,
+                            recipientNames: recipientNamesList.isNotEmpty
+                                ? recipientNamesList.join(', ')
+                                : null,
+                            inviteEmails: emails,
+                            mediaFile: widget.mediaFile,
+                            mediaBytes: widget.mediaBytes,
+                            isVideo: widget.isVideo,
                           ),
                         ),
                       );
@@ -592,7 +878,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
   }
 }
 
-class _ContactCard extends StatefulWidget {
+class _ContactCard extends StatelessWidget {
   const _ContactCard({
     required this.initials,
     required this.avatarColor,
@@ -612,73 +898,66 @@ class _ContactCard extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_ContactCard> createState() => _ContactCardState();
-}
-
-class _ContactCardState extends State<_ContactCard> {
-  @override
   Widget build(BuildContext context) {
-    return Container(
-      width: widget.width,
-      height: 48 * widget.scale,
-      padding: EdgeInsets.symmetric(
-        horizontal: 12 * widget.scale,
-        vertical: 8 * widget.scale,
-      ),
-      decoration: BoxDecoration(
-        color: const Color(0xFF17182D),
-        borderRadius: BorderRadius.circular(16 * widget.scale),
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: width,
+        height: 52 * scale,
+        padding: EdgeInsets.symmetric(horizontal: 16 * scale),
+        decoration: BoxDecoration(
+          color: const Color(0xFF17182D),
+          borderRadius: BorderRadius.circular(16 * scale),
           border: Border.all(
-            color: widget.isSelected
-              ? VeraTheme.purpleBright
-              : const Color(0x1AFFFFFF),
-          width: 1,
+            color: isSelected
+                ? VeraTheme.purpleBright
+                : const Color(0x1AFFFFFF),
+            width: isSelected ? 1.5 : 1,
+          ),
         ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 32 * widget.scale,
-                height: 32 * widget.scale,
-                decoration: BoxDecoration(
-                  color: widget.avatarColor,
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Text(
-                    widget.initials,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 13 * widget.scale,
-                      fontWeight: FontWeight.bold,
-                    ),
+        child: Row(
+          children: [
+            Container(
+              width: 32 * scale,
+              height: 32 * scale,
+              decoration: BoxDecoration(
+                color: avatarColor,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  initials,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14 * scale,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-              SizedBox(width: 12 * widget.scale),
-              Text(
-                widget.name,
+            ),
+            SizedBox(width: 12 * scale),
+            Expanded(
+              child: Text(
+                name,
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 14 * widget.scale,
+                  fontSize: 14 * scale,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-            ],
-          ),
-          GestureDetector(
-            onTap: widget.onTap,
-            behavior: HitTestBehavior.opaque,
-            child: Icon(
-              widget.isSelected ? Icons.check_circle_rounded : Icons.add_rounded,
-              color: widget.isSelected ? VeraTheme.purpleBright : const Color(0xFF8A8EB3),
-              size: 20 * widget.scale,
             ),
-          ),
-        ],
+            Icon(
+              isSelected
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              color: isSelected
+                  ? VeraTheme.purpleBright
+                  : const Color(0xFF56587A),
+              size: 20 * scale,
+            ),
+          ],
+        ),
       ),
     );
   }

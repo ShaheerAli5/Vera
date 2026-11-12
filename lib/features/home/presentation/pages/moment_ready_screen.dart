@@ -8,11 +8,11 @@ import 'home_screen.dart';
 class MomentReadyScreen extends StatelessWidget {
   const MomentReadyScreen({
     super.key,
-    this.title = 'Midnight at the tower',
-    this.recipient = 'Everyone (Public)',
-    this.unlockTime = "Opens when you're at Tokyo Tower",
-    this.isPublic = true,
-    this.shareUrl = 'https://vera.app/m/90401549',
+    required this.title,
+    required this.recipient,
+    required this.unlockTime,
+    required this.isPublic,
+    required this.shareUrl,
   });
 
   final String title;
@@ -28,8 +28,8 @@ class MomentReadyScreen extends StatelessWidget {
     final contentWidth = VeraResponsive.contentWidth(screen.width, horizontalPadding: 24 * scale);
 
     final subtitleText = isPublic
-        ? 'Your public moment was sent for review. It appears in Discover once approved.'
-        : 'Recipients must sign in and accept the invitation before they can see anything.';
+        ? 'Your public moment was created and submitted for admin review. Once approved by an admin, it will be published to Discover.'
+        : 'Your moment was created and submitted for admin review (Pending Review). Once approved by an admin, it will be published and recipients can unlock and view it.';
 
     return Scaffold(
       backgroundColor: VeraTheme.background,
@@ -68,9 +68,9 @@ class MomentReadyScreen extends StatelessWidget {
 
                     SizedBox(height: 28 * scale),
 
-                    // Title: Your moment is ready!
+                    // Title: Submitted for approval!
                     Text(
-                      'Your moment is ready!',
+                      'Submitted for approval!',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: const Color(0xFFF7F5FF),
@@ -266,8 +266,8 @@ class MomentReadyScreen extends StatelessWidget {
                             Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute<void>(
                                 builder: (_) => const HomeScreen(
-                                  initialNavIndex: 2,
-                                  initialMessageTabIndex: 1,
+                                  initialNavIndex: 0,
+                                  initialTabIndex: 2,
                                 ),
                               ),
                               (route) => false,
@@ -278,7 +278,7 @@ class MomentReadyScreen extends StatelessWidget {
                             shape: const StadiumBorder(),
                           ),
                           child: Text(
-                            'View in Sent messages',
+                            'View in Your moments',
                             style: TextStyle(
                               fontSize: 14 * scale,
                               fontWeight: FontWeight.w600,
@@ -343,8 +343,8 @@ class MomentReadyScreen extends StatelessWidget {
                               Navigator.of(context).pushAndRemoveUntil(
                                 MaterialPageRoute<void>(
                                   builder: (_) => const HomeScreen(
-                                    initialNavIndex: 2,
-                                    initialMessageTabIndex: 1,
+                                    initialNavIndex: 0,
+                                    initialTabIndex: 2,
                                   ),
                                 ),
                                 (route) => false,
@@ -360,7 +360,7 @@ class MomentReadyScreen extends StatelessWidget {
                               shape: const StadiumBorder(),
                             ),
                             child: Text(
-                              'View in Sent messages',
+                              'View in Your moments',
                               style: TextStyle(
                                 fontSize: 14 * scale,
                                 fontWeight: FontWeight.w600,

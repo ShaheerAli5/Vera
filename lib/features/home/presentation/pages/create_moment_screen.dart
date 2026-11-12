@@ -1,7 +1,10 @@
+import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
+import '../../../../core/widgets/vera_popup.dart';
 import 'choose_audience_screen.dart';
 
 class CreateMomentScreen extends StatefulWidget {
@@ -13,43 +16,124 @@ class CreateMomentScreen extends StatefulWidget {
 
 class _CreateMomentScreenState extends State<CreateMomentScreen> {
   final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _teaserController = TextEditingController();
   final TextEditingController _messageController = TextEditingController();
+  final ImagePicker _picker = ImagePicker();
+
   int _selectedCategoryIndex = -1;
   bool _hasUploadedMedia = false;
+  XFile? _pickedMediaFile;
+  Uint8List? _mediaBytes;
+  bool _isVideo = false;
 
   final List<Map<String, dynamic>> _categories = const [
-    {'icon': Icons.airplanemode_active_rounded, 'label': 'Travel'},
-    {'icon': Icons.eco_outlined, 'label': 'Nature'},
-    {'icon': Icons.favorite_border_rounded, 'label': 'Love'},
-    {'icon': Icons.cake_outlined, 'label': 'Birthdays'},
+    {'icon': Icons.airplanemode_active_rounded, 'label': 'Travel', 'value': 'TRAVEL'},
+    {'icon': Icons.eco_outlined, 'label': 'Nature', 'value': 'NATURE'},
+    {'icon': Icons.cake_outlined, 'label': 'Birthday', 'value': 'BIRTHDAY'},
+    {'icon': Icons.favorite_border_rounded, 'label': 'Love', 'value': 'LOVE'},
+    {'icon': Icons.auto_awesome_outlined, 'label': 'Other', 'value': 'OTHER'},
   ];
 
   @override
   void dispose() {
     _titleController.dispose();
+    _teaserController.dispose();
     _messageController.dispose();
     super.dispose();
-  }
-
-  void _onMediaSelected() {
-    setState(() {
-      _hasUploadedMedia = true;
-      if (_messageController.text.isEmpty) {
-        _messageController.text = "Whenever you read this, I hope your da...";
-      }
-    });
   }
 
   void _removeMedia() {
     setState(() {
       _hasUploadedMedia = false;
+      _pickedMediaFile = null;
+      _mediaBytes = null;
+      _isVideo = false;
     });
   }
 
+  Future<void> _pickMedia(ImageSource source, {bool isVideo = false}) async {
+    try {
+      final file = isVideo
+          ? await _picker.pickVideo(source: source)
+          : await _picker.pickImage(source: source);
+      if (file == null) return;
+
+      final bytes = await file.readAsBytes();
+      final maxSize = isVideo ? 25 * 1024 * 1024 : 8 * 1024 * 1024;
+      if (bytes.length > maxSize) {
+        if (!mounted) return;
+        VeraPopup.show(
+          context,
+          title: 'File too large',
+          message: isVideo
+              ? 'Videos must be 25 MB or less.'
+              : 'Images must be 8 MB or less.',
+          icon: Icons.warning_amber_rounded,
+          accent: VeraTheme.warning,
+        );
+        return;
+      }
+
+      setState(() {
+        _pickedMediaFile = file;
+        _mediaBytes = bytes;
+        _isVideo = isVideo;
+        _hasUploadedMedia = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      VeraPopup.show(
+        context,
+        title: 'Media error',
+        message: e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), ''),
+        icon: Icons.error_outline_rounded,
+        accent: VeraTheme.warning,
+      );
+    }
+  }
+
   void _navigateToNextStep() {
+    final title = _titleController.text.trim();
+    if (title.isEmpty) {
+      VeraPopup.show(
+        context,
+        title: 'Title required',
+        message: 'Please give your moment a title.',
+        icon: Icons.title_rounded,
+        accent: VeraTheme.warning,
+      );
+      return;
+    }
+
+    if (_selectedCategoryIndex < 0) {
+      VeraPopup.show(
+        context,
+        title: 'Category required',
+        message: 'Please choose a category for your moment.',
+        icon: Icons.category_outlined,
+        accent: VeraTheme.warning,
+      );
+      return;
+    }
+
+    final category = (_categories[_selectedCategoryIndex]['value'] as String? ??
+            _categories[_selectedCategoryIndex]['label'] as String)
+        .toUpperCase();
+    final message = _messageController.text.trim();
+    final customTeaser = _teaserController.text.trim();
+    final teaser = customTeaser.isNotEmpty ? customTeaser : title;
+
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => const ChooseAudienceScreen(),
+        builder: (_) => ChooseAudienceScreen(
+          title: title,
+          category: category,
+          teaser: teaser,
+          message: message.isNotEmpty ? message : null,
+          mediaFile: _pickedMediaFile,
+          mediaBytes: _mediaBytes,
+          isVideo: _isVideo,
+        ),
       ),
     );
   }
@@ -152,7 +236,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                           scale: scale,
                           onTap: () {
                             Navigator.of(context).pop();
-                            _onMediaSelected();
+                            _pickMedia(ImageSource.camera);
                           },
                         ),
                       ),
@@ -164,7 +248,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                           scale: scale,
                           onTap: () {
                             Navigator.of(context).pop();
-                            _onMediaSelected();
+                            _pickMedia(ImageSource.gallery);
                           },
                         ),
                       ),
@@ -176,7 +260,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                           scale: scale,
                           onTap: () {
                             Navigator.of(context).pop();
-                            _onMediaSelected();
+                            _pickMedia(ImageSource.gallery, isVideo: true);
                           },
                         ),
                       ),
@@ -372,6 +456,45 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                               ),
                             ),
                           ),
+                          SizedBox(height: 14 * scale),
+                          Text(
+                            'Teaser (visible while locked)',
+                            style: TextStyle(
+                              color: const Color(0xFFD4D4E8),
+                              fontSize: 13 * scale,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          SizedBox(height: 8 * scale),
+                          SizedBox(
+                            width: contentWidth,
+                            height: 48 * scale,
+                            child: TextField(
+                              controller: _teaserController,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14 * scale,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Open this when the time comes',
+                                hintStyle: TextStyle(
+                                  color: const Color(0xFF8A8EB3),
+                                  fontSize: 14 * scale,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                                filled: true,
+                                fillColor: const Color(0xFF17182D),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 16 * scale,
+                                  vertical: 12 * scale,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12 * scale),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -405,7 +528,15 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                             borderRadius: BorderRadius.circular(20 * scale),
                             child: Stack(
                               children: [
-                                // Top Left Duration Badge
+                                if (_mediaBytes != null && !_isVideo)
+                                  Positioned.fill(
+                                    child: Image.memory(
+                                      _mediaBytes!,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+
+                                // Top Left Media Badge
                                 Positioned(
                                   top: 12 * scale,
                                   left: 12 * scale,
@@ -418,13 +549,26 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                                       color: const Color(0x99000000),
                                       borderRadius: BorderRadius.circular(20 * scale),
                                     ),
-                                    child: Text(
-                                      '0:12',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 11 * scale,
-                                        fontWeight: FontWeight.w500,
-                                      ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          _isVideo
+                                              ? Icons.videocam_rounded
+                                              : Icons.photo_rounded,
+                                          color: Colors.white,
+                                          size: 13 * scale,
+                                        ),
+                                        SizedBox(width: 4 * scale),
+                                        Text(
+                                          _isVideo ? 'Video' : 'Photo',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11 * scale,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -452,22 +596,23 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                                   ),
                                 ),
 
-                                // Center Play Button
-                                Center(
-                                  child: Container(
-                                    width: 52 * scale,
-                                    height: 52 * scale,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0x99000000),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(
-                                      Icons.play_arrow_rounded,
-                                      color: Colors.white,
-                                      size: 30 * scale,
+                                // Center Indicator for Video
+                                if (_isVideo)
+                                  Center(
+                                    child: Container(
+                                      width: 52 * scale,
+                                      height: 52 * scale,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0x99000000),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        Icons.play_arrow_rounded,
+                                        color: Colors.white,
+                                        size: 30 * scale,
+                                      ),
                                     ),
                                   ),
-                                ),
                               ],
                             ),
                           ),

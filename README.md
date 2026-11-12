@@ -87,6 +87,9 @@ Vera/
 │   └── images/                       # App asset images (Apple/Google logos & splash background)
 ├── lib/                              # Flutter application source code
 │   ├── main.dart                     # App root entrypoint & theme configuration
+│   ├── core/
+│   │   ├── config/                   # Runtime configuration (API base URL)
+│   │   └── network/                  # Shared HTTP client and API errors
 │   └── features/
 │       ├── account/                  # Auth & Account domain & presentation
 │       │   ├── domain/entities/      # AccountDraft model entity
@@ -117,6 +120,26 @@ Vera/
 ├── infra/                            # Deployment & infrastructure configurations
 └── pubspec.yaml                      # Flutter project dependencies & asset manifest
 ```
+
+## Flutter API configuration
+
+The Flutter client defaults to the VERA API origin. Override it with
+`API_BASE_URL` using `--dart-define`; routes are prefixed with `/api/v1`:
+
+```sh
+flutter run --dart-define=API_BASE_URL=https://vera.aptechmedia.com
+```
+
+For a local Android emulator backend, use the host machine address (commonly
+`http://10.0.2.2:3000`) instead of `localhost`. Do not put passwords or
+private tokens in `--dart-define`.
+
+Add each endpoint under its feature: `data/datasources` contains endpoint
+calls and response parsing, `data/repositories` implements the feature
+repository, and `domain/repositories` defines the contract consumed by BLoCs
+and presentation. Screens should not call `ApiClient` directly. The shared
+client handles JSON, timeouts, and `ApiException`; endpoint-specific paths and
+DTOs belong to their feature.
 
 ---
 

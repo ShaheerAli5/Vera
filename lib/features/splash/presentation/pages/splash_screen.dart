@@ -1,13 +1,34 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/layout/responsive.dart';
+import '../../../../main.dart' show ApiClientScope;
 import '../../../account/presentation/pages/create_account_screen.dart';
 import '../../../account/presentation/pages/sign_in_screen.dart';
+import '../../../home/presentation/pages/home_screen.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../shared/widgets/vera_logo.dart';
 
-class SplashScreen extends StatelessWidget {
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final client = ApiClientScope.of(context);
+      if (client.authToken != null && client.authToken!.trim().isNotEmpty) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
+        );
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
