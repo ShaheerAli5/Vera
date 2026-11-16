@@ -7,6 +7,7 @@ import '../../../../core/theme/theme.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../../account/data/datasources/account_remote_data_source.dart';
+import '../../../account/data/models/blocked_user_model.dart';
 import '../../../account/data/models/profile_settings.dart';
 import '../../../account/data/models/user_profile.dart';
 import '../../../account/data/repositories/account_repository_impl.dart';
@@ -31,16 +32,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   String _timezone = 'UTC';
   bool _isLoading = false;
 
-  final List<Map<String, String>> _blockedUsers = [
-    {
-      'name': 'Annas',
-      'avatar': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200',
-    },
-    {
-      'name': 'Marcus',
-      'avatar': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200',
-    },
-  ];
+  List<BlockedUserModel> _blockedUsers = [];
 
   UserProfile? _profile;
 
@@ -61,14 +53,17 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
       final results = await Future.wait([
         repo.getProfile().then<dynamic>((v) => v).catchError((_) => null),
         repo.getSettings().then<dynamic>((v) => v).catchError((_) => null),
+        repo.getBlockedUsers().then<dynamic>((v) => v).catchError((_) => null),
       ]);
 
       if (!mounted) return;
       final profile = results[0] is UserProfile ? results[0] as UserProfile : null;
       final settings = results[1] is ProfileSettings ? results[1] as ProfileSettings : null;
+      final blocked = results[2] is BlockedUserListResponse ? (results[2] as BlockedUserListResponse).items : <BlockedUserModel>[];
 
       setState(() {
         if (profile != null) _profile = profile;
+        _blockedUsers = blocked;
         if (settings != null) {
           _privacyOption = settings.privacy;
           _allowLocationChecks = settings.allowLocationChecks;
@@ -523,24 +518,30 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                               Row(
                                 children: [
                                   ClipOval(
-                                    child: Image.network(
-                                      _blockedUsers[i]['avatar']!,
-                                      width: 36 * scale,
-                                      height: 36 * scale,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, error, stackTrace) => Container(
-                                        width: 36 * scale,
-                                        height: 36 * scale,
-                                        color: const Color(0xFF6B42FF),
-                                        child: const Icon(Icons.person,
-                                            color: Colors.white, size: 18),
-                                      ),
-                                    ),
+                                    child: _blockedUsers[i].avatarUrl != null && _blockedUsers[i].avatarUrl!.isNotEmpty
+                                        ? Image.network(
+                                            _blockedUsers[i].avatarUrl!,
+                                            width: 36 * scale,
+                                            height: 36 * scale,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => Container(
+                                              width: 36 * scale,
+                                              height: 36 * scale,
+                                              color: const Color(0xFF6B42FF),
+                                              child: const Icon(Icons.person, color: Colors.white, size: 18),
+                                            ),
+                                          )
+                                        : Container(
+                                            width: 36 * scale,
+                                            height: 36 * scale,
+                                            color: const Color(0xFF6B42FF),
+                                            child: const Icon(Icons.person, color: Colors.white, size: 18),
+                                          ),
                                   ),
                                   SizedBox(width: 12 * scale),
                                   Expanded(
                                     child: Text(
-                                      _blockedUsers[i]['name']!,
+                                      _blockedUsers[i].displayName,
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 16 * scale,
@@ -551,17 +552,22 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                                   SizedBox(
                                     height: 30 * scale,
                                     child: TextButton(
-                                      onPressed: () {
+                                      onPressed: () async {
                                         final user = _blockedUsers[i];
-                                        setState(() {
-                                          _blockedUsers.removeAt(i);
-                                        });
-                                        VeraPopup.show(
-                                          context,
-                                          title: 'User unblocked',
-                                          message: '${user['name']} can contact you again.',
-                                          icon: Icons.person_add_alt_1_rounded,
-                                        );
+                                        final client = ApiClientScope.of(context);
+                                        final repo = AccountRepositoryImpl(AccountRemoteDataSource(client));
+                                        await repo.unblockUser(user.id);
+                                        if (mounted) {
+                                          setState(() {
+                                            _blockedUsers.removeAt(i);
+                                          });
+                                          VeraPopup.show(
+                                            context,
+                                            title: 'User unblocked',
+                                            message: '${user.displayName} can contact you again.',
+                                            icon: Icons.person_add_alt_1_rounded,
+                                          );
+                                        }
                                       },
                                       style: TextButton.styleFrom(
                                         backgroundColor: const Color(0x1AF7F5FF),

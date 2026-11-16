@@ -164,17 +164,15 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
 
   Widget _buildUserItem(BuildContext context, double scale, AdminUserModel user, bool isAdmin, bool isSuspended) {
     return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
+      onTap: () async {
+        final updatedUser = await Navigator.of(context).push<AdminUserModel>(
           MaterialPageRoute(
-            builder: (_) => AdminUserDetailScreen(
-              userId: user.id,
-              username: user.displayName,
-              isAdmin: isAdmin,
-              isSuspended: isSuspended,
-            ),
+            builder: (_) => AdminUserDetailScreen(user: user),
           ),
         );
+        if (updatedUser != null) {
+          _fetchUsers();
+        }
       },
       child: Container(
         margin: EdgeInsets.only(bottom: 12 * scale),

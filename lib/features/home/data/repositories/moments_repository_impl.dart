@@ -6,6 +6,7 @@ import '../models/create_moment_result.dart';
 import '../models/moment_media_stream.dart';
 import '../models/moment_model.dart';
 import '../models/moment_thread_model.dart';
+import '../models/notification_model.dart';
 import '../models/resend_invite_result.dart';
 import '../models/update_moment_params.dart';
 
@@ -63,6 +64,11 @@ class MomentsRepositoryImpl implements MomentsRepository {
   @override
   Future<MomentsListResponse> getInboxMoments({int page = 1, int limit = 20}) {
     return _remoteDataSource.getInboxMoments(page: page, limit: limit);
+  }
+
+  @override
+  Future<NotificationsListResponse> getNotifications({int page = 1, int limit = 20}) {
+    return _remoteDataSource.getNotifications(page: page, limit: limit);
   }
 
   @override

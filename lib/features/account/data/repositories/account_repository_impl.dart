@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import '../../domain/entities/registered_user.dart';
 import '../../domain/repositories/account_repository.dart';
 import '../datasources/account_remote_data_source.dart';
+import '../models/blocked_user_model.dart';
 import '../models/forgot_password_result.dart';
 import '../models/login_result.dart';
 import '../models/logout_result.dart';
@@ -186,6 +187,16 @@ class AccountRepositoryImpl implements AccountRepository {
       currentPassword: currentPassword,
       newPassword: newPassword,
     );
+  }
+
+  @override
+  Future<BlockedUserListResponse> getBlockedUsers() {
+    return _remoteDataSource.getBlockedUsers();
+  }
+
+  @override
+  Future<void> unblockUser(String userId) {
+    return _remoteDataSource.unblockUser(userId);
   }
 
   @override

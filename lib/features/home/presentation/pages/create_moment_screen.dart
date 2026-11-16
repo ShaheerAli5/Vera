@@ -93,35 +93,22 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
   }
 
   void _navigateToNextStep() {
-    final title = _titleController.text.trim();
-    if (title.isEmpty) {
-      VeraPopup.show(
-        context,
-        title: 'Title required',
-        message: 'Please give your moment a title.',
-        icon: Icons.title_rounded,
-        accent: VeraTheme.warning,
-      );
-      return;
-    }
+    final titleInput = _titleController.text.trim();
+    final title = titleInput.isNotEmpty ? titleInput : 'Untitled Moment';
 
-    if (_selectedCategoryIndex < 0) {
-      VeraPopup.show(
-        context,
-        title: 'Category required',
-        message: 'Please choose a category for your moment.',
-        icon: Icons.category_outlined,
-        accent: VeraTheme.warning,
-      );
-      return;
-    }
+    final category = _selectedCategoryIndex >= 0
+        ? ((_categories[_selectedCategoryIndex]['value'] as String? ??
+                _categories[_selectedCategoryIndex]['label'] as String)
+            .toUpperCase())
+        : 'OTHER';
 
-    final category = (_categories[_selectedCategoryIndex]['value'] as String? ??
-            _categories[_selectedCategoryIndex]['label'] as String)
-        .toUpperCase();
-    final message = _messageController.text.trim();
+    final messageInput = _messageController.text.trim();
+    final message = messageInput.isNotEmpty ? messageInput : null;
+
     final customTeaser = _teaserController.text.trim();
-    final teaser = customTeaser.isNotEmpty ? customTeaser : title;
+    final teaser = customTeaser.isNotEmpty
+        ? customTeaser
+        : (titleInput.isNotEmpty ? titleInput : 'Open this when the time comes');
 
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -129,7 +116,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
           title: title,
           category: category,
           teaser: teaser,
-          message: message.isNotEmpty ? message : null,
+          message: message,
           mediaFile: _pickedMediaFile,
           mediaBytes: _mediaBytes,
           isVideo: _isVideo,
@@ -501,7 +488,83 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
 
                     SizedBox(height: 24 * scale),
 
-                    // Uploaded Media Preview Card OR Category Selection
+                    // Section 2: Categories (Always Visible)
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 24 * scale),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Select a category',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20 * scale,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 16 * scale),
+                          Wrap(
+                            spacing: 10 * scale,
+                            runSpacing: 10 * scale,
+                            children: List.generate(_categories.length, (index) {
+                              final category = _categories[index];
+                              final isSelected = _selectedCategoryIndex == index;
+
+                              return GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedCategoryIndex =
+                                        isSelected ? -1 : index;
+                                  });
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 16 * scale,
+                                    vertical: 10 * scale,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? VeraTheme.purple
+                                        : const Color(0xFF17182D),
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? VeraTheme.purpleBright
+                                          : const Color(0x1AFFFFFF),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        category['icon'] as IconData,
+                                        size: 16 * scale,
+                                        color: Colors.white,
+                                      ),
+                                      SizedBox(width: 8 * scale),
+                                      Text(
+                                        category['label'] as String,
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 13.5 * scale,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    SizedBox(height: 24 * scale),
+
+                    // Section 3: Uploaded Media Preview Card (if media added)
                     if (_hasUploadedMedia) ...[
                       Padding(
                         padding: EdgeInsets.symmetric(horizontal: 24 * scale),
@@ -618,111 +681,36 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                           ),
                         ),
                       ),
-                    ] else ...[
-                      // Section 2: Categories
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 24 * scale),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Select a category',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 20 * scale,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 16 * scale),
-                            Wrap(
-                              spacing: 10 * scale,
-                              runSpacing: 10 * scale,
-                              children: List.generate(_categories.length, (index) {
-                                final category = _categories[index];
-                                final isSelected = _selectedCategoryIndex == index;
-
-                                return GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedCategoryIndex =
-                                          isSelected ? -1 : index;
-                                    });
-                                  },
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 180),
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 16 * scale,
-                                      vertical: 10 * scale,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? VeraTheme.purple
-                                          : const Color(0xFF17182D),
-                                      borderRadius: BorderRadius.circular(999),
-                                      border: Border.all(
-                                        color: isSelected
-                                            ? VeraTheme.purpleBright
-                                            : const Color(0x1AFFFFFF),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          category['icon'] as IconData,
-                                          size: 16 * scale,
-                                          color: Colors.white,
-                                        ),
-                                        SizedBox(width: 8 * scale),
-                                        Text(
-                                          category['label'] as String,
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 13.5 * scale,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ),
-                          ],
-                        ),
-                      ),
-
                       SizedBox(height: 24 * scale),
-
-                      // Section 3: Add something to remember
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 24 * scale),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Add something to remember',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16 * scale,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 8 * scale),
-                            Text(
-                              'Add a message, photo or video to your moment. All are optional.',
-                              style: TextStyle(
-                                color: VeraTheme.textSecondary,
-                                fontSize: 13 * scale,
-                                height: 1.45,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ],
+
+                    // Section 4: Add something to remember
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 24 * scale),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Add something to remember',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16 * scale,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 8 * scale),
+                          Text(
+                            'Add a message, photo or video to your moment. All are optional.',
+                            style: TextStyle(
+                              color: VeraTheme.textSecondary,
+                              fontSize: 13 * scale,
+                              height: 1.45,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),

@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
+import '../../../../main.dart' show ApiClientScope;
+import '../../data/datasources/moments_remote_data_source.dart';
+import '../../data/models/notification_model.dart';
+import '../../data/repositories/moments_repository_impl.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -11,65 +16,53 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   int _selectedTab = 0; // 0: All, 1: Unread, 2: Read
+  List<NotificationModel> _notifications = [];
+  bool _isLoading = true;
+  String? _errorMessage;
 
-  final List<Map<String, dynamic>> _notifications = [
-    {
-      'title': 'Your moment is now unclockd',
-      'body': 'Your Tokyo Tower moment is ready to reveal. Discover what was capture',
-      'time': '2 min ago',
-      'section': 'TODAY',
-      'isRead': false,
-      'image': 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=200',
-    },
-    {
-      'title': 'Your moment is now unclockd',
-      'body': 'Your Tokyo Tower moment is ready to reveal. Discover what was capture',
-      'time': '1 hour ago',
-      'section': 'TODAY',
-      'isRead': false,
-      'image': 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=200',
-    },
-    {
-      'title': 'Your moment is now unclockd',
-      'body': 'Your Tokyo Tower moment is ready to reveal. Discover what was capture',
-      'time': '3 hours ago',
-      'section': 'TODAY',
-      'isRead': true,
-      'image': 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=200',
-    },
-    {
-      'title': 'Your moment is now unclockd',
-      'body': 'Your Tokyo Tower moment is ready to reveal. Discover what was capture',
-      'time': 'Yesterday',
-      'section': 'YESTERDAY',
-      'isRead': true,
-      'image': 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=200',
-    },
-    {
-      'title': 'Your moment is now unclockd',
-      'body': 'Your Tokyo Tower moment is ready to reveal. Discover what was capture',
-      'time': '2 min ago',
-      'section': 'YESTERDAY',
-      'isRead': true,
-      'image': 'https://images.unsplash.com/photo-1503899036084-c55cdd92da26?q=80&w=200',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchNotifications();
+    });
+  }
+
+  Future<void> _fetchNotifications() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final client = ApiClientScope.of(context);
+      final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+      final response = await repo.getNotifications();
+
+      if (!mounted) return;
+      setState(() {
+        _notifications = response.items;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final scale = VeraResponsive.scale(MediaQuery.sizeOf(context).width);
 
-    List<Map<String, dynamic>> filteredNotifications = _notifications.where((n) {
-      if (_selectedTab == 1) return !(n['isRead'] as bool);
-      if (_selectedTab == 2) return n['isRead'] as bool;
+    final filteredNotifications = _notifications.where((n) {
+      if (_selectedTab == 1) return !n.isRead;
+      if (_selectedTab == 2) return n.isRead;
       return true;
     }).toList();
-
-    Map<String, List<Map<String, dynamic>>> grouped = {};
-    for (var n in filteredNotifications) {
-      String section = n['section'] as String;
-      grouped.putIfAbsent(section, () => []).add(n);
-    }
 
     return Scaffold(
       backgroundColor: VeraTheme.background,
@@ -85,8 +78,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   children: [
                     IconButton(
                       onPressed: () => Navigator.of(context).maybePop(),
-                      icon: Icon(Icons.arrow_back_rounded,
-                          color: Colors.white, size: 20 * scale),
+                      icon: Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20 * scale),
                       padding: EdgeInsets.zero,
                       constraints: BoxConstraints.tightFor(
                         width: 40 * scale,
@@ -105,7 +97,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         ),
                       ),
                     ),
-                    SizedBox(width: 40 * scale),
+                    IconButton(
+                      onPressed: _fetchNotifications,
+                      icon: Icon(Icons.refresh_rounded, color: const Color(0xFFC68CFF), size: 20 * scale),
+                      padding: EdgeInsets.zero,
+                      constraints: BoxConstraints.tightFor(
+                        width: 40 * scale,
+                        height: 40 * scale,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -119,121 +119,162 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 _buildTab('Read', 2, scale),
               ],
             ),
-            Divider(height: 1, thickness: 1, color: const Color(0x223F4356)),
+            const Divider(height: 1, thickness: 1, color: Color(0x223F4356)),
 
             // Content List
             Expanded(
-              child: grouped.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No notifications',
-                        style: TextStyle(
-                          color: const Color(0xFFA6A6C1),
-                          fontSize: 14 * scale,
-                        ),
-                      ),
-                    )
-                  : ListView(
-                      padding: EdgeInsets.fromLTRB(
-                          24 * scale, 16 * scale, 24 * scale, 48 * scale),
-                      children: grouped.entries.map((entry) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              entry.key,
-                              style: TextStyle(
-                                color: const Color(0xFFA6A6C1),
-                                fontSize: 12 * scale,
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            SizedBox(height: 12 * scale),
-                            ...entry.value.map((n) {
-                              return Container(
-                                margin: EdgeInsets.only(bottom: 12 * scale),
-                                padding: EdgeInsets.all(12 * scale),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF121326),
-                                  borderRadius: BorderRadius.circular(16 * scale),
-                                  border: Border.all(
-                                    color: const Color(0x333F4356),
-                                    width: scale,
-                                  ),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: Color(0x14000000),
-                                      blurRadius: 16,
-                                      offset: Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(12 * scale),
-                                      child: Image.network(
-                                        n['image']!,
-                                        width: 48 * scale,
-                                        height: 48 * scale,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, error, stackTrace) => Container(
-                                          width: 48 * scale,
-                                          height: 48 * scale,
-                                          color: const Color(0xFF6B42FF),
-                                          child: const Icon(Icons.notifications,
-                                              color: Colors.white, size: 20),
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(width: 12 * scale),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            n['title']!,
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 14 * scale,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          SizedBox(height: 8 * scale),
-                                          Text(
-                                            n['body']!,
-                                            style: TextStyle(
-                                              color: const Color(0xFFA6A6C1),
-                                              fontSize: 12 * scale,
-                                              height: 1.2,
-                                            ),
-                                          ),
-                                          SizedBox(height: 8 * scale),
-                                          Text(
-                                            n['time']!,
-                                            style: TextStyle(
-                                              color: const Color(0xFF6E6E8F),
-                                              fontSize: 11 * scale,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }),
-                            SizedBox(height: 16 * scale),
-                          ],
-                        );
-                      }).toList(),
-                    ),
+              child: RefreshIndicator(
+                onRefresh: _fetchNotifications,
+                color: const Color(0xFF9044FB),
+                backgroundColor: const Color(0xFF161626),
+                child: _buildBody(filteredNotifications, scale),
+              ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildBody(List<NotificationModel> notifications, double scale) {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF9044FB)),
+      );
+    }
+
+    if (_errorMessage != null && notifications.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: EdgeInsets.all(24 * scale),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, color: Colors.amber, size: 48 * scale),
+              SizedBox(height: 16 * scale),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: const Color(0xFFA6A6C1), fontSize: 14 * scale),
+              ),
+              SizedBox(height: 16 * scale),
+              ElevatedButton.icon(
+                onPressed: _fetchNotifications,
+                icon: const Icon(Icons.refresh, color: Colors.white),
+                label: const Text('Retry', style: TextStyle(color: Colors.white)),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF9044FB)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (notifications.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.notifications_off_outlined, color: const Color(0xFF6E6E8F), size: 48 * scale),
+            SizedBox(height: 16 * scale),
+            Text(
+              'No notifications',
+              style: TextStyle(
+                color: const Color(0xFFA6A6C1),
+                fontSize: 16 * scale,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: EdgeInsets.fromLTRB(24 * scale, 16 * scale, 24 * scale, 48 * scale),
+      itemCount: notifications.length,
+      itemBuilder: (context, index) {
+        final n = notifications[index];
+        final timeStr = n.createdAt != null
+            ? n.createdAt!.toLocal().toString().split('.').first
+            : 'Recently';
+
+        return Container(
+          margin: EdgeInsets.only(bottom: 12 * scale),
+          padding: EdgeInsets.all(12 * scale),
+          decoration: BoxDecoration(
+            color: const Color(0xFF121326),
+            borderRadius: BorderRadius.circular(16 * scale),
+            border: Border.all(
+              color: const Color(0x333F4356),
+              width: scale,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x14000000),
+                blurRadius: 16,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48 * scale,
+                height: 48 * scale,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1B152E),
+                  borderRadius: BorderRadius.circular(12 * scale),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12 * scale),
+                  child: n.imageUrl != null && n.imageUrl!.isNotEmpty
+                      ? Image.network(
+                          n.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.notifications, color: Colors.white, size: 20),
+                        )
+                      : const Icon(Icons.notifications, color: Colors.white, size: 20),
+                ),
+              ),
+              SizedBox(width: 12 * scale),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      n.title,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14 * scale,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: 8 * scale),
+                    Text(
+                      n.body,
+                      style: TextStyle(
+                        color: const Color(0xFFA6A6C1),
+                        fontSize: 12 * scale,
+                        height: 1.2,
+                      ),
+                    ),
+                    SizedBox(height: 8 * scale),
+                    Text(
+                      timeStr,
+                      style: TextStyle(
+                        color: const Color(0xFF6E6E8F),
+                        fontSize: 11 * scale,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

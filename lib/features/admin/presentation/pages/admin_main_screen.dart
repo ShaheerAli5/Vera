@@ -6,6 +6,7 @@ import '../../../../core/theme/theme.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../../../shared/widgets/vera_logo.dart';
+import '../../../account/presentation/pages/sign_in_screen.dart';
 import '../../../splash/presentation/pages/splash_screen.dart';
 import '../widgets/admin_bottom_nav_bar.dart';
 
@@ -106,14 +107,23 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                       Row(
                         children: [
                           IconButton(
-                            onPressed: () {
-                              Navigator.of(context).pushReplacementNamed('/');
+                            onPressed: () async {
+                              final client = ApiClientScope.of(context);
+                              await client.clearTokens();
+                              if (!context.mounted) return;
+                              Navigator.of(context).pushAndRemoveUntil(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const SignInScreen(),
+                                ),
+                                (route) => false,
+                              );
                             },
                             icon: Icon(
                               Icons.exit_to_app,
                               color: Colors.white,
                               size: 22 * scale,
                             ),
+                            tooltip: 'Logout',
                           ),
                         ],
                       ),

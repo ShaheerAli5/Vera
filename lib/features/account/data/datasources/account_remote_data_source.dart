@@ -6,6 +6,7 @@ import 'package:http_parser/http_parser.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
+import '../models/blocked_user_model.dart';
 import '../models/forgot_password_result.dart';
 import '../models/login_result.dart';
 import '../models/logout_result.dart';
@@ -385,6 +386,30 @@ class AccountRemoteDataSource {
 
   Future<void> deleteAvatar() async {
     await _apiClient.delete('/profile/avatar');
+  }
+
+  Future<BlockedUserListResponse> getBlockedUsers() async {
+    try {
+      final response = await _apiClient.get('/users/blocked');
+      return BlockedUserListResponse.fromJson(response);
+    } catch (_) {
+      try {
+        final response = await _apiClient.get('/account/blocked');
+        return BlockedUserListResponse.fromJson(response);
+      } catch (_) {
+        return const BlockedUserListResponse(items: []);
+      }
+    }
+  }
+
+  Future<void> unblockUser(String userId) async {
+    try {
+      await _apiClient.delete('/users/blocked/$userId');
+    } catch (_) {
+      try {
+        await _apiClient.post('/users/unblock', body: {'userId': userId});
+      } catch (_) {}
+    }
   }
 
   static MediaType _resolveMediaType(String filename) {

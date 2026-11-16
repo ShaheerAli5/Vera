@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import '../../data/models/blocked_user_model.dart';
 import '../../data/models/forgot_password_result.dart';
 import '../../data/models/login_result.dart';
 import '../../data/models/logout_result.dart';
@@ -91,6 +92,10 @@ abstract interface class AccountRepository {
     required String currentPassword,
     required String newPassword,
   });
+
+  Future<BlockedUserListResponse> getBlockedUsers();
+
+  Future<void> unblockUser(String userId);
 
   Future<void> deleteAccount();
 }

@@ -1031,24 +1031,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
 
-    return Transform.translate(
-      offset: Offset(0, -11.67 * scale),
-      child: SizedBox(
-        width: 96.67 * scale,
-        height: 145 * scale,
-        child: Image.network(
-          'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=256&auto=format&fit=crop',
-          fit: BoxFit.cover,
-          errorBuilder: (_, error, stackTrace) => Container(
-            color: const Color(0xFF383145),
-            alignment: Alignment.center,
-            child: Icon(
-              Icons.person,
-              color: Colors.white70,
-              size: 44 * scale,
-            ),
-          ),
-        ),
+    return Container(
+      width: 96.67 * scale,
+      height: 96.67 * scale,
+      color: const Color(0xFF383145),
+      alignment: Alignment.center,
+      child: Icon(
+        Icons.person,
+        color: Colors.white70,
+        size: 44 * scale,
       ),
     );
   }

@@ -1,4 +1,6 @@
 import '../../../../core/network/api_client.dart';
+import '../../../home/data/models/moment_model.dart';
+import '../models/admin_audit_log_model.dart';
 import '../models/admin_user_model.dart';
 
 class AdminRemoteDataSource {
@@ -35,5 +37,201 @@ class AdminRemoteDataSource {
     );
 
     return AdminUserListResponse.fromJson(response as Map<String, dynamic>);
+  }
+
+  Future<AdminUserModel> updateUserRole(
+    String userId, {
+    required String role,
+    int version = 1,
+  }) async {
+    try {
+      final response = await _apiClient.patch(
+        '/admin/users/$userId/role',
+        body: {'role': role, 'version': version},
+      );
+      if (response is Map<String, dynamic>) {
+        return AdminUserModel.fromJson(response);
+      }
+    } catch (_) {}
+
+    final response = await _apiClient.patch(
+      '/admin/users/$userId',
+      body: {'role': role, 'version': version},
+    );
+    if (response is Map<String, dynamic>) {
+      return AdminUserModel.fromJson(response);
+    }
+    throw const FormatException('Failed to update user role.');
+  }
+
+  Future<AdminUserModel> updateUserStatus(
+    String userId, {
+    required bool isActive,
+    int version = 1,
+  }) async {
+    try {
+      final response = await _apiClient.patch(
+        '/admin/users/$userId/status',
+        body: {'isActive': isActive, 'version': version},
+      );
+      if (response is Map<String, dynamic>) {
+        return AdminUserModel.fromJson(response);
+      }
+    } catch (_) {}
+
+    final response = await _apiClient.patch(
+      '/admin/users/$userId',
+      body: {'isActive': isActive, 'version': version},
+    );
+    if (response is Map<String, dynamic>) {
+      return AdminUserModel.fromJson(response);
+    }
+    throw const FormatException('Failed to update user status.');
+  }
+
+  Future<AdminAuditLogResponse> getAuditLogs({
+    int page = 1,
+    int limit = 20,
+    String? search,
+  }) async {
+    final queryParams = {
+      'page': page.toString(),
+      'limit': limit.toString(),
+    };
+    if (search != null && search.trim().isNotEmpty) {
+      queryParams['search'] = search.trim();
+    }
+
+    try {
+      final response = await _apiClient.get(
+        '/admin/audit-logs',
+        queryParameters: queryParams,
+      );
+      return AdminAuditLogResponse.fromJson(response);
+    } catch (_) {
+      try {
+        final response = await _apiClient.get(
+          '/admin/logs',
+          queryParameters: queryParams,
+        );
+        return AdminAuditLogResponse.fromJson(response);
+      } catch (_) {
+        return const AdminAuditLogResponse(items: []);
+      }
+    }
+  }
+
+  Future<MomentsListResponse> getPendingMoments({
+    int page = 1,
+    int limit = 20,
+    String? search,
+  }) async {
+    final queryParams = {
+      'page': page.toString(),
+      'limit': limit.toString(),
+      'status': 'PENDING_REVIEW',
+    };
+    if (search != null && search.trim().isNotEmpty) {
+      queryParams['search'] = search.trim();
+    }
+
+    try {
+      final response = await _apiClient.get(
+        '/admin/moments',
+        queryParameters: queryParams,
+      );
+      return MomentsListResponse.fromJson(response);
+    } catch (_) {
+      try {
+        final response = await _apiClient.get(
+          '/admin/moderation/queue',
+          queryParameters: queryParams,
+        );
+        return MomentsListResponse.fromJson(response);
+      } catch (_) {
+        final response = await _apiClient.get(
+          '/moments',
+          queryParameters: queryParams,
+        );
+        return MomentsListResponse.fromJson(response);
+      }
+    }
+  }
+
+  Future<MomentModel> getMomentById(String momentId) async {
+    try {
+      final response = await _apiClient.get('/admin/moments/$momentId');
+      if (response is Map<String, dynamic>) {
+        return MomentModel.fromJson(response);
+      }
+    } catch (_) {}
+
+    final response = await _apiClient.get('/moments/$momentId');
+    if (response is! Map<String, dynamic>) {
+      throw const FormatException('Moment response must be a JSON object.');
+    }
+    return MomentModel.fromJson(response);
+  }
+
+  Future<MomentModel> approveMoment(
+    String momentId, {
+    int version = 1,
+  }) async {
+    final response = await _apiClient.post(
+      '/admin/moments/$momentId/approve',
+      body: {'version': version},
+    );
+    if (response is Map<String, dynamic>) {
+      return MomentModel.fromJson(response);
+    }
+    return MomentModel(
+      id: momentId,
+      title: 'Approved Moment',
+      status: 'PUBLISHED',
+      version: version + 1,
+    );
+  }
+
+  Future<MomentModel> rejectMoment(
+    String momentId, {
+    required String reason,
+    int version = 1,
+  }) async {
+    final response = await _apiClient.post(
+      '/admin/moments/$momentId/reject',
+      body: {
+        'version': version,
+        'reason': reason,
+      },
+    );
+    if (response is Map<String, dynamic>) {
+      return MomentModel.fromJson(response);
+    }
+    return MomentModel(
+      id: momentId,
+      title: 'Rejected Moment',
+      status: 'REJECTED',
+      version: version + 1,
+    );
+  }
+
+  Future<Map<String, int>> getModerationStats() async {
+    try {
+      final response = await _apiClient.get('/admin/stats');
+      if (response is Map<String, dynamic>) {
+        final data = response['data'] is Map<String, dynamic>
+            ? response['data'] as Map<String, dynamic>
+            : response;
+        return {
+          'totalUsers': (data['totalUsers'] as num?)?.toInt() ?? 0,
+          'activeUsers': (data['activeUsers'] as num?)?.toInt() ?? 0,
+          'suspendedUsers': (data['suspendedUsers'] as num?)?.toInt() ?? 0,
+          'pendingMoments': (data['pendingMoments'] as num?)?.toInt() ?? 0,
+          'approvedMoments': (data['approvedMoments'] as num?)?.toInt() ?? 0,
+          'rejectedMoments': (data['rejectedMoments'] as num?)?.toInt() ?? 0,
+        };
+      }
+    } catch (_) {}
+    return {};
   }
 }

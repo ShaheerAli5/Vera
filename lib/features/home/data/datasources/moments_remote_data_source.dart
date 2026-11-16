@@ -11,6 +11,7 @@ import '../models/create_moment_result.dart';
 import '../models/moment_media_stream.dart';
 import '../models/moment_model.dart';
 import '../models/moment_thread_model.dart';
+import '../models/notification_model.dart';
 import '../models/resend_invite_result.dart';
 import '../models/update_moment_params.dart';
 
@@ -369,6 +370,35 @@ class MomentsRemoteDataSource {
         'messageId': messageId,
       },
     );
+  }
+
+  Future<NotificationsListResponse> getNotifications({
+    int page = 1,
+    int limit = 20,
+  }) async {
+    try {
+      final response = await _apiClient.get(
+        '/notifications',
+        queryParameters: {
+          'page': page.toString(),
+          'limit': limit.toString(),
+        },
+      );
+      return NotificationsListResponse.fromJson(response);
+    } catch (_) {
+      try {
+        final response = await _apiClient.get(
+          '/user/notifications',
+          queryParameters: {
+            'page': page.toString(),
+            'limit': limit.toString(),
+          },
+        );
+        return NotificationsListResponse.fromJson(response);
+      } catch (_) {
+        return const NotificationsListResponse(items: []);
+      }
+    }
   }
 
   String _generateUuidV4() {

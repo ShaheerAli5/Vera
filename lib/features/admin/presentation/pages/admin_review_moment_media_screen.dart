@@ -1,8 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../../../../main.dart' show ApiClientScope;
+import '../../../home/data/models/moment_model.dart';
+import '../../data/datasources/admin_remote_data_source.dart';
+import '../../data/repositories/admin_repository_impl.dart';
+
 class AdminReviewMomentMediaScreen extends StatefulWidget {
   final String momentId;
-  const AdminReviewMomentMediaScreen({super.key, required this.momentId});
+  final MomentModel? initialMoment;
+
+  const AdminReviewMomentMediaScreen({
+    super.key,
+    required this.momentId,
+    this.initialMoment,
+  });
 
   @override
   State<AdminReviewMomentMediaScreen> createState() => _AdminReviewMomentMediaScreenState();
@@ -10,19 +21,187 @@ class AdminReviewMomentMediaScreen extends StatefulWidget {
 
 class _AdminReviewMomentMediaScreenState extends State<AdminReviewMomentMediaScreen> {
   bool _isPlaying = true;
+  MomentModel? _moment;
+  bool _isLoading = false;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _moment = widget.initialMoment;
+    if (_moment == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _fetchMoment();
+      });
+    }
+  }
+
+  Future<void> _fetchMoment() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final client = ApiClientScope.of(context);
+      final repo = AdminRepositoryImpl(AdminRemoteDataSource(client));
+      final moment = await repo.getMomentById(widget.momentId);
+      if (!mounted) return;
+      setState(() {
+        _moment = moment;
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _approve() async {
+    if (_isSubmitting) return;
+    setState(() => _isSubmitting = true);
+
+    try {
+      final client = ApiClientScope.of(context);
+      final repo = AdminRepositoryImpl(AdminRemoteDataSource(client));
+      final moment = _moment;
+      await repo.approveMoment(
+        widget.momentId,
+        version: moment?.version ?? 1,
+      );
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Moment approved successfully.')),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to approve moment: ${e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '')}')),
+      );
+    }
+  }
+
+  Future<void> _reject() async {
+    if (_isSubmitting) return;
+
+    String? reason = 'Inappropriate content';
+    final customReasonController = TextEditingController();
+    final reasons = ['Inappropriate content', 'Spam', 'Copyright violation', 'Other'];
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF161626),
+            title: const Text('Reject Moment', style: TextStyle(color: Colors.white)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Select a reason for rejection:', style: TextStyle(color: Color(0xFFA2A5C2))),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: reason,
+                  dropdownColor: const Color(0xFF161626),
+                  style: const TextStyle(color: Colors.white),
+                  items: reasons.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
+                  onChanged: (val) => setDlgState(() => reason = val),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: const Color(0xFF080914),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                if (reason == 'Other') ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: customReasonController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Enter specific reason...',
+                      hintStyle: const TextStyle(color: Color(0xFF535370)),
+                      filled: true,
+                      fillColor: const Color(0xFF080914),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel', style: TextStyle(color: Color(0xFFA2A5C2))),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE53935)),
+                child: const Text('Reject', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+    final client = ApiClientScope.of(context);
+    final finalReason = (reason == 'Other' && customReasonController.text.trim().isNotEmpty)
+        ? customReasonController.text.trim()
+        : (reason ?? 'Inappropriate content');
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final repo = AdminRepositoryImpl(AdminRemoteDataSource(client));
+      final moment = _moment;
+      await repo.rejectMoment(
+        widget.momentId,
+        reason: finalReason,
+        version: moment?.version ?? 1,
+      );
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Moment rejected: $finalReason')),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to reject moment: ${e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '')}')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final moment = _moment;
+    final mediaUrl = (moment?.mediaUrl != null && moment!.mediaUrl!.isNotEmpty)
+        ? moment.mediaUrl!
+        : 'https://vera.aptechmedia.com/api/v1/moments/${widget.momentId}/media';
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Dummy Media
-          Image.network(
-            'https://picsum.photos/600/1000',
-            fit: BoxFit.cover,
-          ),
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator(color: Color(0xFF9044FB)))
+          else
+            Image.network(
+              mediaUrl,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => const Center(
+                child: Icon(Icons.broken_image, color: Colors.white54, size: 64),
+              ),
+            ),
 
           // Play/Pause Overlay
           GestureDetector(
@@ -62,39 +241,35 @@ class _AdminReviewMomentMediaScreenState extends State<AdminReviewMomentMediaScr
             bottom: 32,
             left: 16,
             right: 16,
-            child: Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      // In a real app, this might show the reject dialog and then pop back further.
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('Reject', style: TextStyle(color: Colors.white, fontSize: 16)),
+            child: _isSubmitting
+                ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                : Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: _reject,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('Reject', style: TextStyle(color: Colors.white, fontSize: 16)),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: _approve,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('Approve', style: TextStyle(color: Colors.white, fontSize: 16)),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      // Handle approve logic
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('Approve', style: TextStyle(color: Colors.white, fontSize: 16)),
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),
