@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 
 import 'core/config/app_config.dart';
 import 'core/network/api_client.dart';
-import 'features/home/presentation/pages/home_screen.dart';
-import 'features/splash/presentation/pages/splash_screen.dart';
 import 'core/theme/theme.dart';
+import 'features/splash/presentation/pages/splash_screen.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -32,9 +31,6 @@ class VeraApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isAuthenticated =
-        apiClient.authToken != null && apiClient.authToken!.trim().isNotEmpty;
-
     return MaterialApp(
       title: 'VERA',
       debugShowCheckedModeBanner: false,
@@ -43,7 +39,7 @@ class VeraApp extends StatelessWidget {
         client: apiClient,
         child: child ?? const SizedBox.shrink(),
       ),
-      home: isAuthenticated ? const HomeScreen() : const SplashScreen(),
+      home: const SplashScreen(),
     );
   }
 

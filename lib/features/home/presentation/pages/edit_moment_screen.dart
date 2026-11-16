@@ -138,18 +138,64 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
     }
   }
 
+  Future<void> _deleteMedia() async {
+    final client = ApiClientScope.of(context);
+    setState(() => _isUploadingMedia = true);
+
+    try {
+      final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+
+      final updatedModel = await repo.deleteMomentMedia(
+        momentId: _currentMoment.id,
+        version: _currentMoment.version,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _isUploadingMedia = false;
+        _currentMoment = updatedModel.toEntity();
+        _streamedMediaBytes = null;
+      });
+
+      VeraPopup.show(
+        context,
+        title: 'Media removed',
+        message:
+            'Media deleted (version updated to v${_currentMoment.version}).',
+        icon: Icons.check_circle_outline_rounded,
+        accent: const Color(0xFF7DF0B0),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isUploadingMedia = false);
+
+      final errorMsg =
+          e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
+      VeraPopup.show(
+        context,
+        title: 'Delete media failed',
+        message: errorMsg,
+        icon: Icons.error_outline_rounded,
+        accent: VeraTheme.warning,
+      );
+    }
+  }
+
   void _showMediaPickerModal(BuildContext context, double scale) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withAlpha(160),
       builder: (modalContext) {
+        final hasMedia = _streamedMediaBytes != null ||
+            _currentMoment.backgroundImageUrl.isNotEmpty;
         return ClipRRect(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24 * scale)),
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
             child: Container(
-              padding: EdgeInsets.fromLTRB(24 * scale, 20 * scale, 24 * scale, 28 * scale),
+              padding: EdgeInsets.fromLTRB(
+                  24 * scale, 20 * scale, 24 * scale, 28 * scale),
               decoration: const BoxDecoration(
                 color: Color(0xFF16172E),
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -159,7 +205,7 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Upload media',
+                    'Media options',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 18 * scale,
@@ -168,29 +214,48 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
                   ),
                   SizedBox(height: 16 * scale),
                   ListTile(
-                    leading: const Icon(Icons.camera_alt_outlined, color: Colors.white),
-                    title: const Text('Camera', style: TextStyle(color: Colors.white)),
+                    leading: const Icon(Icons.camera_alt_outlined,
+                        color: Colors.white),
+                    title: const Text('Camera',
+                        style: TextStyle(color: Colors.white)),
                     onTap: () {
                       Navigator.of(modalContext).pop();
                       _pickAndUploadMedia(ImageSource.camera);
                     },
                   ),
                   ListTile(
-                    leading: const Icon(Icons.photo_library_outlined, color: Colors.white),
-                    title: const Text('Photo Gallery', style: TextStyle(color: Colors.white)),
+                    leading: const Icon(Icons.photo_library_outlined,
+                        color: Colors.white),
+                    title: const Text('Photo Gallery',
+                        style: TextStyle(color: Colors.white)),
                     onTap: () {
                       Navigator.of(modalContext).pop();
                       _pickAndUploadMedia(ImageSource.gallery);
                     },
                   ),
                   ListTile(
-                    leading: const Icon(Icons.videocam_outlined, color: Colors.white),
-                    title: const Text('Video Gallery', style: TextStyle(color: Colors.white)),
+                    leading: const Icon(Icons.videocam_outlined,
+                        color: Colors.white),
+                    title: const Text('Video Gallery',
+                        style: TextStyle(color: Colors.white)),
                     onTap: () {
                       Navigator.of(modalContext).pop();
                       _pickAndUploadMedia(ImageSource.gallery, isVideo: true);
                     },
                   ),
+                  if (hasMedia) ...[
+                    const Divider(color: Color(0x22FFFFFF)),
+                    ListTile(
+                      leading: const Icon(Icons.delete_outline_rounded,
+                          color: VeraTheme.warning),
+                      title: const Text('Remove media',
+                          style: TextStyle(color: VeraTheme.warning)),
+                      onTap: () {
+                        Navigator.of(modalContext).pop();
+                        _deleteMedia();
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),

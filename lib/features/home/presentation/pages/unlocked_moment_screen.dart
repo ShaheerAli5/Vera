@@ -6,6 +6,7 @@ import '../../../../core/layout/responsive.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../data/datasources/moments_remote_data_source.dart';
+import '../../data/models/chat_message_model.dart';
 import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
 
@@ -24,6 +25,9 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
   bool _isLoading = false;
   Uint8List? _mediaBytes;
   bool _isLoadingMedia = false;
+  bool _isSendingReply = false;
+  List<ChatMessageModel> _messages = [];
+  bool _isLoadingMessages = false;
 
   @override
   void initState() {
@@ -34,7 +38,50 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
         _fetchFullMoment();
       }
       _fetchMediaStream();
+      _fetchThreadMessages();
     });
+  }
+
+  Future<void> _fetchThreadMessages([String? knownThreadId]) async {
+    if (_currentMoment.id.isEmpty) return;
+    setState(() => _isLoadingMessages = true);
+
+    try {
+      final client = ApiClientScope.of(context);
+      final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+
+      final threadId = knownThreadId ??
+          (await repo.createOrGetMomentThread(momentId: _currentMoment.id)).id;
+
+      if (threadId.isNotEmpty) {
+        final history = await repo.getThreadMessages(
+          chatThreadId: threadId,
+          limit: 50,
+        );
+
+        if (history.items.isNotEmpty) {
+          final lastMsgId = history.items.last.id;
+          if (lastMsgId.isNotEmpty) {
+            repo.markThreadAsRead(
+              chatThreadId: threadId,
+              messageId: lastMsgId,
+            ).catchError((_) {});
+          }
+        }
+
+        if (!mounted) return;
+        setState(() {
+          _messages = history.items;
+          _isLoadingMessages = false;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() => _isLoadingMessages = false);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoadingMessages = false);
+    }
   }
 
   Future<void> _fetchMediaStream() async {
@@ -186,6 +233,53 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                                   ),
                                 ),
                         ),
+                        if (_isLoadingMessages) ...[
+                          SizedBox(height: 12 * scale),
+                          Center(
+                            child: SizedBox(
+                              width: 16 * scale,
+                              height: 16 * scale,
+                              child: const CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: Color(0xFF9044FB),
+                              ),
+                            ),
+                          ),
+                        ] else if (_messages.isNotEmpty) ...[
+                          SizedBox(height: 16 * scale),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Conversation (${_messages.length})',
+                              style: TextStyle(
+                                color: const Color(0xFFF7F5FF),
+                                fontSize: 14 * scale,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 8 * scale),
+                          for (final msg in _messages) ...[
+                            Container(
+                              width: contentWidth,
+                              margin: EdgeInsets.only(bottom: 8 * scale),
+                              padding: EdgeInsets.all(12 * scale),
+                              decoration: BoxDecoration(
+                                color: const Color(0x2217182D),
+                                borderRadius: BorderRadius.circular(12 * scale),
+                                border: Border.all(
+                                    color: const Color(0x33373657), width: scale),
+                              ),
+                              child: Text(
+                                msg.content,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14 * scale,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ],
                     ),
                   );
@@ -195,21 +289,64 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
             _ReplyBar(
               scale: scale,
               controller: _replyController,
-              onSend: () {
-                final reply = _replyController.text.trim();
-                if (reply.isEmpty) return;
-                _replyController.clear();
-                VeraPopup.show(
-                  context,
-                  title: 'Reply sent',
-                  message: 'Your message is on its way.',
-                );
-              },
+              isSending: _isSendingReply,
+              onSend: _handleSendReply,
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _handleSendReply() async {
+    final reply = _replyController.text.trim();
+    if (reply.isEmpty || _isSendingReply) return;
+
+    setState(() => _isSendingReply = true);
+
+    try {
+      final client = ApiClientScope.of(context);
+      final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+
+      final thread = await repo.createOrGetMomentThread(
+        momentId: _currentMoment.id,
+      );
+
+      if (thread.id.isNotEmpty) {
+        final sentMsg = await repo.sendThreadMessage(
+          chatThreadId: thread.id,
+          text: reply,
+        );
+
+        if (!mounted) return;
+        _replyController.clear();
+        setState(() {
+          _messages.add(sentMsg);
+          _isSendingReply = false;
+        });
+
+        VeraPopup.show(
+          context,
+          title: 'Reply sent',
+          message: 'Your message has been sent.',
+        );
+      } else {
+        if (!mounted) return;
+        _replyController.clear();
+        setState(() => _isSendingReply = false);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSendingReply = false);
+      final errorMessage =
+          e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
+      VeraPopup.show(
+        context,
+        title: 'Error',
+        message:
+            errorMessage.isNotEmpty ? errorMessage : 'Failed to send reply.',
+      );
+    }
   }
 }
 
@@ -447,11 +584,13 @@ class _ReplyBar extends StatelessWidget {
     required this.scale,
     required this.controller,
     required this.onSend,
+    this.isSending = false,
   });
 
   final double scale;
   final TextEditingController controller;
   final VoidCallback onSend;
+  final bool isSending;
 
   @override
   Widget build(BuildContext context) {
@@ -502,6 +641,7 @@ class _ReplyBar extends StatelessWidget {
               ),
               child: TextField(
                 controller: controller,
+                enabled: !isSending,
                 textAlignVertical: TextAlignVertical.center,
                 maxLines: 1,
                 style: TextStyle(
@@ -528,15 +668,26 @@ class _ReplyBar extends StatelessWidget {
           SizedBox(
             width: 48 * scale,
             height: 48 * scale,
-            child: GestureDetector(
-              onTap: onSend,
-              child: Image.asset(
-                'assets/images/reply_send_button.png',
-                width: 48 * scale,
-                height: 48 * scale,
-                fit: BoxFit.contain,
-              ),
-            ),
+            child: isSending
+                ? Center(
+                    child: SizedBox(
+                      width: 24 * scale,
+                      height: 24 * scale,
+                      child: const CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF9044FB),
+                      ),
+                    ),
+                  )
+                : GestureDetector(
+                    onTap: onSend,
+                    child: Image.asset(
+                      'assets/images/reply_send_button.png',
+                      width: 48 * scale,
+                      height: 48 * scale,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
           ),
         ],
       ),

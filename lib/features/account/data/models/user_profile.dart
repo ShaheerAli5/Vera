@@ -3,6 +3,7 @@ class UserProfile {
     required this.id,
     required this.email,
     required this.displayName,
+    this.role,
     this.username,
     this.avatarUrl,
     this.bio,
@@ -15,6 +16,7 @@ class UserProfile {
   final String id;
   final String email;
   final String displayName;
+  final String? role;
   final String? username;
   final String? avatarUrl;
   final String? bio;
@@ -39,6 +41,7 @@ class UserProfile {
     String? id,
     String? email,
     String? displayName,
+    String? role,
     String? username,
     String? avatarUrl,
     String? bio,
@@ -51,6 +54,7 @@ class UserProfile {
       id: id ?? this.id,
       email: email ?? this.email,
       displayName: displayName ?? this.displayName,
+      role: role ?? this.role,
       username: username ?? this.username,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       bio: bio ?? this.bio,
@@ -105,6 +109,7 @@ class UserProfile {
         '';
 
     final email = (data['email'] ?? json['email'])?.toString() ?? '';
+    final role = (data['role'] ?? json['role'] ?? (json['user'] is Map ? json['user']['role'] : null))?.toString();
 
     return UserProfile(
       id: (data['id'] ?? data['_id'] ?? json['id'] ?? '')?.toString() ?? '',
@@ -112,6 +117,7 @@ class UserProfile {
       displayName: displayName.isNotEmpty
           ? displayName
           : (email.isNotEmpty ? email.split('@').first : 'User'),
+      role: role,
       username: (data['username'] ?? data['handle'] ?? json['username'])
           ?.toString(),
       avatarUrl: (data['avatarUrl'] ??

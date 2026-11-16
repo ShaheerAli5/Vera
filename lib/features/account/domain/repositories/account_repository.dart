@@ -23,6 +23,11 @@ abstract interface class AccountRepository {
     String? deviceName,
   });
 
+  Future<LoginResult> adminLogin({
+    required String email,
+    required String password,
+  });
+
   Future<VerifyEmailResult> verifyEmail({
     required String email,
     required String code,

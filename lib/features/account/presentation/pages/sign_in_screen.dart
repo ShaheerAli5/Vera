@@ -1,15 +1,16 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../core/auth/user_role.dart';
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
+import '../../../admin/presentation/pages/admin_login_screen.dart';
 import '../../../home/presentation/pages/home_screen.dart';
 import '../../data/datasources/account_remote_data_source.dart';
 import '../../data/repositories/account_repository_impl.dart';
-import '../../../admin/presentation/pages/admin_login_screen.dart';
 import 'create_account_screen.dart';
 import 'forgot_password_screen.dart';
 
@@ -49,8 +50,9 @@ class _SignInScreenState extends State<SignInScreen> {
 
     setState(() => _isSubmitting = true);
     try {
+      final apiClient = ApiClientScope.of(context);
       final repository = AccountRepositoryImpl(
-        AccountRemoteDataSource(ApiClientScope.of(context)),
+        AccountRemoteDataSource(apiClient),
       );
       final result = await repository.login(
         email: _email.trim(),
@@ -58,11 +60,38 @@ class _SignInScreenState extends State<SignInScreen> {
         deviceName: defaultTargetPlatform.name,
       );
 
-      if (!mounted) return;
-      await ApiClientScope.of(context).setTokens(
+      // Set initial auth tokens to allow backend profile request
+      await apiClient.setTokens(
         authToken: result.accessToken,
         refreshToken: result.refreshToken,
       );
+
+      // Fetch user's complete profile directly from backend API
+      final profile = await repository.getProfile();
+      final parsedRole = UserRole.parse(profile.role ?? result.user.role);
+
+      if (parsedRole == UserRole.owner) {
+        await apiClient.clearTokens();
+        throw const ApiException(
+          statusCode: 403,
+          message: 'Access denied. Please use the Admin Login page.',
+        );
+      }
+
+      if (parsedRole != UserRole.user) {
+        await apiClient.clearTokens();
+        throw const ApiException(
+          statusCode: 403,
+          message: 'Access denied. Unknown or invalid user role.',
+        );
+      }
+
+      await apiClient.setTokens(
+        authToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        userRole: UserRole.user.value,
+      );
+
       if (!mounted) return;
 
       VeraPopup.show(

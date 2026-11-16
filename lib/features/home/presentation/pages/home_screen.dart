@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/auth/user_role.dart';
 import '../../../../core/layout/responsive.dart';
+import '../../../../core/theme/theme.dart';
+import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../../../shared/widgets/vera_logo.dart';
+import '../../../admin/presentation/pages/admin_main_screen.dart';
+import '../../../splash/presentation/pages/splash_screen.dart';
 import '../../data/datasources/moments_remote_data_source.dart';
+import '../../data/models/moment_model.dart';
+import '../../data/models/moment_thread_model.dart';
 import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
 import '../widgets/bottom_nav_bar.dart';
@@ -44,8 +51,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   bool _isLoadingMoments = false;
   String? _momentsError;
+  List<Moment> _fetchedForYouMoments = [];
+  List<Moment> _fetchedDiscoverMoments = [];
   List<Moment> _fetchedYourMoments = [];
   List<Moment> _fetchedInboxMoments = [];
+  List<MomentThreadModel> _incomingThreads = [];
+  List<MomentThreadModel> _sentThreads = [];
+
+  List<MomentThreadModel> get incomingThreads => _incomingThreads;
+  List<MomentThreadModel> get sentThreads => _sentThreads;
+
   bool _hasLoadedOnce = false;
 
   @override
@@ -59,9 +74,42 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _validateRoleGuard();
     if (!_hasLoadedOnce) {
       _hasLoadedOnce = true;
       _fetchMoments();
+    }
+  }
+
+  void _validateRoleGuard() {
+    final client = ApiClientScope.of(context);
+    final parsedRole = UserRole.parse(client.userRole);
+    if (parsedRole == UserRole.owner) {
+      // An owner/admin must never access the User Dashboard as an authenticated user
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(builder: (_) => const AdminMainScreen()),
+          (route) => false,
+        );
+      });
+    } else if (parsedRole != UserRole.user) {
+      // Invalid or unauthenticated session
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        client.clearTokens();
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(builder: (_) => const SplashScreen()),
+          (route) => false,
+        );
+        VeraPopup.show(
+          context,
+          title: 'Access Denied',
+          message: 'Invalid role session. Please sign in again.',
+          icon: Icons.error_outline_rounded,
+          accent: VeraTheme.warning,
+        );
+      });
     }
   }
 
@@ -76,20 +124,55 @@ class _HomeScreenState extends State<HomeScreen> {
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
 
       final results = await Future.wait([
-        repo.getMoments(page: page, limit: limit),
+        repo.getHomeFeed(
+          tab: 'FOR_YOU',
+          page: page,
+          limit: limit,
+        ).catchError((_) => repo.getMoments(page: page, limit: limit)),
+        repo.getDiscoverMoments(
+          page: page,
+          limit: limit,
+          search: _searchQuery,
+          category: _selectedCategory,
+        ).catchError((_) => repo.getHomeFeed(
+          tab: 'DISCOVER',
+          page: page,
+          limit: limit,
+          search: _searchQuery,
+          category: _selectedCategory,
+        ).catchError((_) => repo.getMoments(page: page, limit: limit))),
+        repo.getHomeFeed(
+          tab: 'YOUR_MOMENTS',
+          page: page,
+          limit: limit,
+        ).catchError((_) => repo.getMoments(page: page, limit: limit)),
         repo.getInboxMoments(page: page, limit: limit),
+        repo.getChatThreads(box: 'INCOMING', limit: limit)
+            .catchError((_) => const ChatThreadsResponse(items: [])),
+        repo.getChatThreads(box: 'SENT', limit: limit)
+            .catchError((_) => const ChatThreadsResponse(items: [])),
       ]);
 
-      final myMomentsResponse = results[0];
-      final inboxMomentsResponse = results[1];
+      final forYouResponse = results[0] as MomentsListResponse;
+      final discoverResponse = results[1] as MomentsListResponse;
+      final yourMomentsResponse = results[2] as MomentsListResponse;
+      final inboxMomentsResponse = results[3] as MomentsListResponse;
+      final incomingThreadsResponse = results[4] as ChatThreadsResponse;
+      final sentThreadsResponse = results[5] as ChatThreadsResponse;
 
-      final mappedYour = myMomentsResponse.moments.map((m) => m.toEntity()).toList();
+      final mappedForYou = forYouResponse.moments.map((m) => m.toEntity()).toList();
+      final mappedDiscover = discoverResponse.moments.map((m) => m.toEntity()).toList();
+      final mappedYour = yourMomentsResponse.moments.map((m) => m.toEntity()).toList();
       final mappedInbox = inboxMomentsResponse.moments.map((m) => m.toEntity()).toList();
 
       if (!mounted) return;
       setState(() {
+        _fetchedForYouMoments = mappedForYou;
+        _fetchedDiscoverMoments = mappedDiscover;
         _fetchedYourMoments = mappedYour;
         _fetchedInboxMoments = mappedInbox;
+        _incomingThreads = incomingThreadsResponse.items;
+        _sentThreads = sentThreadsResponse.items;
         HomeScreen.sentMoments.clear();
         _isLoadingMoments = false;
       });
@@ -107,6 +190,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Moment> get _currentMoments {
     if (_isDiscoverMode) {
+      if (_fetchedDiscoverMoments.isNotEmpty) {
+        return _fetchedDiscoverMoments;
+      }
       final query = _searchQuery.trim().toLowerCase();
       return _fetchedYourMoments.where((moment) {
         if (!moment.isPublicSentMoment || moment.status != 'PUBLISHED') {
@@ -127,12 +213,17 @@ class _HomeScreenState extends State<HomeScreen> {
       return _fetchedYourMoments;
     }
     switch (_selectedTabIndex) {
-      case 1:
-        return _fetchedYourMoments
-            .where((m) => m.isPublicSentMoment && m.status == 'PUBLISHED')
-            .toList();
-      case 2:
       case 0:
+        return _fetchedForYouMoments.isNotEmpty
+            ? _fetchedForYouMoments
+            : _fetchedYourMoments;
+      case 1:
+        return _fetchedDiscoverMoments.isNotEmpty
+            ? _fetchedDiscoverMoments
+            : _fetchedYourMoments
+                .where((m) => m.isPublicSentMoment && m.status == 'PUBLISHED')
+                .toList();
+      case 2:
       default:
         return _fetchedYourMoments;
     }
@@ -169,10 +260,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   _DiscoverHeader(
                     scale: scale,
                     selectedCategory: _selectedCategory,
-                    onCategorySelected: (category) =>
-                        setState(() => _selectedCategory = category),
-                    onSearchChanged: (query) =>
-                        setState(() => _searchQuery = query),
+                    onCategorySelected: (category) {
+                      setState(() => _selectedCategory = category);
+                      _fetchMoments();
+                    },
+                    onSearchChanged: (query) {
+                      setState(() => _searchQuery = query);
+                      _fetchMoments();
+                    },
                   )
                 else if (_selectedNavIndex == 2)
                   _MessagesHeader(

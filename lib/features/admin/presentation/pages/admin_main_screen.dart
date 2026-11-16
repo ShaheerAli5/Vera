@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/auth/user_role.dart';
 import '../../../../core/layout/responsive.dart';
+import '../../../../core/theme/theme.dart';
+import '../../../../core/widgets/vera_popup.dart';
+import '../../../../main.dart' show ApiClientScope;
 import '../../../../shared/widgets/vera_logo.dart';
+import '../../../splash/presentation/pages/splash_screen.dart';
 import '../widgets/admin_bottom_nav_bar.dart';
 
 import 'admin_dashboard_screen.dart';
@@ -25,6 +30,34 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     AdminUserListScreen(),
     AdminAuditLogScreen(),
   ];
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _validateRoleGuard();
+  }
+
+  void _validateRoleGuard() {
+    final client = ApiClientScope.of(context);
+    final parsedRole = UserRole.parse(client.userRole);
+    if (parsedRole != UserRole.owner) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        client.clearTokens();
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(builder: (_) => const SplashScreen()),
+          (route) => false,
+        );
+        VeraPopup.show(
+          context,
+          title: 'Access Denied',
+          message: 'You do not have permission to access the Admin Dashboard.',
+          icon: Icons.error_outline_rounded,
+          accent: VeraTheme.warning,
+        );
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

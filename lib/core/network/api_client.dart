@@ -21,6 +21,7 @@ class ApiClient {
 
   static const _authTokenKey = 'vera_auth_token';
   static const _refreshTokenKey = 'vera_refresh_token';
+  static const _userRoleKey = 'vera_user_role';
 
   final AppConfig config;
   final http.Client _httpClient;
@@ -33,6 +34,9 @@ class ApiClient {
   String? _refreshToken;
   String? get refreshToken => _refreshToken;
 
+  String? _userRole;
+  String? get userRole => _userRole;
+
   Future<bool>? _ongoingRefresh;
   void Function()? onSessionExpired;
 
@@ -41,11 +45,15 @@ class ApiClient {
       final prefs = await SharedPreferences.getInstance();
       final savedAuth = prefs.getString(_authTokenKey);
       final savedRefresh = prefs.getString(_refreshTokenKey);
+      final savedRole = prefs.getString(_userRoleKey);
       _authToken = (savedAuth != null && savedAuth.trim().isNotEmpty && savedAuth != 'null')
           ? savedAuth.trim()
           : null;
       _refreshToken = (savedRefresh != null && savedRefresh.trim().isNotEmpty && savedRefresh != 'null')
           ? savedRefresh.trim()
+          : null;
+      _userRole = (savedRole != null && savedRole.trim().isNotEmpty && savedRole != 'null')
+          ? savedRole.trim()
           : null;
     } catch (_) {}
   }
@@ -60,21 +68,25 @@ class ApiClient {
     await _saveToken(_refreshTokenKey, token);
   }
 
-  Future<void> setTokens({String? authToken, String? refreshToken}) async {
+  Future<void> setTokens({String? authToken, String? refreshToken, String? userRole}) async {
     _authToken = authToken;
-    _refreshToken = refreshToken;
+    if (refreshToken != null) _refreshToken = refreshToken;
+    if (userRole != null) _userRole = userRole;
     await Future.wait([
       _saveToken(_authTokenKey, authToken),
-      _saveToken(_refreshTokenKey, refreshToken),
+      if (refreshToken != null) _saveToken(_refreshTokenKey, refreshToken),
+      if (userRole != null) _saveToken(_userRoleKey, userRole),
     ]);
   }
 
   Future<void> clearTokens() async {
     _authToken = null;
     _refreshToken = null;
+    _userRole = null;
     await Future.wait([
       _removeToken(_authTokenKey),
       _removeToken(_refreshTokenKey),
+      _removeToken(_userRoleKey),
     ]);
   }
 

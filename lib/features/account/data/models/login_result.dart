@@ -29,6 +29,7 @@ class LoginResult {
         id: userJson['id']?.toString() ?? '',
         email: userJson['email']?.toString() ?? '',
         displayName: userJson['displayName']?.toString() ?? '',
+        role: userJson['role']?.toString(),
       ),
     );
   }

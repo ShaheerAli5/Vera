@@ -56,6 +56,23 @@ class AccountRemoteDataSource {
     return LoginResult.fromJson(response);
   }
 
+  Future<LoginResult> adminLogin({
+    required String email,
+    required String password,
+  }) async {
+    final response = await _apiClient.post(
+      '/auth/login',
+      body: {
+        'email': email,
+        'password': password,
+      },
+    );
+    if (response is! Map<String, dynamic>) {
+      throw const FormatException('Admin Login response must be a JSON object.');
+    }
+    return LoginResult.fromJson(response);
+  }
+
   Future<VerifyEmailResult> verifyEmail({
     required String email,
     required String code,

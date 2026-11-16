@@ -1,9 +1,11 @@
 import '../../domain/repositories/moments_repository.dart';
 import '../datasources/moments_remote_data_source.dart';
+import '../models/chat_message_model.dart';
 import '../models/create_moment_params.dart';
 import '../models/create_moment_result.dart';
 import '../models/moment_media_stream.dart';
 import '../models/moment_model.dart';
+import '../models/moment_thread_model.dart';
 import '../models/resend_invite_result.dart';
 import '../models/update_moment_params.dart';
 
@@ -15,6 +17,42 @@ class MomentsRepositoryImpl implements MomentsRepository {
   @override
   Future<CreateMomentResult> createMoment(CreateMomentParams params) {
     return _remoteDataSource.createMoment(params);
+  }
+
+  @override
+  Future<MomentsListResponse> getHomeFeed({
+    required String tab,
+    int page = 1,
+    int limit = 20,
+    String? search,
+    String? category,
+  }) {
+    return _remoteDataSource.getHomeFeed(
+      tab: tab,
+      page: page,
+      limit: limit,
+      search: search,
+      category: category,
+    );
+  }
+
+  @override
+  Future<MomentsListResponse> getDiscoverMoments({
+    int page = 1,
+    int limit = 20,
+    String? search,
+    String? category,
+    String? contentType,
+    String? unlockType,
+  }) {
+    return _remoteDataSource.getDiscoverMoments(
+      page: page,
+      limit: limit,
+      search: search,
+      category: category,
+      contentType: contentType,
+      unlockType: unlockType,
+    );
   }
 
   @override
@@ -106,6 +144,17 @@ class MomentsRepositoryImpl implements MomentsRepository {
   }
 
   @override
+  Future<MomentModel> deleteMomentMedia({
+    required String momentId,
+    required int version,
+  }) {
+    return _remoteDataSource.deleteMomentMedia(
+      momentId: momentId,
+      version: version,
+    );
+  }
+
+  @override
   Future<MomentMediaStream> getMomentMedia(String momentId) {
     return _remoteDataSource.getMomentMedia(momentId);
   }
@@ -113,6 +162,67 @@ class MomentsRepositoryImpl implements MomentsRepository {
   @override
   Future<MomentModel> getMomentContent(String momentId) {
     return _remoteDataSource.getMomentContent(momentId);
+  }
+
+  @override
+  Future<MomentThreadModel> createOrGetMomentThread({
+    required String momentId,
+    String? recipientUserId,
+  }) {
+    return _remoteDataSource.createOrGetMomentThread(
+      momentId: momentId,
+      recipientUserId: recipientUserId,
+    );
+  }
+
+  @override
+  Future<ChatThreadsResponse> getChatThreads({
+    required String box,
+    int limit = 20,
+    String? cursor,
+  }) {
+    return _remoteDataSource.getChatThreads(
+      box: box,
+      limit: limit,
+      cursor: cursor,
+    );
+  }
+
+  @override
+  Future<ThreadMessagesResponse> getThreadMessages({
+    required String chatThreadId,
+    int limit = 50,
+    String? cursor,
+  }) {
+    return _remoteDataSource.getThreadMessages(
+      chatThreadId: chatThreadId,
+      limit: limit,
+      cursor: cursor,
+    );
+  }
+
+  @override
+  Future<ChatMessageModel> sendThreadMessage({
+    required String chatThreadId,
+    required String text,
+    String? clientMessageId,
+  }) {
+    return _remoteDataSource.sendThreadMessage(
+      chatThreadId: chatThreadId,
+      text: text,
+      clientMessageId: clientMessageId,
+    );
+  }
+
+  @override
+  Future<void> markThreadAsRead({
+    required String chatThreadId,
+    required String messageId,
+  }) {
+    return _remoteDataSource.markThreadAsRead(
+      chatThreadId: chatThreadId,
+      messageId: messageId,
+    );
   }
 
   @override

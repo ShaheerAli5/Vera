@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/auth/user_role.dart';
 import '../../../../core/layout/responsive.dart';
+import '../../../../core/theme/theme.dart';
 import '../../../../main.dart' show ApiClientScope;
+import '../../../../shared/widgets/vera_logo.dart';
+import '../../../account/data/datasources/account_remote_data_source.dart';
+import '../../../account/data/repositories/account_repository_impl.dart';
 import '../../../account/presentation/pages/create_account_screen.dart';
 import '../../../account/presentation/pages/sign_in_screen.dart';
+import '../../../admin/presentation/pages/admin_main_screen.dart';
 import '../../../home/presentation/pages/home_screen.dart';
-import '../../../../core/theme/theme.dart';
-import '../../../../shared/widgets/vera_logo.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -20,14 +24,42 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final client = ApiClientScope.of(context);
-      if (client.authToken != null && client.authToken!.trim().isNotEmpty) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
-        );
-      }
+      _checkAuthAndNavigate();
     });
+  }
+
+  Future<void> _checkAuthAndNavigate() async {
+    if (!mounted) return;
+    final client = ApiClientScope.of(context);
+    if (client.authToken != null && client.authToken!.trim().isNotEmpty) {
+      try {
+        final repository = AccountRepositoryImpl(
+          AccountRemoteDataSource(client),
+        );
+        final profile = await repository.getProfile();
+        final parsedRole = UserRole.parse(profile.role ?? client.userRole);
+
+        if (parsedRole == UserRole.owner) {
+          await client.setTokens(userRole: UserRole.owner.value);
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(builder: (_) => const AdminMainScreen()),
+          );
+          return;
+        } else if (parsedRole == UserRole.user) {
+          await client.setTokens(userRole: UserRole.user.value);
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
+          );
+          return;
+        } else {
+          await client.clearTokens();
+        }
+      } catch (_) {
+        await client.clearTokens();
+      }
+    }
   }
 
   @override

@@ -1,10 +1,60 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/layout/responsive.dart';
+import '../../../../main.dart' show ApiClientScope;
+import '../../data/datasources/admin_remote_data_source.dart';
+import '../../data/repositories/admin_repository_impl.dart';
+import '../../data/models/admin_user_model.dart';
 import 'admin_user_detail_screen.dart';
 
-class AdminUserListScreen extends StatelessWidget {
+class AdminUserListScreen extends StatefulWidget {
   const AdminUserListScreen({super.key});
+
+  @override
+  State<AdminUserListScreen> createState() => _AdminUserListScreenState();
+}
+
+class _AdminUserListScreenState extends State<AdminUserListScreen> {
+  final List<AdminUserModel> _users = [];
+  bool _isLoading = true;
+  String? _error;
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchUsers();
+    });
+  }
+
+  Future<void> _fetchUsers() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final client = ApiClientScope.of(context);
+      final repo = AdminRepositoryImpl(AdminRemoteDataSource(client));
+      final result = await repo.getUsers(search: _searchQuery);
+      if (mounted) {
+        setState(() {
+          _users.clear();
+          _users.addAll(result.items);
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +109,10 @@ class AdminUserListScreen extends StatelessWidget {
                       ),
                       contentPadding: EdgeInsets.symmetric(vertical: 14 * scale),
                     ),
+                    onChanged: (val) {
+                      _searchQuery = val;
+                      _fetchUsers();
+                    },
                   ),
                 ),
               ),
@@ -79,29 +133,43 @@ class AdminUserListScreen extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: ListView.builder(
-            padding: EdgeInsets.fromLTRB(16 * scale, 0, 16 * scale, 100 * scale),
-            itemCount: 15,
-            itemBuilder: (context, index) {
-              final isAdmin = index % 5 == 0;
-              final isSuspended = index == 3;
+          child: _isLoading 
+            ? Center(
+                child: CircularProgressIndicator(
+                  color: const Color(0xFF9044FB),
+                ),
+              )
+            : _error != null 
+              ? Center(
+                  child: Text(
+                    'Error: $_error',
+                    style: TextStyle(color: Colors.red, fontSize: 16 * scale),
+                  ),
+                )
+              : ListView.builder(
+                  padding: EdgeInsets.fromLTRB(16 * scale, 0, 16 * scale, 100 * scale),
+                  itemCount: _users.length,
+                  itemBuilder: (context, index) {
+                    final user = _users[index];
+                    final isAdmin = user.role.toUpperCase() == 'ADMIN';
+                    final isSuspended = !user.isActive;
 
-              return _buildUserItem(context, scale, index, isAdmin, isSuspended);
-            },
-          ),
+                    return _buildUserItem(context, scale, user, isAdmin, isSuspended);
+                  },
+                ),
         ),
       ],
     );
   }
 
-  Widget _buildUserItem(BuildContext context, double scale, int index, bool isAdmin, bool isSuspended) {
+  Widget _buildUserItem(BuildContext context, double scale, AdminUserModel user, bool isAdmin, bool isSuspended) {
     return GestureDetector(
       onTap: () {
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => AdminUserDetailScreen(
-              userId: 'user_$index',
-              username: 'user_$index',
+              userId: user.id,
+              username: user.displayName,
               isAdmin: isAdmin,
               isSuspended: isSuspended,
             ),
@@ -129,12 +197,12 @@ class AdminUserListScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'User Name $index',
+                    user.displayName,
                     style: TextStyle(color: Colors.white, fontSize: 16 * scale, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 4 * scale),
                   Text(
-                    'user$index@example.com',
+                    user.email,
                     style: TextStyle(color: const Color(0xFFA2A5C2), fontSize: 13 * scale),
                   ),
                 ],

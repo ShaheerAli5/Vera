@@ -122,7 +122,7 @@ class CreateMomentParams {
   const CreateMomentParams({
     required this.title,
     required this.category,
-    required this.teaser,
+    this.teaser,
     this.message,
     this.visibility = 'PRIVATE',
     this.recipientUserIds = const [],
@@ -133,7 +133,7 @@ class CreateMomentParams {
 
   final String title;
   final String category;
-  final String teaser;
+  final String? teaser;
   final String? message;
   final String visibility;
   final List<String> recipientUserIds;
@@ -169,7 +169,7 @@ class CreateMomentParams {
     return {
       'title': title,
       'category': normalizeCategory(category),
-      'teaser': teaser,
+      if (teaser != null && teaser!.isNotEmpty) 'teaser': teaser,
       if (message != null && message!.isNotEmpty) 'message': message,
       'visibility': visibility.toUpperCase(),
       if (!isPublic && cleanRecipientUserIds.isNotEmpty)

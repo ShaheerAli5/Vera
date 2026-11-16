@@ -7,6 +7,7 @@ class MomentsListResponse {
     this.page = 1,
     this.limit = 20,
     this.hasMore = false,
+    this.serverTime,
   });
 
   final List<MomentModel> moments;
@@ -14,6 +15,7 @@ class MomentsListResponse {
   final int page;
   final int limit;
   final bool hasMore;
+  final DateTime? serverTime;
 
   factory MomentsListResponse.fromJson(dynamic json) {
     if (json is List) {
@@ -73,12 +75,16 @@ class MomentsListResponse {
     final hasMore = meta?['hasMore'] == true ||
         (page * limit < total);
 
+    final serverTimeStr = json['serverTime']?.toString() ?? json['server_time']?.toString();
+    final serverTime = serverTimeStr != null ? DateTime.tryParse(serverTimeStr) : null;
+
     return MomentsListResponse(
       moments: moments,
       total: total,
       page: page,
       limit: limit,
       hasMore: hasMore,
+      serverTime: serverTime,
     );
   }
 }
@@ -143,11 +149,13 @@ class MomentModel {
             ? rawJson['moment'] as Map<String, dynamic>
             : rawJson);
 
-    final unlockRule = json['unlockRule'] is Map<String, dynamic>
-        ? json['unlockRule'] as Map<String, dynamic>
-        : (json['unlock_rule'] is Map<String, dynamic>
-            ? json['unlock_rule'] as Map<String, dynamic>
-            : null);
+    final unlockRule = json['unlock'] is Map<String, dynamic>
+        ? json['unlock'] as Map<String, dynamic>
+        : (json['unlockRule'] is Map<String, dynamic>
+            ? json['unlockRule'] as Map<String, dynamic>
+            : (json['unlock_rule'] is Map<String, dynamic>
+                ? json['unlock_rule'] as Map<String, dynamic>
+                : null));
 
     final creator = json['creator'] is Map<String, dynamic>
         ? json['creator'] as Map<String, dynamic>
@@ -195,6 +203,13 @@ class MomentModel {
     final invitationStatus = json['invitationStatus']?.toString() ??
         json['invitation_status']?.toString();
 
+    final avatarPath = creator?['avatarUrl']?.toString() ??
+        creator?['avatar_url']?.toString() ??
+        json['creatorAvatarUrl']?.toString();
+    final fullAvatarUrl = (avatarPath != null && avatarPath.startsWith('/'))
+        ? 'https://vera.aptechmedia.com$avatarPath'
+        : avatarPath;
+
     return MomentModel(
       id: json['id']?.toString() ??
           json['_id']?.toString() ??
@@ -204,8 +219,8 @@ class MomentModel {
       category: json['category']?.toString(),
       teaser: json['teaser']?.toString(),
       message: json['message']?.toString(),
-      visibility: json['visibility']?.toString() ?? 'PRIVATE',
-      status: json['status']?.toString(),
+      visibility: json['visibility']?.toString() ?? 'PUBLIC',
+      status: json['status']?.toString() ?? 'PUBLISHED',
       unlockRuleType: unlockRule?['type']?.toString() ??
           json['unlockType']?.toString() ??
           'DATE',
@@ -222,13 +237,12 @@ class MomentModel {
       creatorId: creator?['id']?.toString() ??
           creator?['_id']?.toString() ??
           json['creatorId']?.toString(),
-      creatorName: creator?['name']?.toString() ??
+      creatorName: creator?['displayName']?.toString() ??
+          creator?['name']?.toString() ??
           creator?['username']?.toString() ??
           json['creatorName']?.toString() ??
           'You',
-      creatorAvatarUrl: creator?['avatarUrl']?.toString() ??
-          creator?['avatar_url']?.toString() ??
-          json['creatorAvatarUrl']?.toString(),
+      creatorAvatarUrl: fullAvatarUrl,
       mediaUrl: mediaUrl,
       recipientUserIds: recipients,
       inviteEmails: invites,

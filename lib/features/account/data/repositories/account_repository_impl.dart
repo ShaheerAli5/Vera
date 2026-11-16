@@ -45,6 +45,17 @@ class AccountRepositoryImpl implements AccountRepository {
   }
 
   @override
+  Future<LoginResult> adminLogin({
+    required String email,
+    required String password,
+  }) {
+    return _remoteDataSource.adminLogin(
+      email: email,
+      password: password,
+    );
+  }
+
+  @override
   Future<VerifyEmailResult> verifyEmail({
     required String email,
     required String code,
