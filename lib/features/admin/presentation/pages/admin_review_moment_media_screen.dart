@@ -4,6 +4,7 @@ import '../../../../main.dart' show ApiClientScope;
 import '../../../home/data/models/moment_model.dart';
 import '../../data/datasources/admin_remote_data_source.dart';
 import '../../data/repositories/admin_repository_impl.dart';
+import '../utils/admin_media_utils.dart';
 
 class AdminReviewMomentMediaScreen extends StatefulWidget {
   final String momentId;
@@ -183,9 +184,9 @@ class _AdminReviewMomentMediaScreenState extends State<AdminReviewMomentMediaScr
   @override
   Widget build(BuildContext context) {
     final moment = _moment;
-    final mediaUrl = (moment?.mediaUrl != null && moment!.mediaUrl!.isNotEmpty)
-        ? moment.mediaUrl!
-        : 'https://vera.aptechmedia.com/api/v1/moments/${widget.momentId}/media';
+    final apiClient = ApiClientScope.of(context);
+    final mediaUrl = adminMomentMediaUrl(apiClient, moment?.mediaUrl, widget.momentId);
+    final mediaHeaders = adminMediaHeaders(apiClient);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -197,6 +198,7 @@ class _AdminReviewMomentMediaScreenState extends State<AdminReviewMomentMediaScr
           else
             Image.network(
               mediaUrl,
+              headers: mediaHeaders,
               fit: BoxFit.cover,
               errorBuilder: (context, error, stackTrace) => const Center(
                 child: Icon(Icons.broken_image, color: Colors.white54, size: 64),

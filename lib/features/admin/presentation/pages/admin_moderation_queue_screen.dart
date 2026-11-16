@@ -7,6 +7,7 @@ import '../../../home/data/models/moment_model.dart';
 import '../../data/datasources/admin_remote_data_source.dart';
 import '../../data/repositories/admin_repository_impl.dart';
 import 'admin_review_moment_screen.dart';
+import '../utils/admin_media_utils.dart';
 
 class AdminModerationQueueScreen extends StatefulWidget {
   const AdminModerationQueueScreen({super.key});
@@ -249,9 +250,9 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
             ? moment.message!
             : (moment.teaser?.isNotEmpty == true ? moment.teaser! : 'No caption provided'));
 
-    final mediaUrl = (moment.mediaUrl != null && moment.mediaUrl!.isNotEmpty)
-        ? moment.mediaUrl!
-        : 'https://vera.aptechmedia.com/api/v1/moments/${moment.id}/media';
+    final apiClient = ApiClientScope.of(context);
+    final mediaUrl = adminMomentMediaUrl(apiClient, moment.mediaUrl, moment.id);
+    final mediaHeaders = adminMediaHeaders(apiClient);
 
     return GestureDetector(
       onTap: () async {
@@ -289,6 +290,7 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
                 borderRadius: BorderRadius.circular(12 * scale),
                 child: Image.network(
                   mediaUrl,
+                  headers: mediaHeaders,
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) => Center(
                     child: Icon(Icons.play_circle_outline, color: Colors.white.withValues(alpha: 0.8), size: 32 * scale),

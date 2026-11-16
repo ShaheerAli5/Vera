@@ -222,10 +222,10 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                             behavior: HitTestBehavior.opaque,
                             child: Container(
                               width: contentWidth,
-                              height: 68 * scale,
+                              constraints: BoxConstraints(minHeight: 68 * scale),
                               padding: EdgeInsets.symmetric(
                                 horizontal: 16 * scale,
-                                vertical: 8 * scale,
+                                vertical: 10 * scale,
                               ),
                               decoration: BoxDecoration(
                                 gradient: _isPrivate
@@ -295,10 +295,10 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                             behavior: HitTestBehavior.opaque,
                             child: Container(
                               width: contentWidth,
-                              height: 68 * scale,
+                              constraints: BoxConstraints(minHeight: 68 * scale),
                               padding: EdgeInsets.symmetric(
                                 horizontal: 16 * scale,
-                                vertical: 8 * scale,
+                                vertical: 10 * scale,
                               ),
                               decoration: BoxDecoration(
                                 gradient: !_isPrivate
