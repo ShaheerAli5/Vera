@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
+import '../../../../core/widgets/vera_popup.dart';
 import 'home_screen.dart';
 
 class MomentReadyScreen extends StatelessWidget {
   const MomentReadyScreen({
     super.key,
-    this.title = 'Midnight at the tower',
-    this.recipient = 'Everyone (Public)',
-    this.unlockTime = "Opens when you're at Tokyo Tower",
-    this.isPublic = true,
-    this.shareUrl = 'https://vera.app/m/90401549',
+    required this.title,
+    required this.recipient,
+    required this.unlockTime,
+    required this.isPublic,
+    required this.shareUrl,
   });
 
   final String title;
@@ -22,11 +24,12 @@ class MomentReadyScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
-    final scale = (screen.width / 390).clamp(.82, 1.12);
+    final scale = VeraResponsive.scale(screen.width, designWidth: 390);
+    final contentWidth = VeraResponsive.contentWidth(screen.width, horizontalPadding: 24 * scale);
 
     final subtitleText = isPublic
-        ? 'Your public moment was sent for review. It appears in Discover once approved.'
-        : 'Recipients must sign in and accept the invitation before they can see anything.';
+        ? 'Your public moment was created and submitted for admin review. Once approved by an admin, it will be published to Discover.'
+        : 'Your moment was created and submitted for admin review (Pending Review). Once approved by an admin, it will be published and recipients can unlock and view it.';
 
     return Scaffold(
       backgroundColor: VeraTheme.background,
@@ -65,9 +68,9 @@ class MomentReadyScreen extends StatelessWidget {
 
                     SizedBox(height: 28 * scale),
 
-                    // Title: Your moment is ready!
+                    // Title: Submitted for approval!
                     Text(
-                      'Your moment is ready!',
+                      'Submitted for approval!',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: const Color(0xFFF7F5FF),
@@ -93,7 +96,7 @@ class MomentReadyScreen extends StatelessWidget {
 
                     // Moment Summary Card
                     Container(
-                      width: 345 * scale,
+                      width: contentWidth,
                       padding: EdgeInsets.all(12 * scale),
                       decoration: BoxDecoration(
                         color: const Color(0xFF17182D),
@@ -191,8 +194,11 @@ class MomentReadyScreen extends StatelessWidget {
                           GestureDetector(
                             onTap: () {
                               Clipboard.setData(ClipboardData(text: shareUrl));
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Link copied to clipboard!')),
+                              VeraPopup.show(
+                                context,
+                                title: 'Link copied',
+                                message: 'Your moment link is ready to share.',
+                                icon: Icons.link_rounded,
                               );
                             },
                             behavior: HitTestBehavior.opaque,
@@ -240,7 +246,7 @@ class MomentReadyScreen extends StatelessWidget {
               ),
               child: isPublic
                   ? SizedBox(
-                      width: 345 * scale,
+                      width: contentWidth,
                       height: 48 * scale,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
@@ -260,8 +266,8 @@ class MomentReadyScreen extends StatelessWidget {
                             Navigator.of(context).pushAndRemoveUntil(
                               MaterialPageRoute<void>(
                                 builder: (_) => const HomeScreen(
-                                  initialNavIndex: 2,
-                                  initialMessageTabIndex: 1,
+                                  initialNavIndex: 0,
+                                  initialTabIndex: 2,
                                 ),
                               ),
                               (route) => false,
@@ -272,7 +278,7 @@ class MomentReadyScreen extends StatelessWidget {
                             shape: const StadiumBorder(),
                           ),
                           child: Text(
-                            'View in Sent messages',
+                            'View in Your moments',
                             style: TextStyle(
                               fontSize: 14 * scale,
                               fontWeight: FontWeight.w600,
@@ -286,7 +292,7 @@ class MomentReadyScreen extends StatelessWidget {
                       children: [
                         // Primary Button: Share Link
                         SizedBox(
-                          width: 345 * scale,
+                          width: contentWidth,
                           height: 48 * scale,
                           child: DecoratedBox(
                             decoration: BoxDecoration(
@@ -304,8 +310,11 @@ class MomentReadyScreen extends StatelessWidget {
                             child: TextButton(
                               onPressed: () {
                                 Clipboard.setData(ClipboardData(text: shareUrl));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Link copied to clipboard!')),
+                                VeraPopup.show(
+                                  context,
+                                  title: 'Link copied',
+                                  message: 'Your moment link is ready to share.',
+                                  icon: Icons.link_rounded,
                                 );
                               },
                               style: TextButton.styleFrom(
@@ -327,15 +336,15 @@ class MomentReadyScreen extends StatelessWidget {
 
                         // Secondary Button: View in Your moments
                         SizedBox(
-                          width: 345 * scale,
+                          width: contentWidth,
                           height: 48 * scale,
                           child: OutlinedButton(
                             onPressed: () {
                               Navigator.of(context).pushAndRemoveUntil(
                                 MaterialPageRoute<void>(
                                   builder: (_) => const HomeScreen(
-                                    initialNavIndex: 2,
-                                    initialMessageTabIndex: 1,
+                                    initialNavIndex: 0,
+                                    initialTabIndex: 2,
                                   ),
                                 ),
                                 (route) => false,
@@ -351,7 +360,7 @@ class MomentReadyScreen extends StatelessWidget {
                               shape: const StadiumBorder(),
                             ),
                             child: Text(
-                              'View in Sent messages',
+                              'View in Your moments',
                               style: TextStyle(
                                 fontSize: 14 * scale,
                                 fontWeight: FontWeight.w600,

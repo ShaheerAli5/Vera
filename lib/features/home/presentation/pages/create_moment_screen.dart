@@ -1,6 +1,10 @@
+import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
+import '../../../../core/widgets/vera_popup.dart';
 import 'choose_audience_screen.dart';
 
 class CreateMomentScreen extends StatefulWidget {
@@ -12,43 +16,111 @@ class CreateMomentScreen extends StatefulWidget {
 
 class _CreateMomentScreenState extends State<CreateMomentScreen> {
   final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _teaserController = TextEditingController();
   final TextEditingController _messageController = TextEditingController();
+  final ImagePicker _picker = ImagePicker();
+
   int _selectedCategoryIndex = -1;
   bool _hasUploadedMedia = false;
+  XFile? _pickedMediaFile;
+  Uint8List? _mediaBytes;
+  bool _isVideo = false;
 
   final List<Map<String, dynamic>> _categories = const [
-    {'icon': Icons.airplanemode_active_rounded, 'label': 'Travel'},
-    {'icon': Icons.eco_outlined, 'label': 'Nature'},
-    {'icon': Icons.favorite_border_rounded, 'label': 'Love'},
-    {'icon': Icons.cake_outlined, 'label': 'Birthdays'},
+    {'icon': Icons.airplanemode_active_rounded, 'label': 'Travel', 'value': 'TRAVEL'},
+    {'icon': Icons.eco_outlined, 'label': 'Nature', 'value': 'NATURE'},
+    {'icon': Icons.cake_outlined, 'label': 'Birthday', 'value': 'BIRTHDAY'},
+    {'icon': Icons.favorite_border_rounded, 'label': 'Love', 'value': 'LOVE'},
+    {'icon': Icons.auto_awesome_outlined, 'label': 'Other', 'value': 'OTHER'},
   ];
 
   @override
   void dispose() {
     _titleController.dispose();
+    _teaserController.dispose();
     _messageController.dispose();
     super.dispose();
-  }
-
-  void _onMediaSelected() {
-    setState(() {
-      _hasUploadedMedia = true;
-      if (_messageController.text.isEmpty) {
-        _messageController.text = "Whenever you read this, I hope your da...";
-      }
-    });
   }
 
   void _removeMedia() {
     setState(() {
       _hasUploadedMedia = false;
+      _pickedMediaFile = null;
+      _mediaBytes = null;
+      _isVideo = false;
     });
   }
 
+  Future<void> _pickMedia(ImageSource source, {bool isVideo = false}) async {
+    try {
+      final file = isVideo
+          ? await _picker.pickVideo(source: source)
+          : await _picker.pickImage(source: source);
+      if (file == null) return;
+
+      final bytes = await file.readAsBytes();
+      final maxSize = isVideo ? 25 * 1024 * 1024 : 8 * 1024 * 1024;
+      if (bytes.length > maxSize) {
+        if (!mounted) return;
+        VeraPopup.show(
+          context,
+          title: 'File too large',
+          message: isVideo
+              ? 'Videos must be 25 MB or less.'
+              : 'Images must be 8 MB or less.',
+          icon: Icons.warning_amber_rounded,
+          accent: VeraTheme.warning,
+        );
+        return;
+      }
+
+      setState(() {
+        _pickedMediaFile = file;
+        _mediaBytes = bytes;
+        _isVideo = isVideo;
+        _hasUploadedMedia = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      VeraPopup.show(
+        context,
+        title: 'Media error',
+        message: e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), ''),
+        icon: Icons.error_outline_rounded,
+        accent: VeraTheme.warning,
+      );
+    }
+  }
+
   void _navigateToNextStep() {
+    final titleInput = _titleController.text.trim();
+    final title = titleInput.isNotEmpty ? titleInput : 'Untitled Moment';
+
+    final category = _selectedCategoryIndex >= 0
+        ? ((_categories[_selectedCategoryIndex]['value'] as String? ??
+                _categories[_selectedCategoryIndex]['label'] as String)
+            .toUpperCase())
+        : 'OTHER';
+
+    final messageInput = _messageController.text.trim();
+    final message = messageInput.isNotEmpty ? messageInput : null;
+
+    final customTeaser = _teaserController.text.trim();
+    final teaser = customTeaser.isNotEmpty
+        ? customTeaser
+        : (titleInput.isNotEmpty ? titleInput : 'Open this when the time comes');
+
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => const ChooseAudienceScreen(),
+        builder: (_) => ChooseAudienceScreen(
+          title: title,
+          category: category,
+          teaser: teaser,
+          message: message,
+          mediaFile: _pickedMediaFile,
+          mediaBytes: _mediaBytes,
+          isVideo: _isVideo,
+        ),
       ),
     );
   }
@@ -151,7 +223,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                           scale: scale,
                           onTap: () {
                             Navigator.of(context).pop();
-                            _onMediaSelected();
+                            _pickMedia(ImageSource.camera);
                           },
                         ),
                       ),
@@ -163,7 +235,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                           scale: scale,
                           onTap: () {
                             Navigator.of(context).pop();
-                            _onMediaSelected();
+                            _pickMedia(ImageSource.gallery);
                           },
                         ),
                       ),
@@ -175,7 +247,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                           scale: scale,
                           onTap: () {
                             Navigator.of(context).pop();
-                            _onMediaSelected();
+                            _pickMedia(ImageSource.gallery, isVideo: true);
                           },
                         ),
                       ),
@@ -193,7 +265,8 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
-    final scale = (screen.width / 390).clamp(.82, 1.12);
+    final scale = VeraResponsive.scale(screen.width, designWidth: 390);
+    final contentWidth = VeraResponsive.contentWidth(screen.width, horizontalPadding: 24 * scale);
 
     return Scaffold(
       backgroundColor: VeraTheme.background,
@@ -325,7 +398,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           SizedBox(
-                            width: 345 * scale,
+                            width: contentWidth,
                             height: 32 * scale,
                             child: Text(
                               'Give your moment a title',
@@ -341,7 +414,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                           SizedBox(height: 16 * scale),
                           // Title Input Box
                           SizedBox(
-                            width: 345 * scale,
+                            width: contentWidth,
                             height: 48 * scale,
                             child: TextField(
                               controller: _titleController,
@@ -370,18 +443,133 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                               ),
                             ),
                           ),
+                          SizedBox(height: 14 * scale),
+                          Text(
+                            'Teaser (visible while locked)',
+                            style: TextStyle(
+                              color: const Color(0xFFD4D4E8),
+                              fontSize: 13 * scale,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          SizedBox(height: 8 * scale),
+                          SizedBox(
+                            width: contentWidth,
+                            height: 48 * scale,
+                            child: TextField(
+                              controller: _teaserController,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14 * scale,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Open this when the time comes',
+                                hintStyle: TextStyle(
+                                  color: const Color(0xFF8A8EB3),
+                                  fontSize: 14 * scale,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                                filled: true,
+                                fillColor: const Color(0xFF17182D),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 16 * scale,
+                                  vertical: 12 * scale,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12 * scale),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
 
                     SizedBox(height: 24 * scale),
 
-                    // Uploaded Media Preview Card OR Category Selection
+                    // Section 2: Categories (Always Visible)
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 24 * scale),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Select a category',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20 * scale,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 16 * scale),
+                          Wrap(
+                            spacing: 10 * scale,
+                            runSpacing: 10 * scale,
+                            children: List.generate(_categories.length, (index) {
+                              final category = _categories[index];
+                              final isSelected = _selectedCategoryIndex == index;
+
+                              return GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedCategoryIndex =
+                                        isSelected ? -1 : index;
+                                  });
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: 16 * scale,
+                                    vertical: 10 * scale,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? VeraTheme.purple
+                                        : const Color(0xFF17182D),
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? VeraTheme.purpleBright
+                                          : const Color(0x1AFFFFFF),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        category['icon'] as IconData,
+                                        size: 16 * scale,
+                                        color: Colors.white,
+                                      ),
+                                      SizedBox(width: 8 * scale),
+                                      Text(
+                                        category['label'] as String,
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 13.5 * scale,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    SizedBox(height: 24 * scale),
+
+                    // Section 3: Uploaded Media Preview Card (if media added)
                     if (_hasUploadedMedia) ...[
                       Padding(
                         padding: EdgeInsets.symmetric(horizontal: 24 * scale),
                         child: Container(
-                          width: 345 * scale,
+                          width: contentWidth,
                           height: 180 * scale,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(20 * scale),
@@ -403,7 +591,15 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                             borderRadius: BorderRadius.circular(20 * scale),
                             child: Stack(
                               children: [
-                                // Top Left Duration Badge
+                                if (_mediaBytes != null && !_isVideo)
+                                  Positioned.fill(
+                                    child: Image.memory(
+                                      _mediaBytes!,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+
+                                // Top Left Media Badge
                                 Positioned(
                                   top: 12 * scale,
                                   left: 12 * scale,
@@ -416,13 +612,26 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                                       color: const Color(0x99000000),
                                       borderRadius: BorderRadius.circular(20 * scale),
                                     ),
-                                    child: Text(
-                                      '0:12',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 11 * scale,
-                                        fontWeight: FontWeight.w500,
-                                      ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          _isVideo
+                                              ? Icons.videocam_rounded
+                                              : Icons.photo_rounded,
+                                          color: Colors.white,
+                                          size: 13 * scale,
+                                        ),
+                                        SizedBox(width: 4 * scale),
+                                        Text(
+                                          _isVideo ? 'Video' : 'Photo',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11 * scale,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -450,132 +659,58 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                                   ),
                                 ),
 
-                                // Center Play Button
-                                Center(
-                                  child: Container(
-                                    width: 52 * scale,
-                                    height: 52 * scale,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0x99000000),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Icon(
-                                      Icons.play_arrow_rounded,
-                                      color: Colors.white,
-                                      size: 30 * scale,
+                                // Center Indicator for Video
+                                if (_isVideo)
+                                  Center(
+                                    child: Container(
+                                      width: 52 * scale,
+                                      height: 52 * scale,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0x99000000),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        Icons.play_arrow_rounded,
+                                        color: Colors.white,
+                                        size: 30 * scale,
+                                      ),
                                     ),
                                   ),
-                                ),
                               ],
                             ),
                           ),
                         ),
                       ),
-                    ] else ...[
-                      // Section 2: Categories
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 24 * scale),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Select a category',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 20 * scale,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 16 * scale),
-                            Wrap(
-                              spacing: 10 * scale,
-                              runSpacing: 10 * scale,
-                              children: List.generate(_categories.length, (index) {
-                                final category = _categories[index];
-                                final isSelected = _selectedCategoryIndex == index;
-
-                                return GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedCategoryIndex =
-                                          isSelected ? -1 : index;
-                                    });
-                                  },
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 180),
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 16 * scale,
-                                      vertical: 10 * scale,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? VeraTheme.purple
-                                          : const Color(0xFF17182D),
-                                      borderRadius: BorderRadius.circular(999),
-                                      border: Border.all(
-                                        color: isSelected
-                                            ? VeraTheme.purpleBright
-                                            : const Color(0x1AFFFFFF),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          category['icon'] as IconData,
-                                          size: 16 * scale,
-                                          color: Colors.white,
-                                        ),
-                                        SizedBox(width: 8 * scale),
-                                        Text(
-                                          category['label'] as String,
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 13.5 * scale,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ),
-                          ],
-                        ),
-                      ),
-
                       SizedBox(height: 24 * scale),
-
-                      // Section 3: Add something to remember
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 24 * scale),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Add something to remember',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16 * scale,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 8 * scale),
-                            Text(
-                              'Add a message, photo or video to your moment. All are optional.',
-                              style: TextStyle(
-                                color: VeraTheme.textSecondary,
-                                fontSize: 13 * scale,
-                                height: 1.45,
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ],
+
+                    // Section 4: Add something to remember
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 24 * scale),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Add something to remember',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16 * scale,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 8 * scale),
+                          Text(
+                            'Add a message, photo or video to your moment. All are optional.',
+                            style: TextStyle(
+                              color: VeraTheme.textSecondary,
+                              fontSize: 13 * scale,
+                              height: 1.45,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -601,7 +736,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                 children: [
                   // Notice Label
                   SizedBox(
-                    width: 345 * scale,
+                    width: contentWidth,
                     height: 24 * scale,
                     child: Center(
                       child: Text(
@@ -677,7 +812,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
 
                   // Continue Button
                   SizedBox(
-                    width: 345 * scale,
+                    width: contentWidth,
                     height: 48 * scale,
                     child: DecoratedBox(
                       decoration: BoxDecoration(

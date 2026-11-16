@@ -1,18 +1,76 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/auth/user_role.dart';
+import '../../../../core/layout/responsive.dart';
+import '../../../../core/theme/theme.dart';
+import '../../../../main.dart' show ApiClientScope;
+import '../../../../shared/widgets/vera_logo.dart';
+import '../../../account/data/datasources/account_remote_data_source.dart';
+import '../../../account/data/repositories/account_repository_impl.dart';
 import '../../../account/presentation/pages/create_account_screen.dart';
 import '../../../account/presentation/pages/sign_in_screen.dart';
-import '../../../../core/theme/theme.dart';
-import '../../../../shared/widgets/vera_logo.dart';
+import '../../../admin/presentation/pages/admin_main_screen.dart';
+import '../../../home/presentation/pages/home_screen.dart';
 
-class SplashScreen extends StatelessWidget {
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAuthAndNavigate();
+    });
+  }
+
+  Future<void> _checkAuthAndNavigate() async {
+    if (!mounted) return;
+    final client = ApiClientScope.of(context);
+    if (client.authToken != null && client.authToken!.trim().isNotEmpty) {
+      try {
+        final repository = AccountRepositoryImpl(
+          AccountRemoteDataSource(client),
+        );
+        final profile = await repository.getProfile();
+        final parsedRole = UserRole.parse(profile.role ?? client.userRole);
+
+        if (parsedRole == UserRole.owner) {
+          await client.setTokens(userRole: UserRole.owner.value);
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(builder: (_) => const AdminMainScreen()),
+          );
+          return;
+        } else if (parsedRole == UserRole.user) {
+          await client.setTokens(userRole: UserRole.user.value);
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
+          );
+          return;
+        } else {
+          await client.clearTokens();
+        }
+      } catch (_) {
+        await client.clearTokens();
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final screen = MediaQuery.sizeOf(context);
-    final scale = (screen.width / 393).clamp(.82, 1.12);
-    final actionsWidth = (screen.width - 48 * scale).clamp(0.0, 345 * scale);
+    final scale = VeraResponsive.scale(screen.width);
+    final actionsWidth = VeraResponsive.contentWidth(
+      screen.width,
+      maxWidth: VeraResponsive.formMaxWidth,
+      horizontalPadding: 24 * scale,
+    );
     final compact = screen.height < 740;
 
     return Scaffold(
