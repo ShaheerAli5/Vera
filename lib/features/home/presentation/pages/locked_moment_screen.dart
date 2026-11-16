@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
+import '../../../../core/utils/server_time_manager.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../data/datasources/moments_remote_data_source.dart';
@@ -24,11 +25,89 @@ class LockedMomentScreen extends StatefulWidget {
 class _LockedMomentScreenState extends State<LockedMomentScreen> {
   late Moment _currentMoment;
   bool _isChecking = false;
+  int _ticksCount = 0;
 
   @override
   void initState() {
     super.initState();
     _currentMoment = widget.moment;
+    ServerTimeManager.instance.ticker.addListener(_onTick);
+    ServerTimeManager.instance.addResumedListener(_onResumed);
+  }
+
+  @override
+  void dispose() {
+    ServerTimeManager.instance.ticker.removeListener(_onTick);
+    ServerTimeManager.instance.removeResumedListener(_onResumed);
+    super.dispose();
+  }
+
+  void _onResumed() {
+    if (!mounted) return;
+    _checkIfReadySilent();
+  }
+
+  void _onTick() {
+    if (!mounted) return;
+    _ticksCount++;
+    final now = ServerTimeManager.instance.now;
+
+    if (_currentMoment.unlockAt != null && _currentMoment.status == 'PUBLISHED') {
+      final isTimeReached = !now.isBefore(_currentMoment.unlockAt!);
+      if (isTimeReached && !_isChecking && !_currentMoment.isReadyToOpen) {
+        _checkIfReadySilent();
+        return;
+      }
+    }
+
+    if (_currentMoment.status == 'PENDING_REVIEW' && _ticksCount % 5 == 0 && !_isChecking) {
+      _checkIfReadySilent();
+      return;
+    }
+
+    setState(() {});
+  }
+
+  Future<void> _checkIfReadySilent() async {
+    if (_isChecking || _currentMoment.id.isEmpty) return;
+    try {
+      final client = ApiClientScope.of(context);
+      final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+
+      try {
+        final unlockedModel = await repo.unlockMoment(
+          momentId: _currentMoment.id,
+        );
+        final unlockedEntity = unlockedModel.toEntity().copyWith(isReadyToOpen: true);
+        if (!mounted) return;
+        setState(() {
+          _currentMoment = unlockedEntity;
+        });
+
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) => UnlockedMomentScreen(moment: unlockedEntity),
+          ),
+        );
+        return;
+      } catch (_) {
+        final model = await repo.getMomentById(_currentMoment.id);
+        final updated = model.toEntity();
+
+        if (!mounted) return;
+        setState(() {
+          _currentMoment = updated;
+        });
+
+        if (updated.isReadyToOpen) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => UnlockedMomentScreen(moment: updated),
+            ),
+          );
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _checkIfReady() async {
@@ -568,6 +647,28 @@ class _UnlockBanner extends StatelessWidget {
   final Moment moment;
   final double scale;
 
+  String _buildBannerText() {
+    if (moment.unlockAt != null) {
+      final now = ServerTimeManager.instance.now;
+      if (!now.isBefore(moment.unlockAt!)) {
+        return '${moment.unlockCondition} · Ready to unlock';
+      }
+      final diff = moment.unlockAt!.difference(now);
+      if (diff.inDays > 0) {
+        return '${moment.unlockCondition} (in ${diff.inDays}d ${diff.inHours % 24}h)';
+      } else if (diff.inHours > 0) {
+        final m = (diff.inMinutes % 60).toString().padLeft(2, '0');
+        final s = (diff.inSeconds % 60).toString().padLeft(2, '0');
+        return '${moment.unlockCondition} (in ${diff.inHours}:$m:$s)';
+      } else {
+        final m = (diff.inMinutes % 60).toString().padLeft(2, '0');
+        final s = (diff.inSeconds % 60).toString().padLeft(2, '0');
+        return '${moment.unlockCondition} (in $m:$s)';
+      }
+    }
+    return moment.unlockCondition;
+  }
+
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
@@ -596,7 +697,7 @@ class _UnlockBanner extends StatelessWidget {
               SizedBox(width: 12 * scale),
               Expanded(
                 child: Text(
-                  moment.unlockCondition,
+                  _buildBannerText(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

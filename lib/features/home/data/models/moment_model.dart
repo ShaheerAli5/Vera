@@ -1,3 +1,4 @@
+import '../../../../core/utils/server_time_manager.dart';
 import '../../domain/entities/moment.dart';
 
 class MomentsListResponse {
@@ -77,6 +78,9 @@ class MomentsListResponse {
 
     final serverTimeStr = json['serverTime']?.toString() ?? json['server_time']?.toString();
     final serverTime = serverTimeStr != null ? DateTime.tryParse(serverTimeStr) : null;
+    if (serverTime != null) {
+      ServerTimeManager.instance.updateServerTime(serverTime);
+    }
 
     return MomentsListResponse(
       moments: moments,
@@ -114,6 +118,7 @@ class MomentModel {
     this.invitationStatus,
     this.unlockedAt,
     this.openedAt,
+    this.isVideo = false,
     this.raw = const {},
   });
 
@@ -140,6 +145,7 @@ class MomentModel {
   final String? invitationStatus;
   final DateTime? unlockedAt;
   final DateTime? openedAt;
+  final bool isVideo;
   final Map<String, dynamic> raw;
 
   factory MomentModel.fromJson(Map<String, dynamic> rawJson) {
@@ -169,7 +175,11 @@ class MomentModel {
         json['unlock_at']?.toString();
 
     final createdAtStr = json['createdAt']?.toString() ??
-        json['created_at']?.toString();
+        json['created_at']?.toString() ??
+        rawJson['createdAt']?.toString() ??
+        rawJson['created_at']?.toString() ??
+        json['timestamp']?.toString() ??
+        rawJson['timestamp']?.toString();
 
     final recipients = (json['recipientUserIds'] ?? json['recipient_user_ids']) is List
         ? ((json['recipientUserIds'] ?? json['recipient_user_ids']) as List)
@@ -209,6 +219,24 @@ class MomentModel {
     final fullAvatarUrl = (avatarPath != null && avatarPath.startsWith('/'))
         ? 'https://vera.aptechmedia.com$avatarPath'
         : avatarPath;
+
+    final mimeType = media?['mimeType']?.toString() ??
+        media?['type']?.toString() ??
+        media?['contentType']?.toString() ??
+        json['contentType']?.toString() ??
+        json['mediaType']?.toString() ??
+        json['type']?.toString();
+
+    final isVideo = (json['isVideo'] == true ||
+        rawJson['isVideo'] == true ||
+        json['is_video'] == true ||
+        (mimeType != null && mimeType.toLowerCase().contains('video')) ||
+        (mediaUrl != null && (
+            mediaUrl.toLowerCase().contains('.mp4') ||
+            mediaUrl.toLowerCase().contains('.mov') ||
+            mediaUrl.toLowerCase().contains('.webm') ||
+            mediaUrl.toLowerCase().contains('.avi') ||
+            mediaUrl.toLowerCase().contains('/video/'))));
 
     return MomentModel(
       id: json['id']?.toString() ??
@@ -250,14 +278,26 @@ class MomentModel {
       invitationStatus: invitationStatus,
       unlockedAt: unlockedAtStr != null ? DateTime.tryParse(unlockedAtStr) : null,
       openedAt: openedAtStr != null ? DateTime.tryParse(openedAtStr) : null,
+      isVideo: isVideo,
       raw: json,
     );
   }
 
   Moment toEntity({String? currentUserName}) {
     final isDateUnlock = (unlockRuleType ?? 'DATE').toUpperCase() == 'DATE';
-    final now = DateTime.now();
-    final isReady = unlockAt != null ? now.isAfter(unlockAt!) : false;
+    final now = ServerTimeManager.instance.now;
+
+    bool isReady;
+    if (unlockedAt != null) {
+      isReady = true;
+    } else if (unlockAt != null) {
+      isReady = !now.isBefore(unlockAt!);
+    } else {
+      isReady = true;
+    }
+
+    final isApprovedAndPublished = status == 'PUBLISHED';
+    final isReadyToOpen = isReady && isApprovedAndPublished;
 
     String conditionText;
     if (isDateUnlock && unlockAt != null) {
@@ -284,8 +324,9 @@ class MomentModel {
     }
 
     String timeAgoText = 'Just now';
-    if (createdAt != null) {
-      final diff = now.difference(createdAt!);
+    final refTime = createdAt ?? unlockedAt;
+    if (refTime != null) {
+      final diff = now.difference(refTime);
       if (diff.inDays > 365) {
         timeAgoText = '${(diff.inDays / 365).floor()}y ago';
       } else if (diff.inDays > 30) {
@@ -296,6 +337,10 @@ class MomentModel {
         timeAgoText = '${diff.inHours}h ago';
       } else if (diff.inMinutes > 0) {
         timeAgoText = '${diff.inMinutes}m ago';
+      } else if (diff.inSeconds >= 10) {
+        timeAgoText = '${diff.inSeconds}s ago';
+      } else {
+        timeAgoText = 'Just now';
       }
     }
 
@@ -324,8 +369,6 @@ class MomentModel {
         ? creatorAvatarUrl!
         : '';
 
-    final isApprovedAndPublished = status == 'PUBLISHED';
-
     return Moment(
       id: id,
       userName: creatorName ?? 'You',
@@ -334,7 +377,7 @@ class MomentModel {
       backgroundImageUrl: bgImage,
       unlockCondition: conditionText,
       unlockType: isDateUnlock ? MomentUnlockType.time : MomentUnlockType.location,
-      isReadyToOpen: isReady && isApprovedAndPublished,
+      isReadyToOpen: isReadyToOpen,
       sentBadgeTitle: badgeTitle,
       sentBadgeSubtitle: invitationStatus == 'PENDING'
           ? 'Pending invitation'
@@ -360,6 +403,8 @@ class MomentModel {
       invitationStatus: invitationStatus,
       unlockedAt: unlockedAt,
       openedAt: openedAt,
+      unlockAt: unlockAt,
+      isVideo: isVideo,
     );
   }
 }

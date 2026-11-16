@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
+import '../../../../core/utils/server_time_manager.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../../home/data/models/moment_model.dart';
 import '../../data/datasources/admin_remote_data_source.dart';
@@ -32,10 +33,23 @@ class _AdminReviewMomentScreenState extends State<AdminReviewMomentScreen> {
   void initState() {
     super.initState();
     _moment = widget.initialMoment;
+    ServerTimeManager.instance.ticker.addListener(_onTick);
     if (_moment == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _fetchMomentDetails();
       });
+    }
+  }
+
+  @override
+  void dispose() {
+    ServerTimeManager.instance.ticker.removeListener(_onTick);
+    super.dispose();
+  }
+
+  void _onTick() {
+    if (mounted) {
+      setState(() {});
     }
   }
 

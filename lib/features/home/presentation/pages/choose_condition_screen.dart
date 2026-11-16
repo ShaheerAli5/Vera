@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
+import '../../../../core/utils/server_time_manager.dart';
 import '../../data/models/create_moment_params.dart';
 import 'review_moment_screen.dart';
 
@@ -827,8 +828,14 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                             inviteEmails: widget.inviteEmails,
                             unlockRuleType:
                                 _isDateTimeCondition ? 'DATE' : 'LOCATION',
-                            unlockAt:
-                                _selectedDateTime.toUtc().toIso8601String(),
+                            unlockAt: ServerTimeManager.computeUtcIsoString(
+                              year: _selectedDateTime.year,
+                              month: _selectedDateTime.month,
+                              day: _selectedDateTime.day,
+                              hour: _selectedDateTime.hour,
+                              minute: _selectedDateTime.minute,
+                              timezone: _timezone,
+                            ),
                             timezone: _timezone,
                             latitude: _isDateTimeCondition
                                 ? null

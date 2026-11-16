@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/layout/responsive.dart';
+import '../../../../core/utils/server_time_manager.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../../home/data/models/moment_model.dart';
 import '../../data/datasources/admin_remote_data_source.dart';
@@ -24,6 +25,8 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
   @override
   void initState() {
     super.initState();
+    ServerTimeManager.instance.ticker.addListener(_onTick);
+    ServerTimeManager.instance.addResumedListener(_fetchQueue);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchQueue();
     });
@@ -31,8 +34,16 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
 
   @override
   void dispose() {
+    ServerTimeManager.instance.ticker.removeListener(_onTick);
+    ServerTimeManager.instance.removeResumedListener(_fetchQueue);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onTick() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _fetchQueue() async {
@@ -320,11 +331,13 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  SizedBox(height: 16 * scale),
+                  SizedBox(height: 12 * scale),
                   Text(
-                    moment.createdAt != null
-                        ? 'Uploaded: ${moment.createdAt!.toLocal().toString().split('.').first}'
-                        : 'Uploaded: Recently',
+                    moment.unlockAt != null
+                        ? 'Scheduled: ${moment.unlockAt!.toLocal().toString().split('.').first}'
+                        : (moment.createdAt != null
+                            ? 'Uploaded: ${moment.createdAt!.toLocal().toString().split('.').first}'
+                            : 'Uploaded: Recently'),
                     style: TextStyle(color: const Color(0xFF8A8EB3), fontSize: 11 * scale),
                   ),
                 ],

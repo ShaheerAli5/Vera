@@ -243,53 +243,6 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                         ),
                       ],
                     ),
-                    SizedBox(height: 16 * scale),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF121326),
-                        borderRadius: BorderRadius.circular(16 * scale),
-                        border: Border.all(
-                          color: const Color(0x333F4356),
-                          width: scale,
-                        ),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x14000000),
-                            blurRadius: 16,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          _settingToggleRow(
-                            title: 'Discoverable by email',
-                            subtitle: 'Allow people who know your email address to find you.',
-                            icon: Icons.alternate_email_rounded,
-                            value: _discoverableByEmail,
-                            onChanged: (val) {
-                              setState(() => _discoverableByEmail = val);
-                              _updateSetting(discoverableByEmail: val);
-                            },
-                            scale: scale,
-                          ),
-                          _divider(scale),
-                          _settingToggleRow(
-                            title: 'Share analytics',
-                            subtitle: 'Help improve Vera by sharing anonymous usage telemetry.',
-                            icon: Icons.bar_chart_rounded,
-                            value: _analyticsEnabled,
-                            onChanged: (val) {
-                              setState(() => _analyticsEnabled = val);
-                              _updateSetting(analyticsEnabled: val);
-                            },
-                            scale: scale,
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 24 * scale),
-
                     _sectionHeader('Location', scale),
                     SizedBox(height: 12 * scale),
                     Container(
@@ -437,46 +390,6 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                               _updateSetting(pushReplies: val);
                             },
                             scale: scale,
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 24 * scale),
-
-                    _sectionHeader('Language & Region', scale),
-                    SizedBox(height: 12 * scale),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF121326),
-                        borderRadius: BorderRadius.circular(16 * scale),
-                        border: Border.all(
-                          color: const Color(0x333F4356),
-                          width: scale,
-                        ),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x14000000),
-                            blurRadius: 16,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        children: [
-                          _infoRow(
-                            title: 'Language',
-                            value: _getLanguageDisplayName(_language),
-                            icon: Icons.language_rounded,
-                            scale: scale,
-                            onTap: () => _showLanguageSelector(scale),
-                          ),
-                          _divider(scale),
-                          _infoRow(
-                            title: 'Timezone',
-                            value: _timezone,
-                            icon: Icons.schedule_rounded,
-                            scale: scale,
-                            onTap: () => _showTimezoneSelector(scale),
                           ),
                         ],
                       ),

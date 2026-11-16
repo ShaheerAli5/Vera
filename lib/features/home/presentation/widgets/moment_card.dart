@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../../../../core/utils/server_time_manager.dart';
 import '../../domain/entities/moment.dart';
 import '../pages/edit_moment_screen.dart';
 
@@ -165,7 +166,13 @@ class MomentCard extends StatelessWidget {
                         SizedBox(width: 12 * scale),
                         Expanded(
                           child: Text(
-                            moment.unlockCondition,
+                            moment.isReadyToOpen
+                                ? 'Ready to open'
+                                : (moment.unlockAt != null &&
+                                        !ServerTimeManager.instance.now
+                                            .isBefore(moment.unlockAt!)
+                                    ? 'Ready to open'
+                                    : moment.unlockCondition),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
