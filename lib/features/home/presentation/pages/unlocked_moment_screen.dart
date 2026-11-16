@@ -25,6 +25,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
   bool _isLoading = false;
   Uint8List? _mediaBytes;
   bool _isLoadingMedia = false;
+  bool? _streamIsVideo;
   bool _isSendingReply = false;
   List<ChatMessageModel> _messages = [];
   bool _isLoadingMessages = false;
@@ -34,9 +35,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
     super.initState();
     _currentMoment = widget.moment;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_currentMoment.message == null || _currentMoment.message!.isEmpty) {
-        _fetchFullMoment();
-      }
+      _fetchFullMoment();
       _fetchMediaStream();
       _fetchThreadMessages();
     });
@@ -97,6 +96,9 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
       setState(() {
         _mediaBytes = stream.bytes;
         _isLoadingMedia = false;
+        if (stream.contentType != null && stream.contentType!.isNotEmpty) {
+          _streamIsVideo = stream.isVideo;
+        }
       });
     } catch (_) {
       if (!mounted) return;
@@ -116,8 +118,17 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
 
       if (!mounted) return;
       setState(() {
-        _currentMoment = _currentMoment.copyWith(
-          message: entity.message,
+        _currentMoment = entity.copyWith(
+          userName: (entity.userName.isNotEmpty && entity.userName != 'You')
+              ? entity.userName
+              : _currentMoment.userName,
+          userAvatarUrl: entity.userAvatarUrl.isNotEmpty
+              ? entity.userAvatarUrl
+              : _currentMoment.userAvatarUrl,
+          timeAgo: entity.timeAgo.isNotEmpty ? entity.timeAgo : _currentMoment.timeAgo,
+          message: entity.message ?? _currentMoment.message,
+          title: entity.title ?? _currentMoment.title,
+          teaser: entity.teaser ?? _currentMoment.teaser,
           backgroundImageUrl: (entity.backgroundImageUrl.isNotEmpty && !entity.backgroundImageUrl.contains('api/v1/moments'))
               ? entity.backgroundImageUrl
               : _currentMoment.backgroundImageUrl,
@@ -196,6 +207,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                           scale: scale,
                           mediaBytes: _mediaBytes,
                           isLoadingMedia: _isLoadingMedia,
+                          isStreamVideo: _streamIsVideo,
                         ),
                         SizedBox(height: 16 * scale),
                         Container(
@@ -426,15 +438,19 @@ class _VideoPreview extends StatelessWidget {
     required this.scale,
     this.mediaBytes,
     this.isLoadingMedia = false,
+    this.isStreamVideo,
   });
 
   final Moment moment;
   final double scale;
   final Uint8List? mediaBytes;
   final bool isLoadingMedia;
+  final bool? isStreamVideo;
 
   @override
   Widget build(BuildContext context) {
+    final isVideo = isStreamVideo ?? moment.isVideo;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(16 * scale),
       child: SizedBox(
@@ -488,74 +504,76 @@ class _VideoPreview extends StatelessWidget {
                   ),
                 ),
               ),
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      const Color(0x00000000),
-                      const Color(0x00000000),
-                      const Color(0x55000000),
-                    ],
-                    stops: const [0, .72, 1],
+            if (isVideo) ...[
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        const Color(0x00000000),
+                        const Color(0x00000000),
+                        const Color(0x55000000),
+                      ],
+                      stops: const [0, .72, 1],
+                    ),
                   ),
                 ),
               ),
-            ),
-            Center(
-              child: Container(
-                width: 64 * scale,
-                height: 64 * scale,
-                decoration: const BoxDecoration(
-                  color: Color(0x99090A17),
-                  shape: BoxShape.circle,
+              Center(
+                child: Container(
+                  width: 64 * scale,
+                  height: 64 * scale,
+                  decoration: const BoxDecoration(
+                    color: Color(0x99090A17),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.play_arrow_rounded,
+                      color: Colors.white, size: 32 * scale),
                 ),
-                child: Icon(Icons.play_arrow_rounded,
-                    color: Colors.white, size: 32 * scale),
               ),
-            ),
-            Positioned(
-              left: 16 * scale,
-              right: 16 * scale,
-              bottom: 14 * scale,
-              child: Row(
-                children: [
-                  Text('0:00',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12 * scale,
-                          fontWeight: FontWeight.w500)),
-                  SizedBox(width: 8 * scale),
-                  Expanded(
-                    child: Container(
-                      height: 3 * scale,
-                      decoration: BoxDecoration(
-                        color: const Color(0x99FFFFFF),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                      alignment: Alignment.centerLeft,
-                      child: FractionallySizedBox(
-                        widthFactor: .14,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF7F5FF),
-                            borderRadius: BorderRadius.circular(99),
+              Positioned(
+                left: 16 * scale,
+                right: 16 * scale,
+                bottom: 14 * scale,
+                child: Row(
+                  children: [
+                    Text('0:00',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12 * scale,
+                            fontWeight: FontWeight.w500)),
+                    SizedBox(width: 8 * scale),
+                    Expanded(
+                      child: Container(
+                        height: 3 * scale,
+                        decoration: BoxDecoration(
+                          color: const Color(0x99FFFFFF),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        alignment: Alignment.centerLeft,
+                        child: FractionallySizedBox(
+                          widthFactor: .14,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF7F5FF),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  SizedBox(width: 8 * scale),
-                  Text('0:15',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12 * scale,
-                          fontWeight: FontWeight.w500)),
-                ],
+                    SizedBox(width: 8 * scale),
+                    Text('0:15',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12 * scale,
+                            fontWeight: FontWeight.w500)),
+                  ],
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),

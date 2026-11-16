@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/theme.dart';
+import '../../../../core/utils/server_time_manager.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../../account/data/datasources/account_remote_data_source.dart';
@@ -44,9 +45,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    ServerTimeManager.instance.ticker.addListener(_onTick);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadProfile();
     });
+  }
+
+  @override
+  void dispose() {
+    ServerTimeManager.instance.ticker.removeListener(_onTick);
+    super.dispose();
+  }
+
+  void _onTick() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Future<void> _loadProfile() async {

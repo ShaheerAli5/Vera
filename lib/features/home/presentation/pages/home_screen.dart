@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/auth/user_role.dart';
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
+import '../../../../core/utils/server_time_manager.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../../../shared/widgets/vera_logo.dart';
@@ -69,6 +70,52 @@ class _HomeScreenState extends State<HomeScreen> {
     _selectedTabIndex = widget.initialTabIndex;
     _selectedNavIndex = widget.initialNavIndex;
     _selectedMessageTab = widget.initialMessageTabIndex;
+    ServerTimeManager.instance.ticker.addListener(_onTick);
+    ServerTimeManager.instance.addResumedListener(_onResumed);
+  }
+
+  @override
+  void dispose() {
+    ServerTimeManager.instance.ticker.removeListener(_onTick);
+    ServerTimeManager.instance.removeResumedListener(_onResumed);
+    super.dispose();
+  }
+
+  void _onResumed() {
+    if (!mounted) return;
+    _fetchMoments();
+  }
+
+  void _onTick() {
+    if (!mounted) return;
+    final now = ServerTimeManager.instance.now;
+    bool needsUpdate = false;
+
+    List<Moment> checkAndUpdate(List<Moment> list) {
+      return list.map((m) {
+        if (!m.isReadyToOpen && m.status == 'PUBLISHED' && m.unlockAt != null) {
+          if (!now.isBefore(m.unlockAt!)) {
+            needsUpdate = true;
+            return m.copyWith(isReadyToOpen: true);
+          }
+        }
+        return m;
+      }).toList();
+    }
+
+    final newForYou = checkAndUpdate(_fetchedForYouMoments);
+    final newDiscover = checkAndUpdate(_fetchedDiscoverMoments);
+    final newYour = checkAndUpdate(_fetchedYourMoments);
+    final newInbox = checkAndUpdate(_fetchedInboxMoments);
+
+    if (needsUpdate) {
+      setState(() {
+        _fetchedForYouMoments = newForYou;
+        _fetchedDiscoverMoments = newDiscover;
+        _fetchedYourMoments = newYour;
+        _fetchedInboxMoments = newInbox;
+      });
+    }
   }
 
   @override

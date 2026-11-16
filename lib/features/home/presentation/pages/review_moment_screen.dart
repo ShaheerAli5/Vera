@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/theme.dart';
+import '../../../../core/utils/server_time_manager.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../data/datasources/moments_remote_data_source.dart';
@@ -1545,9 +1546,14 @@ class _ReviewMomentScreenState extends State<ReviewMomentScreen> {
                                                 formatDateString(selectedDate);
                                             _conditionSubtitle =
                                                 'Date & time ($selectedTz)';
-                                            _unlockAt = selectedDate
-                                                .toUtc()
-                                                .toIso8601String();
+                                            _unlockAt = ServerTimeManager.computeUtcIsoString(
+                                              year: selectedDate.year,
+                                              month: selectedDate.month,
+                                              day: selectedDate.day,
+                                              hour: selectedDate.hour,
+                                              minute: selectedDate.minute,
+                                              timezone: selectedTz,
+                                            );
                                             _timezone = selectedTz;
                                             _latitude = null;
                                             _longitude = null;

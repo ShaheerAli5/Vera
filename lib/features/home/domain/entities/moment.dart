@@ -24,6 +24,8 @@ class Moment {
     this.invitationStatus,
     this.unlockedAt,
     this.openedAt,
+    this.unlockAt,
+    this.isVideo = false,
   });
 
   final String id;
@@ -45,6 +47,8 @@ class Moment {
   final String? invitationStatus;
   final DateTime? unlockedAt;
   final DateTime? openedAt;
+  final DateTime? unlockAt;
+  final bool isVideo;
 
   Moment copyWith({
     String? id,
@@ -66,6 +70,8 @@ class Moment {
     String? invitationStatus,
     DateTime? unlockedAt,
     DateTime? openedAt,
+    DateTime? unlockAt,
+    bool? isVideo,
   }) {
     return Moment(
       id: id ?? this.id,
@@ -87,6 +93,8 @@ class Moment {
       invitationStatus: invitationStatus ?? this.invitationStatus,
       unlockedAt: unlockedAt ?? this.unlockedAt,
       openedAt: openedAt ?? this.openedAt,
+      unlockAt: unlockAt ?? this.unlockAt,
+      isVideo: isVideo ?? this.isVideo,
     );
   }
 }
