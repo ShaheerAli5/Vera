@@ -8,6 +8,7 @@ import '../../../home/data/models/moment_model.dart';
 import '../../data/datasources/admin_remote_data_source.dart';
 import '../../data/repositories/admin_repository_impl.dart';
 import 'admin_review_moment_media_screen.dart';
+import '../utils/admin_media_utils.dart';
 
 class AdminReviewMomentScreen extends StatefulWidget {
   final String momentId;
@@ -356,9 +357,9 @@ class _AdminReviewMomentScreenState extends State<AdminReviewMomentScreen> {
             ? moment.teaser!
             : moment.title);
 
-    final mediaUrl = (moment.mediaUrl != null && moment.mediaUrl!.isNotEmpty)
-        ? moment.mediaUrl!
-        : 'https://vera.aptechmedia.com/api/v1/moments/${moment.id}/media';
+    final apiClient = ApiClientScope.of(context);
+    final mediaUrl = adminMomentMediaUrl(apiClient, moment.mediaUrl, moment.id);
+    final mediaHeaders = adminMediaHeaders(apiClient);
 
     return SingleChildScrollView(
       padding: EdgeInsets.all(24 * scale),
@@ -393,6 +394,7 @@ class _AdminReviewMomentScreenState extends State<AdminReviewMomentScreen> {
                   children: [
                     Image.network(
                       mediaUrl,
+                      headers: mediaHeaders,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) => Center(
                         child: Icon(Icons.image_not_supported, color: Colors.white54, size: 48 * scale),
