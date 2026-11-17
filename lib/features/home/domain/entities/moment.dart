@@ -76,6 +76,8 @@ class Moment {
     DateTime? openedAt,
     DateTime? unlockAt,
     bool? isVideo,
+    String? contentType,
+    bool? hasMedia,
   }) {
     return Moment(
       id: id ?? this.id,
@@ -99,6 +101,8 @@ class Moment {
       openedAt: openedAt ?? this.openedAt,
       unlockAt: unlockAt ?? this.unlockAt,
       isVideo: isVideo ?? this.isVideo,
+      contentType: contentType ?? this.contentType,
+      hasMedia: hasMedia ?? this.hasMedia,
     );
   }
 }

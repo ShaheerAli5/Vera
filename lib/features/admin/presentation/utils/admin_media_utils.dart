@@ -6,6 +6,10 @@ String adminMomentMediaUrl(ApiClient client, String? mediaUrl, String momentId) 
     return client.config.endpoint('/admin/moments/$momentId/media').toString();
   }
 
+  if (rawUrl.contains('/moments/$momentId/media') && !rawUrl.contains('/admin/moments/')) {
+    return client.config.endpoint('/admin/moments/$momentId/media').toString();
+  }
+
   final parsed = Uri.tryParse(rawUrl);
   if (parsed != null && parsed.hasScheme) return rawUrl;
 

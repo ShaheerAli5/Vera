@@ -210,9 +210,23 @@ class MomentModel {
         ? json['media'] as Map<String, dynamic>
         : null;
 
-    final mediaUrl = media?['url']?.toString() ??
+    final rawMediaUrl = media?['url']?.toString() ??
         json['mediaUrl']?.toString() ??
-        json['media_url']?.toString();
+        json['media_url']?.toString() ??
+        rawJson['mediaUrl']?.toString() ??
+        rawJson['media_url']?.toString();
+
+    String? mediaUrl;
+    if (rawMediaUrl != null && rawMediaUrl.trim().isNotEmpty) {
+      final trimmed = rawMediaUrl.trim();
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        mediaUrl = trimmed;
+      } else if (trimmed.startsWith('/')) {
+        mediaUrl = 'https://vera.aptechmedia.com$trimmed';
+      } else {
+        mediaUrl = 'https://vera.aptechmedia.com/$trimmed';
+      }
+    }
 
     final version = (json['version'] as num?)?.toInt() ??
         (rawJson['version'] as num?)?.toInt() ??
@@ -235,6 +249,8 @@ class MomentModel {
 
     final contentType = json['contentType']?.toString() ??
         json['content_type']?.toString() ??
+        rawJson['contentType']?.toString() ??
+        rawJson['content_type']?.toString() ??
         'TEXT';
 
     final mimeType = media?['mimeType']?.toString() ??
@@ -242,15 +258,13 @@ class MomentModel {
         media?['contentType']?.toString() ??
         json['contentType']?.toString() ??
         json['mediaType']?.toString() ??
-        json['type']?.toString();
-
-    final hasMedia = (media != null && (media['uploaded'] == true || (mediaUrl != null && mediaUrl.isNotEmpty))) ||
-        contentType.toUpperCase() == 'IMAGE' ||
-        contentType.toUpperCase() == 'VIDEO';
+        json['type']?.toString() ??
+        rawJson['contentType']?.toString();
 
     final isVideo = (json['isVideo'] == true ||
         rawJson['isVideo'] == true ||
         json['is_video'] == true ||
+        contentType.toUpperCase() == 'VIDEO' ||
         (mimeType != null && mimeType.toLowerCase().contains('video')) ||
         (mediaUrl != null && (
             mediaUrl.toLowerCase().contains('.mp4') ||
@@ -258,6 +272,11 @@ class MomentModel {
             mediaUrl.toLowerCase().contains('.webm') ||
             mediaUrl.toLowerCase().contains('.avi') ||
             mediaUrl.toLowerCase().contains('/video/'))));
+
+    final hasMedia = (media != null && (media['uploaded'] == true || (mediaUrl != null && mediaUrl.isNotEmpty))) ||
+        contentType.toUpperCase() == 'IMAGE' ||
+        contentType.toUpperCase() == 'VIDEO' ||
+        isVideo;
 
     return MomentModel(
       id: json['id']?.toString() ??

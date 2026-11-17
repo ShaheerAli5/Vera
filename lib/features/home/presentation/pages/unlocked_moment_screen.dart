@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/widgets/vera_popup.dart';
@@ -202,20 +203,30 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
               child: Builder(
                 builder: (context) {
                   final bottomPad = MediaQuery.paddingOf(context).bottom;
+                  final client = ApiClientScope.of(context);
+                  final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+                  final streamUrl = repo.getMomentMediaStreamUrl(moment.id);
+                  final streamHeaders = repo.getMomentMediaHeaders();
+                  final bool hasMediaAttachment = moment.hasMedia && moment.contentType?.toUpperCase() != 'TEXT';
+
                   return SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(
                         24 * scale, 20 * scale, 24 * scale, 104 * scale + bottomPad),
                     child: Column(
                       children: [
                         _SenderBadge(moment: moment, scale: scale),
-                        SizedBox(height: 16 * scale),
-                        _VideoPreview(
-                          moment: moment,
-                          scale: scale,
-                          mediaBytes: _mediaBytes,
-                          isLoadingMedia: _isLoadingMedia,
-                          isStreamVideo: _streamIsVideo,
-                        ),
+                        if (hasMediaAttachment) ...[
+                          SizedBox(height: 16 * scale),
+                          _VideoPreview(
+                            moment: moment,
+                            scale: scale,
+                            mediaBytes: _mediaBytes,
+                            isLoadingMedia: _isLoadingMedia,
+                            isStreamVideo: _streamIsVideo,
+                            streamUrl: streamUrl,
+                            streamHeaders: streamHeaders,
+                          ),
+                        ],
                         SizedBox(height: 16 * scale),
                         Container(
                           width: contentWidth,
@@ -440,13 +451,15 @@ class _SenderBadge extends StatelessWidget {
   }
 }
 
-class _VideoPreview extends StatelessWidget {
+class _VideoPreview extends StatefulWidget {
   const _VideoPreview({
     required this.moment,
     required this.scale,
     this.mediaBytes,
     this.isLoadingMedia = false,
     this.isStreamVideo,
+    required this.streamUrl,
+    required this.streamHeaders,
   });
 
   final Moment moment;
@@ -454,29 +467,289 @@ class _VideoPreview extends StatelessWidget {
   final Uint8List? mediaBytes;
   final bool isLoadingMedia;
   final bool? isStreamVideo;
+  final String streamUrl;
+  final Map<String, String> streamHeaders;
+
+  @override
+  State<_VideoPreview> createState() => _VideoPreviewState();
+}
+
+class _VideoPreviewState extends State<_VideoPreview> {
+  VideoPlayerController? _controller;
+  bool _isInitialized = false;
+  bool _isLoading = false;
+  bool _hasError = false;
+  String? _errorMessage;
+  bool _isPlaying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAndInitVideo();
+  }
+
+  @override
+  void didUpdateWidget(covariant _VideoPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.moment.id != oldWidget.moment.id ||
+        widget.streamUrl != oldWidget.streamUrl ||
+        widget.isStreamVideo != oldWidget.isStreamVideo) {
+      _controller?.dispose();
+      _controller = null;
+      _isInitialized = false;
+      _hasError = false;
+      _checkAndInitVideo();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  bool get _shouldPlayVideo {
+    return widget.isStreamVideo == true ||
+        widget.moment.isVideo ||
+        widget.moment.contentType?.toUpperCase() == 'VIDEO';
+  }
+
+  Future<void> _checkAndInitVideo() async {
+    if (!_shouldPlayVideo || widget.streamUrl.isEmpty) return;
+    if (_controller != null || _isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+      _errorMessage = null;
+    });
+
+    try {
+      final controller = VideoPlayerController.networkUrl(
+        Uri.parse(widget.streamUrl),
+        httpHeaders: widget.streamHeaders,
+      );
+      _controller = controller;
+      await controller.initialize();
+      controller.setLooping(true);
+      await controller.play();
+      if (!mounted) return;
+      setState(() {
+        _isInitialized = true;
+        _isLoading = false;
+        _isPlaying = true;
+      });
+      controller.addListener(() {
+        if (!mounted) return;
+        final playing = controller.value.isPlaying;
+        if (playing != _isPlaying) {
+          setState(() => _isPlaying = playing);
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _hasError = true;
+        _errorMessage = e.toString();
+      });
+    }
+  }
+
+  void _togglePlayPause() {
+    if (_controller == null || !_isInitialized) return;
+    if (_controller!.value.isPlaying) {
+      _controller!.pause();
+      setState(() => _isPlaying = false);
+    } else {
+      _controller!.play();
+      setState(() => _isPlaying = true);
+    }
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isVideo = isStreamVideo ?? moment.isVideo;
+    final isVideo = _shouldPlayVideo;
+    final scale = widget.scale;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(16 * scale),
-      child: SizedBox(
+      child: Container(
         width: double.infinity,
         height: 430 * scale,
+        color: const Color(0xFF0F101E),
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (mediaBytes != null && mediaBytes!.isNotEmpty)
-              Image.memory(
-                mediaBytes!,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    _buildFallbackImage(),
-              )
-            else
-              _buildFallbackImage(),
-            if (isLoadingMedia)
+            if (isVideo) ...[
+              if (_isInitialized && _controller != null)
+                Center(
+                  child: AspectRatio(
+                    aspectRatio: _controller!.value.aspectRatio > 0
+                        ? _controller!.value.aspectRatio
+                        : 9 / 16,
+                    child: VideoPlayer(_controller!),
+                  ),
+                )
+              else if (_isLoading)
+                const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: Color(0xFF9044FB)),
+                      SizedBox(height: 12),
+                      Text(
+                        'Loading video stream...',
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                )
+              else if (_hasError)
+                Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(16 * scale),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.error_outline_rounded,
+                            color: Colors.redAccent, size: 40 * scale),
+                        SizedBox(height: 8 * scale),
+                        Text(
+                          'Failed to load video stream',
+                          style: TextStyle(color: Colors.white, fontSize: 14 * scale, fontWeight: FontWeight.bold),
+                        ),
+                        if (_errorMessage != null) ...[
+                          SizedBox(height: 4 * scale),
+                          Text(
+                            _errorMessage!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.white60, fontSize: 11 * scale),
+                          ),
+                        ],
+                        SizedBox(height: 12 * scale),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            _controller?.dispose();
+                            _controller = null;
+                            _checkAndInitVideo();
+                          },
+                          icon: const Icon(Icons.refresh, color: Colors.white, size: 16),
+                          label: const Text('Retry', style: TextStyle(color: Colors.white)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF9044FB),
+                            padding: EdgeInsets.symmetric(horizontal: 16 * scale, vertical: 8 * scale),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                _buildFallbackImage(),
+
+              // Center Play/Pause button
+              GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _togglePlayPause,
+                child: Center(
+                  child: AnimatedOpacity(
+                    opacity: !_isPlaying && _isInitialized ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Container(
+                      width: 64 * scale,
+                      height: 64 * scale,
+                      decoration: const BoxDecoration(
+                        color: Color(0x99090A17),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.play_arrow_rounded,
+                          color: Colors.white, size: 36 * scale),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Bottom Video Timeline Bar
+              if (_isInitialized && _controller != null)
+                Positioned(
+                  left: 16 * scale,
+                  right: 16 * scale,
+                  bottom: 14 * scale,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ValueListenableBuilder<VideoPlayerValue>(
+                        valueListenable: _controller!,
+                        builder: (context, val, _) {
+                          return Row(
+                            children: [
+                              Text(
+                                _formatDuration(val.position),
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12 * scale,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                _formatDuration(val.duration),
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12 * scale,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                      SizedBox(height: 4 * scale),
+                      VideoProgressIndicator(
+                        _controller!,
+                        allowScrubbing: true,
+                        colors: const VideoProgressColors(
+                          playedColor: Color(0xFF9044FB),
+                          bufferedColor: Colors.white24,
+                          backgroundColor: Colors.white10,
+                        ),
+                        padding: EdgeInsets.zero,
+                      ),
+                    ],
+                  ),
+                ),
+            ] else ...[
+              // Photo / Image rendering
+              if (widget.mediaBytes != null && widget.mediaBytes!.isNotEmpty)
+                Image.memory(
+                  widget.mediaBytes!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      _buildFallbackImage(),
+                )
+              else if (widget.streamUrl.isNotEmpty)
+                Image.network(
+                  widget.streamUrl,
+                  headers: widget.streamHeaders,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      _buildFallbackImage(),
+                )
+              else
+                _buildFallbackImage(),
+            ],
+
+            // Top Status Badge (Streaming indicator)
+            if (widget.isLoadingMedia && !isVideo)
               Positioned(
                 top: 14 * scale,
                 right: 14 * scale,
@@ -502,7 +775,7 @@ class _VideoPreview extends StatelessWidget {
                       ),
                       SizedBox(width: 6 * scale),
                       Text(
-                        'Streaming...',
+                        'Loading...',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 11 * scale,
@@ -512,76 +785,6 @@ class _VideoPreview extends StatelessWidget {
                   ),
                 ),
               ),
-            if (isVideo) ...[
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        const Color(0x00000000),
-                        const Color(0x00000000),
-                        const Color(0x55000000),
-                      ],
-                      stops: const [0, .72, 1],
-                    ),
-                  ),
-                ),
-              ),
-              Center(
-                child: Container(
-                  width: 64 * scale,
-                  height: 64 * scale,
-                  decoration: const BoxDecoration(
-                    color: Color(0x99090A17),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(Icons.play_arrow_rounded,
-                      color: Colors.white, size: 32 * scale),
-                ),
-              ),
-              Positioned(
-                left: 16 * scale,
-                right: 16 * scale,
-                bottom: 14 * scale,
-                child: Row(
-                  children: [
-                    Text('0:00',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12 * scale,
-                            fontWeight: FontWeight.w500)),
-                    SizedBox(width: 8 * scale),
-                    Expanded(
-                      child: Container(
-                        height: 3 * scale,
-                        decoration: BoxDecoration(
-                          color: const Color(0x99FFFFFF),
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                        alignment: Alignment.centerLeft,
-                        child: FractionallySizedBox(
-                          widthFactor: .14,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF7F5FF),
-                              borderRadius: BorderRadius.circular(99),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 8 * scale),
-                    Text('0:15',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12 * scale,
-                            fontWeight: FontWeight.w500)),
-                  ],
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -589,16 +792,29 @@ class _VideoPreview extends StatelessWidget {
   }
 
   Widget _buildFallbackImage() {
-    return Image.network(
-      moment.backgroundImageUrl,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) => const DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF124552), Color(0xFF51352F)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+    final bgUrl = widget.moment.backgroundImageUrl;
+    if (bgUrl.isNotEmpty && (bgUrl.startsWith('http://') || bgUrl.startsWith('https://'))) {
+      return Image.network(
+        bgUrl,
+        headers: widget.streamHeaders,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF124552), Color(0xFF51352F)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
           ),
+        ),
+      );
+    }
+    return const DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF124552), Color(0xFF51352F)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
         ),
       ),
     );

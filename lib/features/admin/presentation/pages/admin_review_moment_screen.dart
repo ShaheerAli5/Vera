@@ -448,11 +448,8 @@ class _AdminReviewMomentScreenState extends State<AdminReviewMomentScreen> {
                     : Stack(
                         fit: StackFit.expand,
                         children: [
-                          Image.network(
-                            mediaUrl,
-                            headers: mediaHeaders,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Container(
+                          if (moment.isVideo)
+                            Container(
                               decoration: const BoxDecoration(
                                 gradient: LinearGradient(
                                   begin: Alignment.topLeft,
@@ -468,31 +465,92 @@ class _AdminReviewMomentScreenState extends State<AdminReviewMomentScreen> {
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 64 * scale),
-                                    SizedBox(height: 12 * scale),
+                                    Container(
+                                      padding: EdgeInsets.all(20 * scale),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF9044FB).withValues(alpha: 0.2),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: const Color(0xFF9044FB), width: 2),
+                                      ),
+                                      child: Icon(Icons.play_arrow_rounded, color: Colors.white, size: 54 * scale),
+                                    ),
+                                    SizedBox(height: 16 * scale),
                                     Text(
-                                      'Moment Media',
+                                      'Video Moment',
                                       style: TextStyle(
                                         color: Colors.white,
-                                        fontSize: 16 * scale,
-                                        fontWeight: FontWeight.w600,
+                                        fontSize: 18 * scale,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    SizedBox(height: 6 * scale),
+                                    Text(
+                                      'Tap to watch and review video stream',
+                                      style: TextStyle(
+                                        color: const Color(0xFFA2A5C2),
+                                        fontSize: 13 * scale,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                            ),
-                          ),
-                          Center(
-                            child: Container(
-                              padding: EdgeInsets.all(16 * scale),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.5),
-                                shape: BoxShape.circle,
+                            )
+                          else
+                            Image.network(
+                              mediaUrl,
+                              headers: mediaHeaders,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Container(
+                                decoration: const BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Color(0xFF2C1338),
+                                      Color(0xFF1E2B45),
+                                      Color(0xFF0F172A),
+                                    ],
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.photo_rounded, color: Colors.white54, size: 54 * scale),
+                                      SizedBox(height: 12 * scale),
+                                      Text(
+                                        'Photo Moment',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16 * scale,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
-                              child: Icon(Icons.play_arrow, color: Colors.white, size: 48 * scale),
                             ),
-                          ),
+                          if (!moment.isVideo)
+                            Positioned(
+                              top: 14 * scale,
+                              right: 14 * scale,
+                              child: Container(
+                                padding: EdgeInsets.symmetric(horizontal: 10 * scale, vertical: 4 * scale),
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(20 * scale),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.zoom_in, color: Colors.white, size: 16 * scale),
+                                    SizedBox(width: 4 * scale),
+                                    Text('Tap to expand', style: TextStyle(color: Colors.white, fontSize: 11 * scale)),
+                                  ],
+                                ),
+                              ),
+                            ),
                         ],
                       ),
               ),

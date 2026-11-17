@@ -7,6 +7,7 @@ import '../models/moment_media_stream.dart';
 import '../models/moment_model.dart';
 import '../models/moment_thread_model.dart';
 import '../models/notification_model.dart';
+import '../models/recipient_user_model.dart';
 import '../models/resend_invite_result.dart';
 import '../models/update_moment_params.dart';
 
@@ -239,5 +240,10 @@ class MomentsRepositoryImpl implements MomentsRepository {
   @override
   Map<String, String> getMomentMediaHeaders() {
     return _remoteDataSource.getMomentMediaHeaders();
+  }
+
+  @override
+  Future<List<RecipientUserModel>> searchUsers(String query) {
+    return _remoteDataSource.searchUsers(query);
   }
 }

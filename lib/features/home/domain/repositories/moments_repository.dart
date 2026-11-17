@@ -5,6 +5,7 @@ import '../../data/models/moment_media_stream.dart';
 import '../../data/models/moment_model.dart';
 import '../../data/models/moment_thread_model.dart';
 import '../../data/models/notification_model.dart';
+import '../../data/models/recipient_user_model.dart';
 import '../../data/models/resend_invite_result.dart';
 import '../../data/models/update_moment_params.dart';
 
@@ -86,4 +87,5 @@ abstract class MomentsRepository {
   });
   String getMomentMediaStreamUrl(String momentId);
   Map<String, String> getMomentMediaHeaders();
+  Future<List<RecipientUserModel>> searchUsers(String query);
 }
