@@ -15,9 +15,9 @@ class ApiClient {
     this.receiveTimeout = const Duration(seconds: 30),
     String? initialAuthToken,
     String? initialRefreshToken,
-  })  : _httpClient = httpClient ?? http.Client(),
-        _authToken = initialAuthToken,
-        _refreshToken = initialRefreshToken;
+  }) : _httpClient = httpClient ?? http.Client(),
+       _authToken = initialAuthToken,
+       _refreshToken = initialRefreshToken;
 
   static const _authTokenKey = 'vera_auth_token';
   static const _refreshTokenKey = 'vera_refresh_token';
@@ -46,13 +46,22 @@ class ApiClient {
       final savedAuth = prefs.getString(_authTokenKey);
       final savedRefresh = prefs.getString(_refreshTokenKey);
       final savedRole = prefs.getString(_userRoleKey);
-      _authToken = (savedAuth != null && savedAuth.trim().isNotEmpty && savedAuth != 'null')
+      _authToken =
+          (savedAuth != null &&
+              savedAuth.trim().isNotEmpty &&
+              savedAuth != 'null')
           ? savedAuth.trim()
           : null;
-      _refreshToken = (savedRefresh != null && savedRefresh.trim().isNotEmpty && savedRefresh != 'null')
+      _refreshToken =
+          (savedRefresh != null &&
+              savedRefresh.trim().isNotEmpty &&
+              savedRefresh != 'null')
           ? savedRefresh.trim()
           : null;
-      _userRole = (savedRole != null && savedRole.trim().isNotEmpty && savedRole != 'null')
+      _userRole =
+          (savedRole != null &&
+              savedRole.trim().isNotEmpty &&
+              savedRole != 'null')
           ? savedRole.trim()
           : null;
     } catch (_) {}
@@ -68,12 +77,17 @@ class ApiClient {
     await _saveToken(_refreshTokenKey, token);
   }
 
-  Future<void> setTokens({String? authToken, String? refreshToken, String? userRole}) async {
-    _authToken = authToken;
+  Future<void> setTokens({
+    String? authToken,
+    String? refreshToken,
+    String? userRole,
+  }) async {
+    // Omitted values preserve the current session. Use clearTokens to log out.
+    if (authToken != null) _authToken = authToken;
     if (refreshToken != null) _refreshToken = refreshToken;
     if (userRole != null) _userRole = userRole;
     await Future.wait([
-      _saveToken(_authTokenKey, authToken),
+      if (authToken != null) _saveToken(_authTokenKey, authToken),
       if (refreshToken != null) _saveToken(_refreshTokenKey, refreshToken),
       if (userRole != null) _saveToken(_userRoleKey, userRole),
     ]);
@@ -138,8 +152,9 @@ class ApiClient {
         });
 
       final streamed = await _httpClient.send(request).timeout(connectTimeout);
-      final response =
-          await http.Response.fromStream(streamed).timeout(receiveTimeout);
+      final response = await http.Response.fromStream(
+        streamed,
+      ).timeout(receiveTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final decoded = _decode(response.body);
@@ -148,14 +163,16 @@ class ApiClient {
               ? decoded['data'] as Map<String, dynamic>
               : null;
 
-          final newAccessToken = decoded['accessToken']?.toString() ??
+          final newAccessToken =
+              decoded['accessToken']?.toString() ??
               decoded['token']?.toString() ??
               decoded['access_token']?.toString() ??
               dataObj?['accessToken']?.toString() ??
               dataObj?['token']?.toString() ??
               dataObj?['access_token']?.toString();
 
-          final newRefreshToken = decoded['refreshToken']?.toString() ??
+          final newRefreshToken =
+              decoded['refreshToken']?.toString() ??
               decoded['refresh_token']?.toString() ??
               dataObj?['refreshToken']?.toString() ??
               dataObj?['refresh_token']?.toString();
@@ -165,8 +182,8 @@ class ApiClient {
               authToken: newAccessToken,
               refreshToken:
                   (newRefreshToken != null && newRefreshToken.isNotEmpty)
-                      ? newRefreshToken
-                      : token,
+                  ? newRefreshToken
+                  : token,
             );
             completer.complete(true);
             return true;
@@ -234,8 +251,9 @@ class ApiClient {
 
     try {
       final streamed = await _httpClient.send(request).timeout(connectTimeout);
-      final response = await http.Response.fromStream(streamed)
-          .timeout(receiveTimeout);
+      final response = await http.Response.fromStream(
+        streamed,
+      ).timeout(receiveTimeout);
 
       if (response.statusCode == 401 &&
           !isRetry &&
@@ -251,6 +269,7 @@ class ApiClient {
             isRetry: true,
           );
         }
+        _throwIfRefreshUnavailable();
       }
       return response;
     } on TimeoutException {
@@ -270,7 +289,10 @@ class ApiClient {
       throw ApiException(
         statusCode: 0,
         code: 'network_error',
-        message: error.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), ''),
+        message: error.toString().replaceFirst(
+          RegExp(r'^[A-Za-z]+Exception:\s*'),
+          '',
+        ),
       );
     }
   }
@@ -346,16 +368,30 @@ class ApiClient {
             isRetry: true,
           );
         }
+        _throwIfRefreshUnavailable();
       }
       rethrow;
+    }
+  }
+
+  void _throwIfRefreshUnavailable() {
+    // Rejected refresh credentials are cleared by refreshSession. If they
+    // remain, verification failed temporarily; don't report a terminal 401.
+    if (_refreshToken != null && _refreshToken!.isNotEmpty) {
+      throw const ApiException(
+        statusCode: 0,
+        code: 'session_refresh_unavailable',
+        message: 'Unable to verify your session. Please try again.',
+      );
     }
   }
 
   Future<Object?> _executeRequest(http.BaseRequest request) async {
     try {
       final streamed = await _httpClient.send(request).timeout(connectTimeout);
-      final response = await http.Response.fromStream(streamed)
-          .timeout(receiveTimeout);
+      final response = await http.Response.fromStream(
+        streamed,
+      ).timeout(receiveTimeout);
       final Object? decoded;
       try {
         decoded = _decode(response.body);
@@ -397,7 +433,10 @@ class ApiClient {
       throw ApiException(
         statusCode: 0,
         code: 'network_error',
-        message: error.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), ''),
+        message: error.toString().replaceFirst(
+          RegExp(r'^[A-Za-z]+Exception:\s*'),
+          '',
+        ),
       );
     }
   }

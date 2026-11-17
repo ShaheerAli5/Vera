@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/auth/user_role.dart';
 import '../../../../core/layout/responsive.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../../../shared/widgets/vera_logo.dart';
@@ -20,6 +21,8 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  bool _checkingSession = true;
+
   @override
   void initState() {
     super.initState();
@@ -30,6 +33,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _checkAuthAndNavigate() async {
     if (!mounted) return;
+    setState(() => _checkingSession = true);
     final client = ApiClientScope.of(context);
     if (client.authToken != null && client.authToken!.trim().isNotEmpty) {
       try {
@@ -56,10 +60,37 @@ class _SplashScreenState extends State<SplashScreen> {
         } else {
           await client.clearTokens();
         }
-      } catch (_) {
-        await client.clearTokens();
+      } catch (error) {
+        if (error is ApiException && error.statusCode == 401) {
+          await client.clearTokens();
+        } else {
+          if (!mounted) return;
+          await showDialog<void>(
+            context: context,
+            barrierDismissible: false,
+            builder: (dialogContext) => PopScope(
+              canPop: false,
+              child: AlertDialog(
+                title: const Text('Unable to connect'),
+                content: const Text(
+                  'We couldn’t verify your session. Check your connection and try again.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+          if (!mounted) return;
+          _checkAuthAndNavigate();
+          return;
+        }
       }
     }
+    if (mounted) setState(() => _checkingSession = false);
   }
 
   @override
@@ -77,13 +108,20 @@ class _SplashScreenState extends State<SplashScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset('assets/images/vera_splash_background.jpg', fit: BoxFit.cover),
+          Image.asset(
+            'assets/images/vera_splash_background.jpg',
+            fit: BoxFit.cover,
+          ),
           const DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0x3302041A), Colors.transparent, Color(0x55020412)],
+                colors: [
+                  Color(0x3302041A),
+                  Colors.transparent,
+                  Color(0x55020412),
+                ],
                 stops: [0, .48, 1],
               ),
             ),
@@ -107,7 +145,9 @@ class _SplashScreenState extends State<SplashScreen> {
                               SizedBox(
                                 width: 190 * scale,
                                 height: 88 * scale,
-                                child: const CustomPaint(painter: InfinityPainter()),
+                                child: const CustomPaint(
+                                  painter: InfinityPainter(),
+                                ),
                               ),
                               SizedBox(height: 12 * scale),
                               VeraLogo(height: 32 * scale),
@@ -148,18 +188,24 @@ class _SplashScreenState extends State<SplashScreen> {
                                     borderRadius: BorderRadius.circular(999),
                                   ),
                                   child: TextButton(
-                                    onPressed: () {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute<void>(
-                                          builder: (_) => const CreateAccountScreen(),
-                                        ),
-                                      );
-                                    },
+                                    onPressed: _checkingSession
+                                        ? null
+                                        : () {
+                                            Navigator.of(context).push(
+                                              MaterialPageRoute<void>(
+                                                builder: (_) =>
+                                                    const CreateAccountScreen(),
+                                              ),
+                                            );
+                                          },
                                     style: TextButton.styleFrom(
                                       foregroundColor: Colors.white,
-                                      padding: EdgeInsets.symmetric(horizontal: 24 * scale),
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 24 * scale,
+                                      ),
                                       shape: const StadiumBorder(),
-                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
                                     ),
                                     child: Text(
                                       'Get started',
@@ -177,13 +223,16 @@ class _SplashScreenState extends State<SplashScreen> {
                                 width: actionsWidth,
                                 height: 48 * scale,
                                 child: TextButton(
-                                  onPressed: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute<void>(
-                                        builder: (_) => const SignInScreen(),
-                                      ),
-                                    );
-                                  },
+                                  onPressed: _checkingSession
+                                      ? null
+                                      : () {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute<void>(
+                                              builder: (_) =>
+                                                  const SignInScreen(),
+                                            ),
+                                          );
+                                        },
                                   style: TextButton.styleFrom(
                                     foregroundColor: const Color(0xFFE5E1F4),
                                     padding: EdgeInsets.fromLTRB(
@@ -192,7 +241,8 @@ class _SplashScreenState extends State<SplashScreen> {
                                       24 * scale,
                                       13.5 * scale,
                                     ),
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
                                     textStyle: TextStyle(
                                       fontSize: 12 * scale,
                                       height: 1,
@@ -225,23 +275,58 @@ class InfinityPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final path = Path()
       ..moveTo(size.width * .5, size.height * .52)
-      ..cubicTo(size.width * .36, size.height * .36, size.width * .20, -size.height * .04,
-          size.width * .08, size.height * .30)
-      ..cubicTo(-size.width * .04, size.height * .67, size.width * .17, size.height * 1.08,
-          size.width * .37, size.height * .79)
-      ..cubicTo(size.width * .49, size.height * .62, size.width * .67, size.height * .02,
-          size.width * .84, size.height * .19)
-      ..cubicTo(size.width * 1.05, size.height * .40, size.width * .81, size.height * 1.07,
-          size.width * .62, size.height * .82)
-      ..cubicTo(size.width * .57, size.height * .75, size.width * .53, size.height * .65,
-          size.width * .5, size.height * .52);
+      ..cubicTo(
+        size.width * .36,
+        size.height * .36,
+        size.width * .20,
+        -size.height * .04,
+        size.width * .08,
+        size.height * .30,
+      )
+      ..cubicTo(
+        -size.width * .04,
+        size.height * .67,
+        size.width * .17,
+        size.height * 1.08,
+        size.width * .37,
+        size.height * .79,
+      )
+      ..cubicTo(
+        size.width * .49,
+        size.height * .62,
+        size.width * .67,
+        size.height * .02,
+        size.width * .84,
+        size.height * .19,
+      )
+      ..cubicTo(
+        size.width * 1.05,
+        size.height * .40,
+        size.width * .81,
+        size.height * 1.07,
+        size.width * .62,
+        size.height * .82,
+      )
+      ..cubicTo(
+        size.width * .57,
+        size.height * .75,
+        size.width * .53,
+        size.height * .65,
+        size.width * .5,
+        size.height * .52,
+      );
 
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = size.height * .20
       ..strokeCap = StrokeCap.round
       ..shader = const LinearGradient(
-        colors: [Color(0xFF9652FF), Color(0xFFE342F3), Color(0xFFA600FF), Color(0xFF6014FF)],
+        colors: [
+          Color(0xFF9652FF),
+          Color(0xFFE342F3),
+          Color(0xFFA600FF),
+          Color(0xFF6014FF),
+        ],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ).createShader(Offset.zero & size);
