@@ -15,6 +15,7 @@ class MomentReadyScreen extends StatelessWidget {
     required this.shareUrl,
     this.mediaBytes,
     this.mediaUrl,
+    this.isVideo = false,
   });
 
   final String title;
@@ -24,6 +25,7 @@ class MomentReadyScreen extends StatelessWidget {
   final String shareUrl;
   final Uint8List? mediaBytes;
   final String? mediaUrl;
+  final bool isVideo;
 
   @override
   Widget build(BuildContext context) {
@@ -121,23 +123,90 @@ class MomentReadyScreen extends StatelessWidget {
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(12 * scale),
-                              child: mediaBytes != null && mediaBytes!.isNotEmpty
-                                  ? Image.memory(mediaBytes!, fit: BoxFit.cover)
-                                  : (mediaUrl != null && mediaUrl!.isNotEmpty
-                                      ? Image.network(mediaUrl!, fit: BoxFit.cover)
-                                      : Container(
-                                          decoration: const BoxDecoration(
-                                            gradient: LinearGradient(
-                                              begin: Alignment.topLeft,
-                                              end: Alignment.bottomRight,
-                                              colors: [
-                                                Color(0xFFC026D3),
-                                                Color(0xFF1E1B4B),
-                                                Color(0xFF0284C7),
-                                              ],
+                              child: isVideo
+                                  ? Container(
+                                      decoration: const BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            Color(0xFF8B5CF6),
+                                            Color(0xFF6D28D9),
+                                            Color(0xFF312E81),
+                                          ],
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Icon(
+                                          Icons.play_arrow_rounded,
+                                          color: Colors.white,
+                                          size: 32 * scale,
+                                        ),
+                                      ),
+                                    )
+                                  : (mediaBytes != null && mediaBytes!.isNotEmpty
+                                      ? Image.memory(
+                                          mediaBytes!,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) => Container(
+                                            decoration: const BoxDecoration(
+                                              gradient: LinearGradient(
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                                colors: [
+                                                  Color(0xFFC026D3),
+                                                  Color(0xFF1E1B4B),
+                                                  Color(0xFF0284C7),
+                                                ],
+                                              ),
+                                            ),
+                                            child: Center(
+                                              child: Icon(
+                                                Icons.image_rounded,
+                                                color: Colors.white.withAlpha(200),
+                                                size: 24 * scale,
+                                              ),
                                             ),
                                           ),
-                                        )),
+                                        )
+                                      : (mediaUrl != null && mediaUrl!.isNotEmpty
+                                          ? Image.network(
+                                              mediaUrl!,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) => Container(
+                                                decoration: const BoxDecoration(
+                                                  gradient: LinearGradient(
+                                                    begin: Alignment.topLeft,
+                                                    end: Alignment.bottomRight,
+                                                    colors: [
+                                                      Color(0xFFC026D3),
+                                                      Color(0xFF1E1B4B),
+                                                      Color(0xFF0284C7),
+                                                    ],
+                                                  ),
+                                                ),
+                                                child: Center(
+                                                  child: Icon(
+                                                    Icons.image_rounded,
+                                                    color: Colors.white.withAlpha(200),
+                                                    size: 24 * scale,
+                                                  ),
+                                                ),
+                                              ),
+                                            )
+                                          : Container(
+                                              decoration: const BoxDecoration(
+                                                gradient: LinearGradient(
+                                                  begin: Alignment.topLeft,
+                                                  end: Alignment.bottomRight,
+                                                  colors: [
+                                                    Color(0xFFC026D3),
+                                                    Color(0xFF1E1B4B),
+                                                    Color(0xFF0284C7),
+                                                  ],
+                                                ),
+                                              ),
+                                            ))),
                             ),
                           ),
 

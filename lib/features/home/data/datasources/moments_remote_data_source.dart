@@ -402,6 +402,18 @@ class MomentsRemoteDataSource {
     }
   }
 
+  Future<void> markNotificationAsRead(String notificationId) async {
+    try {
+      await _apiClient.patch('/notifications/$notificationId/read');
+    } catch (_) {}
+  }
+
+  Future<void> markAllNotificationsAsRead() async {
+    try {
+      await _apiClient.post('/notifications/read-all');
+    } catch (_) {}
+  }
+
   String _generateUuidV4() {
     final random = Random.secure();
     final values = List<int>.generate(16, (i) => random.nextInt(256));

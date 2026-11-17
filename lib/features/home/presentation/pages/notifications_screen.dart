@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/layout/responsive.dart';
+import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../data/datasources/moments_remote_data_source.dart';
@@ -95,6 +96,25 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             fontWeight: FontWeight.w500,
                           ),
                         ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () async {
+                        final client = ApiClientScope.of(context);
+                        final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+                        await repo.markAllNotificationsAsRead();
+                        setState(() {
+                          _notifications = _notifications.map((n) => n.copyWith(isRead: true)).toList();
+                        });
+                        if (!mounted) return;
+                        PushNotificationService.instance.refreshUnreadCount(client);
+                      },
+                      tooltip: 'Mark all as read',
+                      icon: Icon(Icons.done_all_rounded, color: const Color(0xFFC68CFF), size: 20 * scale),
+                      padding: EdgeInsets.zero,
+                      constraints: BoxConstraints.tightFor(
+                        width: 40 * scale,
+                        height: 40 * scale,
                       ),
                     ),
                     IconButton(
@@ -199,25 +219,39 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ? n.createdAt!.toLocal().toString().split('.').first
             : 'Recently';
 
-        return Container(
-          margin: EdgeInsets.only(bottom: 12 * scale),
-          padding: EdgeInsets.all(12 * scale),
-          decoration: BoxDecoration(
-            color: const Color(0xFF121326),
-            borderRadius: BorderRadius.circular(16 * scale),
-            border: Border.all(
-              color: const Color(0x333F4356),
-              width: scale,
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x14000000),
-                blurRadius: 16,
-                offset: Offset(0, 4),
+        return GestureDetector(
+          onTap: () async {
+            if (!n.isRead) {
+              setState(() {
+                _notifications[index] = n.copyWith(isRead: true);
+              });
+              final client = ApiClientScope.of(context);
+              final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+              await repo.markNotificationAsRead(n.id);
+              if (!mounted) return;
+              PushNotificationService.instance.refreshUnreadCount(client);
+            }
+          },
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            margin: EdgeInsets.only(bottom: 12 * scale),
+            padding: EdgeInsets.all(12 * scale),
+            decoration: BoxDecoration(
+              color: n.isRead ? const Color(0xFF121326) : const Color(0xFF1E1736),
+              borderRadius: BorderRadius.circular(16 * scale),
+              border: Border.all(
+                color: n.isRead ? const Color(0x333F4356) : const Color(0xFF9044FB).withAlpha(120),
+                width: scale,
               ),
-            ],
-          ),
-          child: Row(
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x14000000),
+                  blurRadius: 16,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
@@ -274,6 +308,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ],
           ),
         );
+      },
       },
     );
   }

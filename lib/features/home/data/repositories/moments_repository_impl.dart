@@ -246,4 +246,14 @@ class MomentsRepositoryImpl implements MomentsRepository {
   Future<List<RecipientUserModel>> searchUsers(String query) {
     return _remoteDataSource.searchUsers(query);
   }
+
+  @override
+  Future<void> markNotificationAsRead(String notificationId) {
+    return _remoteDataSource.markNotificationAsRead(notificationId);
+  }
+
+  @override
+  Future<void> markAllNotificationsAsRead() {
+    return _remoteDataSource.markAllNotificationsAsRead();
+  }
 }

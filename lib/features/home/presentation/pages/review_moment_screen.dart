@@ -1851,6 +1851,7 @@ class _ReviewMomentScreenState extends State<ReviewMomentScreen> {
                   shareUrl: 'https://vera.aptechmedia.com/m/${result.id}',
                   mediaBytes: creation.mediaBytes,
                   mediaUrl: mediaUrl,
+                  isVideo: widget.isVideo,
                 ),
               ),
             );

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/auth/user_role.dart';
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
@@ -91,6 +92,7 @@ class _SignInScreenState extends State<SignInScreen> {
         refreshToken: result.refreshToken,
         userRole: UserRole.user.value,
       );
+      PushNotificationService.instance.initialize(apiClient).catchError((_) {});
 
       if (!mounted) return;
 

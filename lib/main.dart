@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'core/config/app_config.dart';
 import 'core/network/api_client.dart';
+import 'core/services/push_notification_service.dart';
 import 'core/theme/theme.dart';
 import 'features/splash/presentation/pages/splash_screen.dart';
 import 'firebase_options.dart';
@@ -21,6 +22,7 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await PushNotificationService.instance.initialize(apiClient);
   runApp(VeraApp(apiClient: apiClient));
 }
 

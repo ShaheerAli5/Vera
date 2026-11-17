@@ -88,4 +88,6 @@ abstract class MomentsRepository {
   String getMomentMediaStreamUrl(String momentId);
   Map<String, String> getMomentMediaHeaders();
   Future<List<RecipientUserModel>> searchUsers(String query);
+  Future<void> markNotificationAsRead(String notificationId);
+  Future<void> markAllNotificationsAsRead();
 }

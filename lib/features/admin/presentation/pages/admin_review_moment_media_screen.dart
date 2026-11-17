@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
@@ -64,12 +66,33 @@ class _AdminReviewMomentMediaScreenState extends State<AdminReviewMomentMediaScr
     });
 
     try {
-      final controller = VideoPlayerController.networkUrl(
-        Uri.parse(mediaUrl),
-        httpHeaders: headers,
-      );
+      VideoPlayerController controller;
+      bool initialized = false;
+      VideoPlayerController? netController;
+
+      try {
+        netController = VideoPlayerController.networkUrl(
+          Uri.parse(mediaUrl),
+          httpHeaders: headers,
+        );
+        await netController.initialize().timeout(const Duration(seconds: 4));
+        controller = netController;
+        initialized = true;
+      } catch (_) {
+        netController?.dispose();
+        initialized = false;
+      }
+
+      if (!initialized) {
+        final client = ApiClientScope.of(context);
+        final response = await client.getRaw('/admin/moments/${widget.momentId}/media');
+        final tempFile = File('${Directory.systemTemp.path}/admin_moment_${widget.momentId}.mp4');
+        await tempFile.writeAsBytes(response.bodyBytes, flush: true);
+        controller = VideoPlayerController.file(tempFile);
+        await controller.initialize();
+      }
+
       _videoController = controller;
-      await controller.initialize();
       controller.setLooping(true);
       await controller.play();
       if (!mounted) return;

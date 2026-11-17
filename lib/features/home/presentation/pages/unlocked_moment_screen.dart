@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -494,16 +495,23 @@ class _VideoPreviewState extends State<_VideoPreview> {
     if (widget.moment.id != oldWidget.moment.id ||
         widget.streamUrl != oldWidget.streamUrl ||
         widget.isStreamVideo != oldWidget.isStreamVideo) {
+      _controller?.pause();
       _controller?.dispose();
       _controller = null;
       _isInitialized = false;
       _hasError = false;
+      _checkAndInitVideo();
+    } else if (!_isInitialized &&
+        !_isLoading &&
+        widget.mediaBytes != null &&
+        widget.mediaBytes != oldWidget.mediaBytes) {
       _checkAndInitVideo();
     }
   }
 
   @override
   void dispose() {
+    _controller?.pause();
     _controller?.dispose();
     super.dispose();
   }
@@ -515,7 +523,7 @@ class _VideoPreviewState extends State<_VideoPreview> {
   }
 
   Future<void> _checkAndInitVideo() async {
-    if (!_shouldPlayVideo || widget.streamUrl.isEmpty) return;
+    if (!_shouldPlayVideo) return;
     if (_controller != null || _isLoading) return;
 
     setState(() {
@@ -525,12 +533,47 @@ class _VideoPreviewState extends State<_VideoPreview> {
     });
 
     try {
-      final controller = VideoPlayerController.networkUrl(
-        Uri.parse(widget.streamUrl),
-        httpHeaders: widget.streamHeaders,
-      );
+      VideoPlayerController controller;
+
+      // 1. If we already have the media bytes, write to a temp file and play via VideoPlayerController.file
+      if (widget.mediaBytes != null && widget.mediaBytes!.isNotEmpty) {
+        final tempFile = File('${Directory.systemTemp.path}/moment_${widget.moment.id}.mp4');
+        await tempFile.writeAsBytes(widget.mediaBytes!, flush: true);
+        controller = VideoPlayerController.file(tempFile);
+        await controller.initialize();
+      } else if (widget.streamUrl.isNotEmpty) {
+        // 2. Try networkUrl with timeout, or download bytes directly via ApiClient
+        bool initialized = false;
+        VideoPlayerController? netController;
+        try {
+          netController = VideoPlayerController.networkUrl(
+            Uri.parse(widget.streamUrl),
+            httpHeaders: widget.streamHeaders,
+          );
+          await netController.initialize().timeout(const Duration(seconds: 4));
+          controller = netController;
+          initialized = true;
+        } catch (_) {
+          netController?.dispose();
+          initialized = false;
+        }
+
+        if (!initialized) {
+          final client = ApiClientScope.of(context);
+          final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+          final stream = await repo.getMomentMedia(widget.moment.id);
+          final tempFile = File('${Directory.systemTemp.path}/moment_${widget.moment.id}.mp4');
+          await tempFile.writeAsBytes(stream.bytes, flush: true);
+          controller = VideoPlayerController.file(tempFile);
+          await controller.initialize();
+        }
+      } else {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        return;
+      }
+
       _controller = controller;
-      await controller.initialize();
       controller.setLooping(true);
       await controller.play();
       if (!mounted) return;
