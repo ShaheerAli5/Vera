@@ -361,13 +361,15 @@ class _AdminReviewMomentScreenState extends State<AdminReviewMomentScreen> {
     final mediaUrl = adminMomentMediaUrl(apiClient, moment.mediaUrl, moment.id);
     final mediaHeaders = adminMediaHeaders(apiClient);
 
+    final bool isTextOnly = !moment.hasMedia || moment.contentType?.toUpperCase() == 'TEXT';
+
     return SingleChildScrollView(
       padding: EdgeInsets.all(24 * scale),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           GestureDetector(
-            onTap: () async {
+            onTap: isTextOnly ? null : () async {
               final res = await Navigator.of(context).push<bool>(
                 MaterialPageRoute(
                   builder: (_) => AdminReviewMomentMediaScreen(
@@ -389,29 +391,110 @@ class _AdminReviewMomentScreenState extends State<AdminReviewMomentScreen> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(24 * scale),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.network(
-                      mediaUrl,
-                      headers: mediaHeaders,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Center(
-                        child: Icon(Icons.image_not_supported, color: Colors.white54, size: 48 * scale),
-                      ),
-                    ),
-                    Center(
-                      child: Container(
-                        padding: EdgeInsets.all(16 * scale),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.5),
-                          shape: BoxShape.circle,
+                child: isTextOnly
+                    ? Container(
+                        padding: EdgeInsets.all(24 * scale),
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Color(0xFF2C1338),
+                              Color(0xFF1E2B45),
+                              Color(0xFF0F172A),
+                            ],
+                          ),
                         ),
-                        child: Icon(Icons.play_arrow, color: Colors.white, size: 48 * scale),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.notes_rounded, color: const Color(0xFF9044FB), size: 32 * scale),
+                                SizedBox(width: 12 * scale),
+                                Text(
+                                  'Text Moment (No Media Attachment)',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 15 * scale,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 20 * scale),
+                            Text(
+                              moment.title,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 24 * scale,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if (moment.teaser != null && moment.teaser!.isNotEmpty) ...[
+                              SizedBox(height: 12 * scale),
+                              Text(
+                                moment.teaser!,
+                                style: TextStyle(
+                                  color: const Color(0xFFE2E2F0),
+                                  fontSize: 16 * scale,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      )
+                    : Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.network(
+                            mediaUrl,
+                            headers: mediaHeaders,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Color(0xFF2C1338),
+                                    Color(0xFF1E2B45),
+                                    Color(0xFF0F172A),
+                                  ],
+                                ),
+                              ),
+                              child: Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 64 * scale),
+                                    SizedBox(height: 12 * scale),
+                                    Text(
+                                      'Moment Media',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16 * scale,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Center(
+                            child: Container(
+                              padding: EdgeInsets.all(16 * scale),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.5),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.play_arrow, color: Colors.white, size: 48 * scale),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
               ),
             ),
           ),

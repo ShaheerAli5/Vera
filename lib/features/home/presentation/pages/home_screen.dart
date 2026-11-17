@@ -504,17 +504,22 @@ class _HomeScreenState extends State<HomeScreen> {
                                     setState(() {
                                       if (result.id.startsWith('__DELETED__:')) {
                                         final deletedId = result.id.replaceFirst('__DELETED__:', '');
+                                        _fetchedForYouMoments.removeWhere((m) => m.id == deletedId);
+                                        _fetchedDiscoverMoments.removeWhere((m) => m.id == deletedId);
                                         _fetchedYourMoments.removeWhere((m) => m.id == deletedId);
                                         _fetchedInboxMoments.removeWhere((m) => m.id == deletedId);
                                         HomeScreen.sentMoments.removeWhere((m) => m.id == deletedId);
                                       } else {
-                                        final i = _fetchedYourMoments.indexWhere((m) => m.id == result.id);
-                                        if (i >= 0) {
-                                          _fetchedYourMoments[i] = result;
-                                        }
-                                        final j = _fetchedInboxMoments.indexWhere((m) => m.id == result.id);
-                                        if (j >= 0) {
-                                          _fetchedInboxMoments[j] = result;
+                                        for (final list in [
+                                          _fetchedForYouMoments,
+                                          _fetchedDiscoverMoments,
+                                          _fetchedYourMoments,
+                                          _fetchedInboxMoments,
+                                        ]) {
+                                          final i = list.indexWhere((m) => m.id == result.id);
+                                          if (i >= 0) {
+                                            list[i] = result;
+                                          }
                                         }
                                       }
                                     });
@@ -524,17 +529,22 @@ class _HomeScreenState extends State<HomeScreen> {
                                   setState(() {
                                     if (updated.id.startsWith('__DELETED__:')) {
                                       final deletedId = updated.id.replaceFirst('__DELETED__:', '');
+                                      _fetchedForYouMoments.removeWhere((m) => m.id == deletedId);
+                                      _fetchedDiscoverMoments.removeWhere((m) => m.id == deletedId);
                                       _fetchedYourMoments.removeWhere((m) => m.id == deletedId);
                                       _fetchedInboxMoments.removeWhere((m) => m.id == deletedId);
                                       HomeScreen.sentMoments.removeWhere((m) => m.id == deletedId);
                                     } else {
-                                      final i = _fetchedYourMoments.indexWhere((m) => m.id == updated.id);
-                                      if (i >= 0) {
-                                        _fetchedYourMoments[i] = updated;
-                                      }
-                                      final j = _fetchedInboxMoments.indexWhere((m) => m.id == updated.id);
-                                      if (j >= 0) {
-                                        _fetchedInboxMoments[j] = updated;
+                                      for (final list in [
+                                        _fetchedForYouMoments,
+                                        _fetchedDiscoverMoments,
+                                        _fetchedYourMoments,
+                                        _fetchedInboxMoments,
+                                      ]) {
+                                        final i = list.indexWhere((m) => m.id == updated.id);
+                                        if (i >= 0) {
+                                          list[i] = updated;
+                                        }
                                       }
                                     }
                                   });

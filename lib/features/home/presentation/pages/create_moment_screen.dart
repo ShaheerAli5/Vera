@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart';
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/widgets/vera_popup.dart';
@@ -19,6 +21,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
   final TextEditingController _teaserController = TextEditingController();
   final TextEditingController _messageController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
+  VideoPlayerController? _videoController;
 
   int _selectedCategoryIndex = -1;
   bool _hasUploadedMedia = false;
@@ -39,10 +42,13 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
     _titleController.dispose();
     _teaserController.dispose();
     _messageController.dispose();
+    _videoController?.dispose();
     super.dispose();
   }
 
   void _removeMedia() {
+    _videoController?.dispose();
+    _videoController = null;
     setState(() {
       _hasUploadedMedia = false;
       _pickedMediaFile = null;
@@ -80,6 +86,16 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
         _isVideo = isVideo;
         _hasUploadedMedia = true;
       });
+
+      if (isVideo) {
+        _videoController?.dispose();
+        _videoController = VideoPlayerController.file(File(file.path))
+          ..initialize().then((_) {
+            if (mounted) setState(() {});
+            _videoController?.setLooping(true);
+            _videoController?.play();
+          });
+      }
     } catch (e) {
       if (!mounted) return;
       VeraPopup.show(
@@ -591,7 +607,18 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                             borderRadius: BorderRadius.circular(20 * scale),
                             child: Stack(
                               children: [
-                                if (_mediaBytes != null && !_isVideo)
+                                if (_isVideo && _videoController != null && _videoController!.value.isInitialized)
+                                  Positioned.fill(
+                                    child: FittedBox(
+                                      fit: BoxFit.cover,
+                                      child: SizedBox(
+                                        width: _videoController!.value.size.width,
+                                        height: _videoController!.value.size.height,
+                                        child: VideoPlayer(_videoController!),
+                                      ),
+                                    ),
+                                  )
+                                else if (_mediaBytes != null && !_isVideo)
                                   Positioned.fill(
                                     child: Image.memory(
                                       _mediaBytes!,

@@ -119,6 +119,9 @@ class MomentModel {
     this.unlockedAt,
     this.openedAt,
     this.isVideo = false,
+    this.timeAgo,
+    this.contentType,
+    this.hasMedia = true,
     this.raw = const {},
   });
 
@@ -146,6 +149,9 @@ class MomentModel {
   final DateTime? unlockedAt;
   final DateTime? openedAt;
   final bool isVideo;
+  final String? timeAgo;
+  final String? contentType;
+  final bool hasMedia;
   final Map<String, dynamic> raw;
 
   factory MomentModel.fromJson(Map<String, dynamic> rawJson) {
@@ -174,12 +180,19 @@ class MomentModel {
         json['unlockAt']?.toString() ??
         json['unlock_at']?.toString();
 
+    final apiTimeAgo = json['timeAgo']?.toString() ??
+        json['time_ago']?.toString() ??
+        rawJson['timeAgo']?.toString() ??
+        rawJson['time_ago']?.toString();
+
     final createdAtStr = json['createdAt']?.toString() ??
         json['created_at']?.toString() ??
         rawJson['createdAt']?.toString() ??
         rawJson['created_at']?.toString() ??
         json['timestamp']?.toString() ??
-        rawJson['timestamp']?.toString();
+        rawJson['timestamp']?.toString() ??
+        json['date']?.toString() ??
+        rawJson['date']?.toString();
 
     final recipients = (json['recipientUserIds'] ?? json['recipient_user_ids']) is List
         ? ((json['recipientUserIds'] ?? json['recipient_user_ids']) as List)
@@ -220,12 +233,20 @@ class MomentModel {
         ? 'https://vera.aptechmedia.com$avatarPath'
         : avatarPath;
 
+    final contentType = json['contentType']?.toString() ??
+        json['content_type']?.toString() ??
+        'TEXT';
+
     final mimeType = media?['mimeType']?.toString() ??
         media?['type']?.toString() ??
         media?['contentType']?.toString() ??
         json['contentType']?.toString() ??
         json['mediaType']?.toString() ??
         json['type']?.toString();
+
+    final hasMedia = (media != null && (media['uploaded'] == true || (mediaUrl != null && mediaUrl.isNotEmpty))) ||
+        contentType.toUpperCase() == 'IMAGE' ||
+        contentType.toUpperCase() == 'VIDEO';
 
     final isVideo = (json['isVideo'] == true ||
         rawJson['isVideo'] == true ||
@@ -279,6 +300,9 @@ class MomentModel {
       unlockedAt: unlockedAtStr != null ? DateTime.tryParse(unlockedAtStr) : null,
       openedAt: openedAtStr != null ? DateTime.tryParse(openedAtStr) : null,
       isVideo: isVideo,
+      contentType: contentType,
+      hasMedia: hasMedia,
+      timeAgo: apiTimeAgo,
       raw: json,
     );
   }
@@ -324,23 +348,27 @@ class MomentModel {
     }
 
     String timeAgoText = 'Just now';
-    final refTime = createdAt ?? unlockedAt;
-    if (refTime != null) {
-      final diff = now.difference(refTime);
-      if (diff.inDays > 365) {
-        timeAgoText = '${(diff.inDays / 365).floor()}y ago';
-      } else if (diff.inDays > 30) {
-        timeAgoText = '${(diff.inDays / 30).floor()}mo ago';
-      } else if (diff.inDays > 0) {
-        timeAgoText = '${diff.inDays}d ago';
-      } else if (diff.inHours > 0) {
-        timeAgoText = '${diff.inHours}h ago';
-      } else if (diff.inMinutes > 0) {
-        timeAgoText = '${diff.inMinutes}m ago';
-      } else if (diff.inSeconds >= 10) {
-        timeAgoText = '${diff.inSeconds}s ago';
-      } else {
-        timeAgoText = 'Just now';
+    if (timeAgo != null && timeAgo!.trim().isNotEmpty) {
+      timeAgoText = timeAgo!.trim();
+    } else {
+      final refTime = createdAt ?? unlockedAt;
+      if (refTime != null) {
+        final diff = now.difference(refTime);
+        if (diff.inDays > 365) {
+          timeAgoText = '${(diff.inDays / 365).floor()}y ago';
+        } else if (diff.inDays > 30) {
+          timeAgoText = '${(diff.inDays / 30).floor()}mo ago';
+        } else if (diff.inDays > 0) {
+          timeAgoText = '${diff.inDays}d ago';
+        } else if (diff.inHours > 0) {
+          timeAgoText = '${diff.inHours}h ago';
+        } else if (diff.inMinutes > 0) {
+          timeAgoText = '${diff.inMinutes}m ago';
+        } else if (diff.inSeconds >= 10) {
+          timeAgoText = '${diff.inSeconds}s ago';
+        } else {
+          timeAgoText = 'Just now';
+        }
       }
     }
 
@@ -405,6 +433,8 @@ class MomentModel {
       openedAt: openedAt,
       unlockAt: unlockAt,
       isVideo: isVideo,
+      contentType: contentType,
+      hasMedia: hasMedia,
     );
   }
 }

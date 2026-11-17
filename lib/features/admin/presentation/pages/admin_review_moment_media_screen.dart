@@ -200,8 +200,35 @@ class _AdminReviewMomentMediaScreenState extends State<AdminReviewMomentMediaScr
               mediaUrl,
               headers: mediaHeaders,
               fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => const Center(
-                child: Icon(Icons.broken_image, color: Colors.white54, size: 64),
+              errorBuilder: (context, error, stackTrace) => Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF2C1338),
+                      Color(0xFF1E2B45),
+                      Color(0xFF0F172A),
+                    ],
+                  ),
+                ),
+                child: const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 64),
+                      SizedBox(height: 12),
+                      Text(
+                        'Moment Media Review',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
 

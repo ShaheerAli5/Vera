@@ -26,6 +26,8 @@ class Moment {
     this.openedAt,
     this.unlockAt,
     this.isVideo = false,
+    this.contentType,
+    this.hasMedia = true,
   });
 
   final String id;
@@ -49,6 +51,8 @@ class Moment {
   final DateTime? openedAt;
   final DateTime? unlockAt;
   final bool isVideo;
+  final String? contentType;
+  final bool hasMedia;
 
   Moment copyWith({
     String? id,

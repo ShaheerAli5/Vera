@@ -288,14 +288,46 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12 * scale),
-                child: Image.network(
-                  mediaUrl,
-                  headers: mediaHeaders,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Center(
-                    child: Icon(Icons.play_circle_outline, color: Colors.white.withValues(alpha: 0.8), size: 32 * scale),
-                  ),
-                ),
+                child: (!moment.hasMedia || moment.contentType?.toUpperCase() == 'TEXT')
+                    ? Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Color(0xFF2C1338),
+                              Color(0xFF1E2B45),
+                            ],
+                          ),
+                        ),
+                        child: Center(
+                          child: Icon(Icons.notes_rounded, color: Colors.white, size: 32 * scale),
+                        ),
+                      )
+                    : moment.isVideo
+                        ? Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Color(0xFF2C1338),
+                                  Color(0xFF1E2B45),
+                                ],
+                              ),
+                            ),
+                            child: Center(
+                              child: Icon(Icons.videocam_rounded, color: Colors.white, size: 32 * scale),
+                            ),
+                          )
+                        : Image.network(
+                            mediaUrl,
+                            headers: mediaHeaders,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Center(
+                              child: Icon(Icons.play_circle_outline, color: Colors.white.withValues(alpha: 0.8), size: 32 * scale),
+                            ),
+                          ),
               ),
             ),
             SizedBox(width: 16 * scale),

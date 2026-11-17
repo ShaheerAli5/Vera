@@ -22,11 +22,13 @@ class _CreationResult {
     required this.result,
     this.uploadedMoment,
     this.publishedMoment,
+    this.mediaBytes,
   });
 
   final CreateMomentResult result;
   final MomentModel? uploadedMoment;
   final MomentModel? publishedMoment;
+  final Uint8List? mediaBytes;
 }
 
 class ReviewMomentScreen extends StatefulWidget {
@@ -1762,16 +1764,18 @@ class _ReviewMomentScreenState extends State<ReviewMomentScreen> {
             final result = await repository.createMoment(params);
             var currentVersion = result.version;
 
+            Uint8List? capturedBytes;
             MomentModel? uploadedMoment;
             if (widget.mediaBytes != null || widget.mediaFile != null) {
-              final bytes = widget.mediaBytes ??
+              final rawBytes = widget.mediaBytes ??
                   await widget.mediaFile!.readAsBytes();
+              capturedBytes = rawBytes;
               final filename = widget.mediaFile?.name ??
                   (widget.isVideo ? 'moment.mp4' : 'moment.jpg');
               uploadedMoment = await repository.uploadMomentMedia(
                 momentId: result.id,
                 version: currentVersion,
-                bytes: bytes,
+                bytes: capturedBytes,
                 filename: filename,
               );
               currentVersion = uploadedMoment.version;
@@ -1787,6 +1791,7 @@ class _ReviewMomentScreenState extends State<ReviewMomentScreen> {
               result: result,
               uploadedMoment: uploadedMoment,
               publishedMoment: publishedMoment,
+              mediaBytes: capturedBytes,
             );
           }(),
           onSuccess: (creation) {
@@ -1844,6 +1849,8 @@ class _ReviewMomentScreenState extends State<ReviewMomentScreen> {
                   unlockTime: _condition,
                   isPublic: !_isPrivate,
                   shareUrl: 'https://vera.aptechmedia.com/m/${result.id}',
+                  mediaBytes: creation.mediaBytes,
+                  mediaUrl: mediaUrl,
                 ),
               ),
             );

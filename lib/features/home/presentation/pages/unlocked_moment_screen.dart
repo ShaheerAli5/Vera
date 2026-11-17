@@ -155,7 +155,14 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
     final scale = VeraResponsive.scale(screenWidth);
     final contentWidth = VeraResponsive.contentWidth(screenWidth, horizontalPadding: 24 * scale);
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          Navigator.of(context).pop(_currentMoment);
+        }
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFF080914),
       body: SafeArea(
         bottom: false,
@@ -171,7 +178,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: IconButton(
-                        onPressed: () => Navigator.of(context).maybePop(),
+                        onPressed: () => Navigator.of(context).pop(_currentMoment),
                         icon: Icon(Icons.arrow_back_rounded,
                             color: Colors.white, size: 22 * scale),
                         padding: EdgeInsets.zero,
@@ -307,6 +314,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 

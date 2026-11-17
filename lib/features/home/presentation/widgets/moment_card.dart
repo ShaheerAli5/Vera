@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/utils/server_time_manager.dart';
+import '../../../../main.dart' show ApiClientScope;
 import '../../domain/entities/moment.dart';
 import '../pages/edit_moment_screen.dart';
 
@@ -24,6 +25,15 @@ class MomentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     const cardHeight = 194.0;
     const cardRadius = 20.0;
+    final bool isUnlocked = moment.isReadyToOpen ||
+        moment.unlockedAt != null ||
+        (moment.unlockAt != null &&
+            !ServerTimeManager.instance.now.isBefore(moment.unlockAt!));
+    final client = ApiClientScope.of(context);
+    final token = client.authToken;
+    final headers = <String, String>{
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -46,10 +56,14 @@ class MomentCard extends StatelessWidget {
           children: [
             // Background Image with Blur
             ImageFiltered(
-              imageFilter: ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+              imageFilter: ImageFilter.blur(
+                sigmaX: isUnlocked ? 0 : 7,
+                sigmaY: isUnlocked ? 0 : 7,
+              ),
               child: moment.backgroundImageUrl.isNotEmpty
                   ? Image.network(
                       moment.backgroundImageUrl,
+                      headers: headers,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) => Container(
                         decoration: const BoxDecoration(
@@ -166,13 +180,9 @@ class MomentCard extends StatelessWidget {
                         SizedBox(width: 12 * scale),
                         Expanded(
                           child: Text(
-                            moment.isReadyToOpen
+                            isUnlocked
                                 ? 'Ready to open'
-                                : (moment.unlockAt != null &&
-                                        !ServerTimeManager.instance.now
-                                            .isBefore(moment.unlockAt!)
-                                    ? 'Ready to open'
-                                    : moment.unlockCondition),
+                                : moment.unlockCondition,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -282,6 +292,10 @@ class MomentCard extends StatelessWidget {
     );
   }
   Widget _buildTopLock(double scale) {
+    final bool isUnlocked = moment.isReadyToOpen ||
+        moment.unlockedAt != null ||
+        (moment.unlockAt != null &&
+            !ServerTimeManager.instance.now.isBefore(moment.unlockAt!));
     return ClipOval(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -294,10 +308,10 @@ class MomentCard extends StatelessWidget {
             border: Border.all(color: const Color(0x30FFFFFF)),
           ),
           child: Icon(
-            moment.isReadyToOpen
+            isUnlocked
                 ? Icons.lock_open_rounded
                 : Icons.lock_outline_rounded,
-            color: moment.isReadyToOpen
+            color: isUnlocked
                 ? const Color(0xFF7DF0B0)
                 : Colors.white,
             size: 22 * scale,
