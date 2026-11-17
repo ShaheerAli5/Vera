@@ -590,7 +590,7 @@ class _VideoPreviewState extends State<_VideoPreview> {
       });
       controller.addListener(() {
         if (!mounted) return;
-        final playing = controller.value.isPlaying;
+        final playing = controller!.value.isPlaying;
         if (playing != _isPlaying) {
           setState(() => _isPlaying = playing);
         }

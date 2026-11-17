@@ -252,60 +252,61 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               ],
             ),
             child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 48 * scale,
-                height: 48 * scale,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1B152E),
-                  borderRadius: BorderRadius.circular(12 * scale),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 48 * scale,
+                  height: 48 * scale,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1B152E),
+                    borderRadius: BorderRadius.circular(12 * scale),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12 * scale),
+                    child: n.imageUrl != null && n.imageUrl!.isNotEmpty
+                        ? Image.network(
+                            n.imageUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => const Icon(Icons.notifications, color: Colors.white, size: 20),
+                          )
+                        : const Icon(Icons.notifications, color: Colors.white, size: 20),
+                  ),
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12 * scale),
-                  child: n.imageUrl != null && n.imageUrl!.isNotEmpty
-                      ? Image.network(
-                          n.imageUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.notifications, color: Colors.white, size: 20),
-                        )
-                      : const Icon(Icons.notifications, color: Colors.white, size: 20),
+                SizedBox(width: 12 * scale),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        n.title,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14 * scale,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(height: 8 * scale),
+                      Text(
+                        n.body,
+                        style: TextStyle(
+                          color: const Color(0xFFA6A6C1),
+                          fontSize: 12 * scale,
+                          height: 1.2,
+                        ),
+                      ),
+                      SizedBox(height: 8 * scale),
+                      Text(
+                        timeStr,
+                        style: TextStyle(
+                          color: const Color(0xFF6E6E8F),
+                          fontSize: 11 * scale,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              SizedBox(width: 12 * scale),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      n.title,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14 * scale,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    SizedBox(height: 8 * scale),
-                    Text(
-                      n.body,
-                      style: TextStyle(
-                        color: const Color(0xFFA6A6C1),
-                        fontSize: 12 * scale,
-                        height: 1.2,
-                      ),
-                    ),
-                    SizedBox(height: 8 * scale),
-                    Text(
-                      timeStr,
-                      style: TextStyle(
-                        color: const Color(0xFF6E6E8F),
-                        fontSize: 11 * scale,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
