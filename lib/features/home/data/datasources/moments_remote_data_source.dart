@@ -12,6 +12,7 @@ import '../models/moment_media_stream.dart';
 import '../models/moment_model.dart';
 import '../models/moment_thread_model.dart';
 import '../models/notification_model.dart';
+import '../models/recipient_user_model.dart';
 import '../models/resend_invite_result.dart';
 import '../models/update_moment_params.dart';
 
@@ -401,6 +402,18 @@ class MomentsRemoteDataSource {
     }
   }
 
+  Future<void> markNotificationAsRead(String notificationId) async {
+    try {
+      await _apiClient.patch('/notifications/$notificationId/read');
+    } catch (_) {}
+  }
+
+  Future<void> markAllNotificationsAsRead() async {
+    try {
+      await _apiClient.post('/notifications/read-all');
+    } catch (_) {}
+  }
+
   String _generateUuidV4() {
     final random = Random.secure();
     final values = List<int>.generate(16, (i) => random.nextInt(256));
@@ -408,6 +421,35 @@ class MomentsRemoteDataSource {
     values[8] = (values[8] & 0x3f) | 0x80;
     final hex = values.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
     return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20, 32)}';
+  }
+
+  Future<List<RecipientUserModel>> searchUsers(String query) async {
+    final trimmed = query.trim();
+    final queryParameters = <String, String>{
+      if (trimmed.isNotEmpty) 'q': trimmed,
+      'limit': '25',
+    };
+
+    final response = await _apiClient.get(
+      '/users/search',
+      queryParameters: queryParameters,
+    );
+
+    List<dynamic> itemsRaw = const [];
+    if (response is Map<String, dynamic>) {
+      if (response['items'] is List) {
+        itemsRaw = response['items'] as List;
+      } else if (response['data'] is List) {
+        itemsRaw = response['data'] as List;
+      }
+    } else if (response is List) {
+      itemsRaw = response;
+    }
+
+    return itemsRaw
+        .whereType<Map<String, dynamic>>()
+        .map(RecipientUserModel.fromJson)
+        .toList();
   }
 
   MediaType _resolveMediaType(String filename) {

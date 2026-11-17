@@ -1,9 +1,15 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/widgets/vera_popup.dart';
+import '../../../../main.dart' show ApiClientScope;
+import '../../data/datasources/moments_remote_data_source.dart';
+import '../../data/models/recipient_user_model.dart';
+import '../../data/repositories/moments_repository_impl.dart';
 import 'choose_condition_screen.dart';
 
 class ChooseAudienceScreen extends StatefulWidget {
@@ -36,27 +42,95 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
   bool _isPrivate = true;
 
   final Set<String> _selectedRecipientIds = {};
-  final Map<String, String> _recipientNamesMap = {};
+  final Map<String, RecipientUserModel> _selectedUsersMap = {};
   final List<String> _inviteEmails = [];
-  String _searchQuery = '';
 
-  void _toggleRecipient(String id, String name) {
-    setState(() {
-      if (_selectedRecipientIds.contains(id)) {
-        _selectedRecipientIds.remove(id);
-        _recipientNamesMap.remove(id);
-      } else {
-        _selectedRecipientIds.add(id);
-        _recipientNamesMap[id] = name;
-      }
+  List<RecipientUserModel> _searchResults = [];
+  bool _isLoadingUsers = false;
+  String? _searchError;
+  Timer? _debounceTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchUsers('');
     });
   }
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _searchController.dispose();
     _emailController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchUsers(String query) async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingUsers = true;
+      _searchError = null;
+    });
+
+    try {
+      final client = ApiClientScope.of(context);
+      final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+      final users = await repo.searchUsers(query);
+      if (!mounted) return;
+      setState(() {
+        _searchResults = users;
+        _isLoadingUsers = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingUsers = false;
+        _searchError = e.toString();
+      });
+    }
+  }
+
+  void _onSearchChanged(String value) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      _fetchUsers(value);
+    });
+  }
+
+  void _toggleRecipient(RecipientUserModel user) {
+    setState(() {
+      if (_selectedRecipientIds.contains(user.id)) {
+        _selectedRecipientIds.remove(user.id);
+        _selectedUsersMap.remove(user.id);
+      } else {
+        _selectedRecipientIds.add(user.id);
+        _selectedUsersMap[user.id] = user;
+      }
+    });
+  }
+
+  void _addEmailInvite() {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) return;
+    if (!email.contains('@') || !email.contains('.')) {
+      VeraPopup.show(
+        context,
+        title: 'Invalid Email',
+        message: 'Please enter a valid email address (e.g. name@example.com).',
+        icon: Icons.error_outline_rounded,
+        accent: VeraTheme.warning,
+      );
+      return;
+    }
+
+    final lower = email.toLowerCase();
+    setState(() {
+      if (!_inviteEmails.contains(lower)) {
+        _inviteEmails.add(lower);
+      }
+      _emailController.clear();
+    });
   }
 
   @override
@@ -77,7 +151,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                 padding: EdgeInsets.symmetric(horizontal: 12 * scale),
                 child: Row(
                   children: [
-                    // Back Button Frame
+                    // Back Button
                     GestureDetector(
                       onTap: () => Navigator.of(context).maybePop(),
                       behavior: HitTestBehavior.opaque,
@@ -97,23 +171,18 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                       ),
                     ),
 
-                    // Nav Item Frame
+                    // Nav Title
                     Expanded(
                       child: Padding(
                         padding: EdgeInsets.only(left: 16 * scale),
-                        child: SizedBox(
-                          height: 24 * scale,
-                          child: Center(
-                            child: Text(
-                              'Choose your audience',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: const Color(0xFFF7F5FF),
-                                fontSize: 16 * scale,
-                                fontWeight: FontWeight.w600,
-                                height: 24 / 16,
-                                letterSpacing: 0,
-                              ),
+                        child: Center(
+                          child: Text(
+                            'Choose your audience',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: const Color(0xFFF7F5FF),
+                              fontSize: 16 * scale,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -183,9 +252,10 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
               ),
             ),
 
-            // Form Scrollable Body
+            // Scrollable Form Body
             Expanded(
               child: SingleChildScrollView(
+                padding: EdgeInsets.only(bottom: 24 * scale),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -200,18 +270,12 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          SizedBox(
-                            width: contentWidth,
-                            height: 32 * scale,
-                            child: Text(
-                              'Privacy',
-                              style: TextStyle(
-                                color: const Color(0xFFF7F5FF),
-                                fontSize: 24 * scale,
-                                fontWeight: FontWeight.w500,
-                                height: 32 / 24,
-                                letterSpacing: 0,
-                              ),
+                          Text(
+                            'Privacy',
+                            style: TextStyle(
+                              color: const Color(0xFFF7F5FF),
+                              fontSize: 24 * scale,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                           SizedBox(height: 16 * scale),
@@ -225,7 +289,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                               constraints: BoxConstraints(minHeight: 68 * scale),
                               padding: EdgeInsets.symmetric(
                                 horizontal: 16 * scale,
-                                vertical: 10 * scale,
+                                vertical: 12 * scale,
                               ),
                               decoration: BoxDecoration(
                                 gradient: _isPrivate
@@ -254,9 +318,9 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                   Icon(
                                     Icons.lock_outline_rounded,
                                     color: Colors.white,
-                                    size: 20 * scale,
+                                    size: 22 * scale,
                                   ),
-                                  SizedBox(width: 10 * scale),
+                                  SizedBox(width: 12 * scale),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -266,7 +330,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                           'Private',
                                           style: TextStyle(
                                             color: Colors.white,
-                                            fontSize: 14 * scale,
+                                            fontSize: 15 * scale,
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
@@ -275,7 +339,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                           'Only you and the people you select can access the moment',
                                           style: TextStyle(
                                             color: const Color(0xFFD4D4E8),
-                                            fontSize: 11.5 * scale,
+                                            fontSize: 12 * scale,
                                             height: 1.25,
                                           ),
                                         ),
@@ -298,7 +362,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                               constraints: BoxConstraints(minHeight: 68 * scale),
                               padding: EdgeInsets.symmetric(
                                 horizontal: 16 * scale,
-                                vertical: 10 * scale,
+                                vertical: 12 * scale,
                               ),
                               decoration: BoxDecoration(
                                 gradient: !_isPrivate
@@ -327,9 +391,9 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                   Icon(
                                     Icons.language_rounded,
                                     color: Colors.white,
-                                    size: 20 * scale,
+                                    size: 22 * scale,
                                   ),
-                                  SizedBox(width: 10 * scale),
+                                  SizedBox(width: 12 * scale),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -339,7 +403,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                           'Public',
                                           style: TextStyle(
                                             color: Colors.white,
-                                            fontSize: 14 * scale,
+                                            fontSize: 15 * scale,
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
@@ -348,7 +412,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                           'Everyone can access the moment',
                                           style: TextStyle(
                                             color: const Color(0xFFD4D4E8),
-                                            fontSize: 11.5 * scale,
+                                            fontSize: 12 * scale,
                                             height: 1.25,
                                           ),
                                         ),
@@ -367,7 +431,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                       Padding(
                         padding: EdgeInsets.fromLTRB(
                           24 * scale,
-                          12 * scale,
+                          8 * scale,
                           24 * scale,
                           24 * scale,
                         ),
@@ -386,25 +450,19 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                       Padding(
                         padding: EdgeInsets.fromLTRB(
                           24 * scale,
-                          16 * scale,
+                          8 * scale,
                           24 * scale,
                           16 * scale,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SizedBox(
-                              width: contentWidth,
-                              height: 32 * scale,
-                              child: Text(
-                                'Who should get it?',
-                                style: TextStyle(
-                                  color: const Color(0xFFF7F5FF),
-                                  fontSize: 24 * scale,
-                                  fontWeight: FontWeight.w500,
-                                  height: 32 / 24,
-                                  letterSpacing: 0,
-                                ),
+                            Text(
+                              'Who should get it?',
+                              style: TextStyle(
+                                color: const Color(0xFFF7F5FF),
+                                fontSize: 24 * scale,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                             SizedBox(height: 16 * scale),
@@ -412,17 +470,16 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                             // Dynamic Search Field
                             SizedBox(
                               width: contentWidth,
-                              height: 48 * scale,
+                              height: 50 * scale,
                               child: TextField(
                                 controller: _searchController,
-                                onChanged: (val) =>
-                                    setState(() => _searchQuery = val.trim()),
+                                onChanged: _onSearchChanged,
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 14 * scale,
                                 ),
                                 decoration: InputDecoration(
-                                  hintText: 'Search people or enter User ID...',
+                                  hintText: 'Search people...',
                                   hintStyle: TextStyle(
                                     color: const Color(0xFF8A8EB3),
                                     fontSize: 14 * scale,
@@ -432,11 +489,11 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                     color: const Color(0xFF8A8EB3),
                                     size: 20 * scale,
                                   ),
-                                  suffixIcon: _searchQuery.isNotEmpty
+                                  suffixIcon: _searchController.text.isNotEmpty
                                       ? GestureDetector(
                                           onTap: () {
                                             _searchController.clear();
-                                            setState(() => _searchQuery = '');
+                                            _fetchUsers('');
                                           },
                                           child: Icon(
                                             Icons.clear_rounded,
@@ -452,59 +509,79 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                     vertical: 12 * scale,
                                   ),
                                   border: OutlineInputBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(12 * scale),
-                                    borderSide: BorderSide.none,
+                                    borderRadius: BorderRadius.circular(14 * scale),
+                                    borderSide: const BorderSide(color: Color(0x1AFFFFFF)),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14 * scale),
+                                    borderSide: const BorderSide(color: Color(0x1AFFFFFF)),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14 * scale),
+                                    borderSide: const BorderSide(color: Color(0xFF9044FB), width: 1.5),
                                   ),
                                 ),
                               ),
                             ),
 
-                            SizedBox(height: 12 * scale),
+                            SizedBox(height: 16 * scale),
 
-                            // If search query is entered, offer to add as email or user ID
-                            if (_searchQuery.isNotEmpty) ...[
-                              if (_searchQuery.contains('@'))
-                                _ContactCard(
-                                  initials: '@',
-                                  avatarColor: VeraTheme.purpleBright,
-                                  name: 'Invite email: $_searchQuery',
-                                  scale: scale,
-                                  width: contentWidth,
-                                  isSelected: _inviteEmails.contains(_searchQuery),
-                                  onTap: () {
-                                    if (!_inviteEmails.contains(_searchQuery)) {
-                                      setState(() => _inviteEmails.add(_searchQuery));
-                                    }
-                                    _searchController.clear();
-                                    setState(() => _searchQuery = '');
-                                  },
-                                )
-                              else
-                                _ContactCard(
-                                  initials: _searchQuery[0].toUpperCase(),
-                                  avatarColor: VeraTheme.purple,
-                                  name: 'Add recipient User ID: $_searchQuery',
-                                  scale: scale,
-                                  width: contentWidth,
-                                  isSelected: _selectedRecipientIds.contains(_searchQuery),
-                                  onTap: () {
-                                    _toggleRecipient(_searchQuery, _searchQuery);
-                                    _searchController.clear();
-                                    setState(() => _searchQuery = '');
-                                  },
+                            // Search Results / Suggested Registered Users
+                            if (_isLoadingUsers)
+                              Center(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 24 * scale),
+                                  child: const CircularProgressIndicator(color: Color(0xFF9044FB)),
                                 ),
-                              SizedBox(height: 10 * scale),
-                            ],
+                              )
+                            else if (_searchResults.isEmpty)
+                              Container(
+                                width: contentWidth,
+                                padding: EdgeInsets.all(16 * scale),
+                                decoration: BoxDecoration(
+                                  color: const Color(0x2217182D),
+                                  borderRadius: BorderRadius.circular(14 * scale),
+                                  border: Border.all(color: const Color(0x1AFFFFFF)),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    _searchController.text.trim().isEmpty
+                                        ? 'No registered users available.'
+                                        : 'No registered users found matching "${_searchController.text.trim()}".',
+                                    style: TextStyle(
+                                      color: const Color(0xFF8A8EB3),
+                                      fontSize: 13 * scale,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            else
+                              ListView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                itemCount: _searchResults.length,
+                                itemBuilder: (context, index) {
+                                  final user = _searchResults[index];
+                                  final isSelected = _selectedRecipientIds.contains(user.id);
+                                  return _UserSearchResultCard(
+                                    user: user,
+                                    isSelected: isSelected,
+                                    scale: scale,
+                                    width: contentWidth,
+                                    onTap: () => _toggleRecipient(user),
+                                  );
+                                },
+                              ),
 
-                            // Selected recipient user IDs
+                            // Selected recipient chips
                             if (_selectedRecipientIds.isNotEmpty) ...[
+                              SizedBox(height: 12 * scale),
                               Text(
-                                'Selected recipient IDs',
+                                'Selected people (${_selectedRecipientIds.length}):',
                                 style: TextStyle(
                                   color: const Color(0xFFD4D4E8),
                                   fontSize: 13 * scale,
-                                  fontWeight: FontWeight.w500,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                               SizedBox(height: 8 * scale),
@@ -512,6 +589,8 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                 spacing: 8 * scale,
                                 runSpacing: 8 * scale,
                                 children: _selectedRecipientIds.map((id) {
+                                  final user = _selectedUsersMap[id];
+                                  final name = user?.displayName ?? id;
                                   return Container(
                                     padding: EdgeInsets.symmetric(
                                       horizontal: 12 * scale,
@@ -521,34 +600,37 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                       color: const Color(0xFF231742),
                                       borderRadius: BorderRadius.circular(999),
                                       border: Border.all(
-                                        color: VeraTheme.purpleBright.withAlpha(100),
+                                        color: const Color(0xFF9044FB).withValues(alpha: 0.6),
                                       ),
                                     ),
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Icon(
-                                          Icons.person_outline_rounded,
+                                          Icons.person_rounded,
                                           size: 14 * scale,
-                                          color: VeraTheme.purpleBright,
+                                          color: const Color(0xFFC057FF),
                                         ),
-                                        SizedBox(width: 4 * scale),
+                                        SizedBox(width: 6 * scale),
                                         Text(
-                                          id,
+                                          name,
                                           style: TextStyle(
                                             color: Colors.white,
                                             fontSize: 12 * scale,
+                                            fontWeight: FontWeight.w500,
                                           ),
                                         ),
                                         SizedBox(width: 6 * scale),
                                         GestureDetector(
-                                          onTap: () => setState(() {
-                                            _selectedRecipientIds.remove(id);
-                                            _recipientNamesMap.remove(id);
-                                          }),
-                                          child: Icon(
+                                          onTap: () {
+                                            setState(() {
+                                              _selectedRecipientIds.remove(id);
+                                              _selectedUsersMap.remove(id);
+                                            });
+                                          },
+                                          child: const Icon(
                                             Icons.close_rounded,
-                                            size: 14 * scale,
+                                            size: 14,
                                             color: Colors.white70,
                                           ),
                                         ),
@@ -557,41 +639,9 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                   );
                                 }).toList(),
                               ),
-                              SizedBox(height: 12 * scale),
-                            ] else if (_inviteEmails.isEmpty && _searchQuery.isEmpty) ...[
-                              Container(
-                                width: contentWidth,
-                                padding: EdgeInsets.all(14 * scale),
-                                decoration: BoxDecoration(
-                                  color: const Color(0x2217182D),
-                                  borderRadius: BorderRadius.circular(12 * scale),
-                                  border: Border.all(color: const Color(0x1AFFFFFF)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.info_outline_rounded,
-                                      color: const Color(0xFF8A8EB3),
-                                      size: 18 * scale,
-                                    ),
-                                    SizedBox(width: 10 * scale),
-                                    Expanded(
-                                      child: Text(
-                                        'Enter a recipient User ID or email address below to select who can unlock this moment.',
-                                        style: TextStyle(
-                                          color: const Color(0xFF8A8EB3),
-                                          fontSize: 12 * scale,
-                                          height: 1.3,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              SizedBox(height: 12 * scale),
                             ],
 
-                            SizedBox(height: 10 * scale),
+                            SizedBox(height: 20 * scale),
 
                             // Frame: Invite by email
                             Column(
@@ -614,6 +664,8 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                         height: 48 * scale,
                                         child: TextField(
                                           controller: _emailController,
+                                          keyboardType: TextInputType.emailAddress,
+                                          onSubmitted: (_) => _addEmailInvite(),
                                           style: TextStyle(
                                             color: Colors.white,
                                             fontSize: 13.5 * scale,
@@ -631,9 +683,16 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                               vertical: 12 * scale,
                                             ),
                                             border: OutlineInputBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12 * scale),
-                                              borderSide: BorderSide.none,
+                                              borderRadius: BorderRadius.circular(12 * scale),
+                                              borderSide: const BorderSide(color: Color(0x1AFFFFFF)),
+                                            ),
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(12 * scale),
+                                              borderSide: const BorderSide(color: Color(0x1AFFFFFF)),
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(12 * scale),
+                                              borderSide: const BorderSide(color: Color(0xFF9044FB), width: 1.5),
                                             ),
                                           ),
                                         ),
@@ -641,27 +700,14 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                     ),
                                     SizedBox(width: 10 * scale),
                                     GestureDetector(
-                                      onTap: () {
-                                        final email =
-                                            _emailController.text.trim();
-                                        if (email.isNotEmpty &&
-                                            email.contains('@')) {
-                                          setState(() {
-                                            if (!_inviteEmails
-                                                .contains(email)) {
-                                              _inviteEmails.add(email);
-                                            }
-                                            _emailController.clear();
-                                          });
-                                        }
-                                      },
+                                      onTap: _addEmailInvite,
                                       child: Container(
-                                        width: 68 * scale,
+                                        width: 72 * scale,
                                         height: 48 * scale,
                                         decoration: BoxDecoration(
                                           color: const Color(0xFF17182D),
-                                          borderRadius:
-                                              BorderRadius.circular(12 * scale),
+                                          borderRadius: BorderRadius.circular(12 * scale),
+                                          border: Border.all(color: const Color(0x1AFFFFFF)),
                                         ),
                                         child: Center(
                                           child: Text(
@@ -677,8 +723,9 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                     ),
                                   ],
                                 ),
+
                                 if (_inviteEmails.isNotEmpty) ...[
-                                  SizedBox(height: 10 * scale),
+                                  SizedBox(height: 12 * scale),
                                   Wrap(
                                     spacing: 8 * scale,
                                     runSpacing: 8 * scale,
@@ -689,17 +736,21 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                           vertical: 6 * scale,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFF231742),
-                                          borderRadius:
-                                              BorderRadius.circular(999),
+                                          color: const Color(0xFF1A263D),
+                                          borderRadius: BorderRadius.circular(999),
                                           border: Border.all(
-                                            color: VeraTheme.purpleBright
-                                                .withAlpha(100),
+                                            color: const Color(0xFF38BDF8).withValues(alpha: 0.5),
                                           ),
                                         ),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
+                                            Icon(
+                                              Icons.mail_outline_rounded,
+                                              size: 14 * scale,
+                                              color: const Color(0xFF38BDF8),
+                                            ),
+                                            SizedBox(width: 6 * scale),
                                             Text(
                                               email,
                                               style: TextStyle(
@@ -709,8 +760,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                                             ),
                                             SizedBox(width: 6 * scale),
                                             GestureDetector(
-                                              onTap: () => setState(() =>
-                                                  _inviteEmails.remove(email)),
+                                              onTap: () => setState(() => _inviteEmails.remove(email)),
                                               child: const Icon(
                                                 Icons.close_rounded,
                                                 size: 14,
@@ -750,122 +800,67 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                 24 * scale,
                 24 * scale,
               ),
-              child: SizedBox(
+              child: Container(
                 width: contentWidth,
                 height: 48 * scale,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: VeraTheme.buttonGradient,
-                    borderRadius: BorderRadius.circular(999),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: VeraTheme.glowPurple,
-                        blurRadius: 22,
-                        spreadRadius: 1,
-                        offset: Offset(0, 6),
-                      ),
-                    ],
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF9044FB), Color(0xFF38BDF8)],
                   ),
-                  child: TextButton(
-                    onPressed: () {
-                      final typedEmail = _emailController.text.trim();
-                      final emails = List<String>.from(_inviteEmails);
-                      if (typedEmail.isNotEmpty &&
-                          typedEmail.contains('@') &&
-                          !emails.contains(typedEmail)) {
-                        emails.add(typedEmail);
-                      }
-
-                      final typedSearch = _searchController.text.trim();
-                      if (typedSearch.isNotEmpty) {
-                        if (typedSearch.contains('@') && !emails.contains(typedSearch)) {
-                          emails.add(typedSearch);
-                        } else if (!typedSearch.contains('@') &&
-                            !_selectedRecipientIds.contains(typedSearch)) {
-                          _selectedRecipientIds.add(typedSearch);
-                        }
-                      }
-
-                      // Move any email strings mistakenly added to _selectedRecipientIds into emails
-                      for (final id in _selectedRecipientIds) {
-                        if (id.contains('@') && !emails.contains(id)) {
-                          emails.add(id);
-                        }
-                      }
-
-                      final uuidRegex = RegExp(
-                        r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: TextButton(
+                  onPressed: () {
+                    if (_isPrivate &&
+                        _selectedRecipientIds.isEmpty &&
+                        _inviteEmails.isEmpty) {
+                      VeraPopup.show(
+                        context,
+                        title: 'Recipient Required',
+                        message:
+                            'Please search and select at least one person or add an invite email for your private moment.',
+                        icon: Icons.person_add_outlined,
+                        accent: VeraTheme.warning,
                       );
-                      final validRecipientIds = _selectedRecipientIds
-                          .where((id) => uuidRegex.hasMatch(id))
-                          .toList();
+                      return;
+                    }
 
-                      // If user entered a non-UUID and non-email ID
-                      final invalidIds = _selectedRecipientIds
-                          .where((id) => !id.contains('@') && !uuidRegex.hasMatch(id))
-                          .toList();
+                    final recipientNamesList = [
+                      ..._selectedRecipientIds.map((id) =>
+                          _selectedUsersMap[id]?.displayName ?? id),
+                      ..._inviteEmails,
+                    ];
 
-                      if (_isPrivate && invalidIds.isNotEmpty && emails.isEmpty && validRecipientIds.isEmpty) {
-                        VeraPopup.show(
-                          context,
-                          title: 'Invalid User ID',
-                          message:
-                              'User IDs must be a valid 36-character UUID, or use an email address to invite recipients.',
-                          icon: Icons.error_outline_rounded,
-                          accent: VeraTheme.warning,
-                        );
-                        return;
-                      }
-
-                      if (_isPrivate &&
-                          validRecipientIds.isEmpty &&
-                          emails.isEmpty) {
-                        VeraPopup.show(
-                          context,
-                          title: 'Recipient required',
-                          message:
-                              'Please enter a recipient User ID or invite by email for your private moment.',
-                          icon: Icons.person_add_outlined,
-                          accent: VeraTheme.warning,
-                        );
-                        return;
-                      }
-
-                      final recipientNamesList = [
-                        ...validRecipientIds,
-                        ...emails,
-                      ];
-
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => ChooseConditionScreen(
-                            title: widget.title,
-                            category: widget.category,
-                            teaser: widget.teaser,
-                            message: widget.message,
-                            isPrivate: _isPrivate,
-                            recipientUserIds: validRecipientIds,
-                            recipientNames: recipientNamesList.isNotEmpty
-                                ? recipientNamesList.join(', ')
-                                : null,
-                            inviteEmails: emails,
-                            mediaFile: widget.mediaFile,
-                            mediaBytes: widget.mediaBytes,
-                            isVideo: widget.isVideo,
-                          ),
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ChooseConditionScreen(
+                          title: widget.title,
+                          category: widget.category,
+                          teaser: widget.teaser,
+                          message: widget.message,
+                          isPrivate: _isPrivate,
+                          recipientUserIds: _selectedRecipientIds.toList(),
+                          recipientNames: recipientNamesList.isNotEmpty
+                              ? recipientNamesList.join(', ')
+                              : null,
+                          inviteEmails: _inviteEmails,
+                          mediaFile: widget.mediaFile,
+                          mediaBytes: widget.mediaBytes,
+                          isVideo: widget.isVideo,
                         ),
-                      );
-                    },
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      shape: const StadiumBorder(),
-                    ),
-                    child: Text(
-                      'Continue',
-                      style: TextStyle(
-                        fontSize: 14 * scale,
-                        fontWeight: FontWeight.w600,
                       ),
+                    );
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    shape: const StadiumBorder(),
+                  ),
+                  child: Text(
+                    'Continue',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14 * scale,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -878,83 +873,105 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
   }
 }
 
-class _ContactCard extends StatelessWidget {
-  const _ContactCard({
-    required this.initials,
-    required this.avatarColor,
-    required this.name,
-    required this.scale,
-    required this.width,
+class _UserSearchResultCard extends StatelessWidget {
+  const _UserSearchResultCard({
+    required this.user,
     required this.isSelected,
     required this.onTap,
+    required this.scale,
+    required this.width,
   });
 
-  final String initials;
-  final Color avatarColor;
-  final String name;
-  final double scale;
-  final double width;
+  final RecipientUserModel user;
   final bool isSelected;
   final VoidCallback onTap;
+  final double scale;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
+    final initials = user.displayName.isNotEmpty
+        ? user.displayName[0].toUpperCase()
+        : 'U';
+
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
         width: width,
-        height: 52 * scale,
+        height: 56 * scale,
         padding: EdgeInsets.symmetric(horizontal: 16 * scale),
+        margin: EdgeInsets.only(bottom: 10 * scale),
         decoration: BoxDecoration(
           color: const Color(0xFF17182D),
-          borderRadius: BorderRadius.circular(16 * scale),
+          borderRadius: BorderRadius.circular(14 * scale),
           border: Border.all(
-            color: isSelected
-                ? VeraTheme.purpleBright
-                : const Color(0x1AFFFFFF),
+            color: isSelected ? const Color(0xFF9044FB) : const Color(0x1AFFFFFF),
             width: isSelected ? 1.5 : 1,
           ),
         ),
         child: Row(
           children: [
+            CircleAvatar(
+              radius: 18 * scale,
+              backgroundColor: const Color(0xFF2C1338),
+              backgroundImage: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
+                  ? NetworkImage(user.avatarUrl!)
+                  : null,
+              child: user.avatarUrl == null || user.avatarUrl!.isEmpty
+                  ? Text(
+                      initials,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14 * scale,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                  : null,
+            ),
+            SizedBox(width: 14 * scale),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.displayName,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15 * scale,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (user.username != null && user.username!.isNotEmpty)
+                    Text(
+                      '@${user.username}',
+                      style: TextStyle(
+                        color: const Color(0xFF8A8EB3),
+                        fontSize: 12 * scale,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
             Container(
               width: 32 * scale,
               height: 32 * scale,
               decoration: BoxDecoration(
-                color: avatarColor,
+                color: isSelected
+                    ? const Color(0xFF9044FB)
+                    : Colors.white.withValues(alpha: 0.08),
                 shape: BoxShape.circle,
               ),
-              child: Center(
-                child: Text(
-                  initials,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14 * scale,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+              child: Icon(
+                isSelected ? Icons.check_rounded : Icons.add_rounded,
+                color: Colors.white,
+                size: 18 * scale,
               ),
-            ),
-            SizedBox(width: 12 * scale),
-            Expanded(
-              child: Text(
-                name,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14 * scale,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            Icon(
-              isSelected
-                  ? Icons.check_circle_rounded
-                  : Icons.radio_button_unchecked_rounded,
-              color: isSelected
-                  ? VeraTheme.purpleBright
-                  : const Color(0xFF56587A),
-              size: 20 * scale,
             ),
           ],
         ),

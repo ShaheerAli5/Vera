@@ -30,6 +30,7 @@ class ApiClient {
 
   String? _authToken;
   String? get authToken => _authToken;
+  bool get isAuthenticated => _authToken != null && _authToken!.isNotEmpty;
 
   String? _refreshToken;
   String? get refreshToken => _refreshToken;

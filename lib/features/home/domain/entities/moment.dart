@@ -26,6 +26,8 @@ class Moment {
     this.openedAt,
     this.unlockAt,
     this.isVideo = false,
+    this.contentType,
+    this.hasMedia = true,
   });
 
   final String id;
@@ -49,6 +51,8 @@ class Moment {
   final DateTime? openedAt;
   final DateTime? unlockAt;
   final bool isVideo;
+  final String? contentType;
+  final bool hasMedia;
 
   Moment copyWith({
     String? id,
@@ -72,6 +76,8 @@ class Moment {
     DateTime? openedAt,
     DateTime? unlockAt,
     bool? isVideo,
+    String? contentType,
+    bool? hasMedia,
   }) {
     return Moment(
       id: id ?? this.id,
@@ -95,6 +101,8 @@ class Moment {
       openedAt: openedAt ?? this.openedAt,
       unlockAt: unlockAt ?? this.unlockAt,
       isVideo: isVideo ?? this.isVideo,
+      contentType: contentType ?? this.contentType,
+      hasMedia: hasMedia ?? this.hasMedia,
     );
   }
 }

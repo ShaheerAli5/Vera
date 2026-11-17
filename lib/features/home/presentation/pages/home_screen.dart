@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/auth/user_role.dart';
 import '../../../../core/layout/responsive.dart';
+import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/utils/server_time_manager.dart';
 import '../../../../core/widgets/vera_popup.dart';
@@ -336,19 +337,58 @@ class _HomeScreenState extends State<HomeScreen> {
                       VeraLogo(height: 18 * scale),
                       Row(
                         children: [
-                          IconButton(
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => const NotificationsScreen(),
-                                ),
+                          ValueListenableBuilder<int>(
+                            valueListenable: PushNotificationService.instance.unreadNotificationsCount,
+                            builder: (context, unreadCount, _) {
+                              return Stack(
+                                alignment: Alignment.topRight,
+                                children: [
+                                  IconButton(
+                                    onPressed: () async {
+                                      await Navigator.of(context).push(
+                                        MaterialPageRoute<void>(
+                                          builder: (_) => const NotificationsScreen(),
+                                        ),
+                                      );
+                                      if (!mounted) return;
+                                      final client = ApiClientScope.of(context);
+                                      PushNotificationService.instance.refreshUnreadCount(client);
+                                    },
+                                    icon: Icon(
+                                      Icons.notifications_outlined,
+                                      color: Colors.white,
+                                      size: 22 * scale,
+                                    ),
+                                  ),
+                                  if (unreadCount > 0)
+                                    Positioned(
+                                      right: 8 * scale,
+                                      top: 8 * scale,
+                                      child: Container(
+                                        padding: EdgeInsets.all(3 * scale),
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFF9044FB),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        constraints: BoxConstraints(
+                                          minWidth: 16 * scale,
+                                          minHeight: 16 * scale,
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            unreadCount > 99 ? '99+' : unreadCount.toString(),
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 9 * scale,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               );
                             },
-                            icon: Icon(
-                              Icons.notifications_outlined,
-                              color: Colors.white,
-                              size: 22 * scale,
-                            ),
                           ),
                         ],
                       ),
@@ -504,17 +544,22 @@ class _HomeScreenState extends State<HomeScreen> {
                                     setState(() {
                                       if (result.id.startsWith('__DELETED__:')) {
                                         final deletedId = result.id.replaceFirst('__DELETED__:', '');
+                                        _fetchedForYouMoments.removeWhere((m) => m.id == deletedId);
+                                        _fetchedDiscoverMoments.removeWhere((m) => m.id == deletedId);
                                         _fetchedYourMoments.removeWhere((m) => m.id == deletedId);
                                         _fetchedInboxMoments.removeWhere((m) => m.id == deletedId);
                                         HomeScreen.sentMoments.removeWhere((m) => m.id == deletedId);
                                       } else {
-                                        final i = _fetchedYourMoments.indexWhere((m) => m.id == result.id);
-                                        if (i >= 0) {
-                                          _fetchedYourMoments[i] = result;
-                                        }
-                                        final j = _fetchedInboxMoments.indexWhere((m) => m.id == result.id);
-                                        if (j >= 0) {
-                                          _fetchedInboxMoments[j] = result;
+                                        for (final list in [
+                                          _fetchedForYouMoments,
+                                          _fetchedDiscoverMoments,
+                                          _fetchedYourMoments,
+                                          _fetchedInboxMoments,
+                                        ]) {
+                                          final i = list.indexWhere((m) => m.id == result.id);
+                                          if (i >= 0) {
+                                            list[i] = result;
+                                          }
                                         }
                                       }
                                     });
@@ -524,17 +569,22 @@ class _HomeScreenState extends State<HomeScreen> {
                                   setState(() {
                                     if (updated.id.startsWith('__DELETED__:')) {
                                       final deletedId = updated.id.replaceFirst('__DELETED__:', '');
+                                      _fetchedForYouMoments.removeWhere((m) => m.id == deletedId);
+                                      _fetchedDiscoverMoments.removeWhere((m) => m.id == deletedId);
                                       _fetchedYourMoments.removeWhere((m) => m.id == deletedId);
                                       _fetchedInboxMoments.removeWhere((m) => m.id == deletedId);
                                       HomeScreen.sentMoments.removeWhere((m) => m.id == deletedId);
                                     } else {
-                                      final i = _fetchedYourMoments.indexWhere((m) => m.id == updated.id);
-                                      if (i >= 0) {
-                                        _fetchedYourMoments[i] = updated;
-                                      }
-                                      final j = _fetchedInboxMoments.indexWhere((m) => m.id == updated.id);
-                                      if (j >= 0) {
-                                        _fetchedInboxMoments[j] = updated;
+                                      for (final list in [
+                                        _fetchedForYouMoments,
+                                        _fetchedDiscoverMoments,
+                                        _fetchedYourMoments,
+                                        _fetchedInboxMoments,
+                                      ]) {
+                                        final i = list.indexWhere((m) => m.id == updated.id);
+                                        if (i >= 0) {
+                                          list[i] = updated;
+                                        }
                                       }
                                     }
                                   });

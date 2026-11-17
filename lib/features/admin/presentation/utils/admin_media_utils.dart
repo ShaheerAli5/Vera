@@ -3,7 +3,11 @@ import '../../../../core/network/api_client.dart';
 String adminMomentMediaUrl(ApiClient client, String? mediaUrl, String momentId) {
   final rawUrl = mediaUrl?.trim();
   if (rawUrl == null || rawUrl.isEmpty) {
-    return client.config.endpoint('/moments/$momentId/media').toString();
+    return client.config.endpoint('/admin/moments/$momentId/media').toString();
+  }
+
+  if (rawUrl.contains('/moments/$momentId/media') && !rawUrl.contains('/admin/moments/')) {
+    return client.config.endpoint('/admin/moments/$momentId/media').toString();
   }
 
   final parsed = Uri.tryParse(rawUrl);
