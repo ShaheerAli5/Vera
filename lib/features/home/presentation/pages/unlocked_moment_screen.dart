@@ -533,7 +533,7 @@ class _VideoPreviewState extends State<_VideoPreview> {
     });
 
     try {
-      VideoPlayerController controller;
+      VideoPlayerController? controller;
 
       // 1. If we already have the media bytes, write to a temp file and play via VideoPlayerController.file
       if (widget.mediaBytes != null && widget.mediaBytes!.isNotEmpty) {
@@ -568,6 +568,12 @@ class _VideoPreviewState extends State<_VideoPreview> {
           await controller.initialize();
         }
       } else {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      if (controller == null) {
         if (!mounted) return;
         setState(() => _isLoading = false);
         return;

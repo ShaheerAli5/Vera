@@ -66,7 +66,7 @@ class _AdminReviewMomentMediaScreenState extends State<AdminReviewMomentMediaScr
     });
 
     try {
-      VideoPlayerController controller;
+      VideoPlayerController? controller;
       bool initialized = false;
       VideoPlayerController? netController;
 
@@ -88,8 +88,19 @@ class _AdminReviewMomentMediaScreenState extends State<AdminReviewMomentMediaScr
         final response = await client.getRaw('/admin/moments/${widget.momentId}/media');
         final tempFile = File('${Directory.systemTemp.path}/admin_moment_${widget.momentId}.mp4');
         await tempFile.writeAsBytes(response.bodyBytes, flush: true);
-        controller = VideoPlayerController.file(tempFile);
-        await controller.initialize();
+        final fileController = VideoPlayerController.file(tempFile);
+        await fileController.initialize();
+        controller = fileController;
+      }
+
+      if (controller == null) {
+        if (!mounted) return;
+        setState(() {
+          _isVideoInitializing = false;
+          _hasVideoError = true;
+          _videoErrorMessage = 'Failed to load video';
+        });
+        return;
       }
 
       _videoController = controller;
@@ -103,7 +114,7 @@ class _AdminReviewMomentMediaScreenState extends State<AdminReviewMomentMediaScr
       });
       controller.addListener(() {
         if (!mounted) return;
-        final playing = controller.value.isPlaying;
+        final playing = controller!.value.isPlaying;
         if (playing != _isPlaying) {
           setState(() => _isPlaying = playing);
         }
