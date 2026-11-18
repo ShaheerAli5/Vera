@@ -2,9 +2,15 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 import '../../firebase_options.dart';
 import '../network/api_client.dart';
+import '../../features/home/data/datasources/moments_remote_data_source.dart';
+import '../../features/home/data/repositories/moments_repository_impl.dart';
+import '../../features/home/presentation/pages/locked_moment_screen.dart';
+import '../../features/home/presentation/pages/notifications_screen.dart';
+import '../../features/home/presentation/pages/unlocked_moment_screen.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -26,6 +32,19 @@ class PushNotificationService {
 
   bool _listenersInitialized = false;
   ApiClient? _apiClient;
+  GlobalKey<NavigatorState>? _navigatorKey;
+  RemoteMessage? _pendingInitialMessage;
+
+  void setNavigatorKey(GlobalKey<NavigatorState> key) {
+    _navigatorKey = key;
+    if (_pendingInitialMessage != null) {
+      final msg = _pendingInitialMessage!;
+      _pendingInitialMessage = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        handleNotificationTap(msg);
+      });
+    }
+  }
 
   Future<void> initialize(ApiClient apiClient) async {
     _apiClient = apiClient;
@@ -48,10 +67,17 @@ class PushNotificationService {
           'User notification permission status: ${settings.authorizationStatus}',
         );
 
+        // Configure iOS foreground presentation options so banner & sound work
+        await messaging.setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+
         messaging.onTokenRefresh.listen((newToken) {
           _fcmToken = newToken;
           final client = _apiClient;
-          if (client != null) {
+          if (client != null && client.isAuthenticated) {
             _registerWithBackend(client, newToken);
           }
         });
@@ -62,23 +88,35 @@ class PushNotificationService {
           );
           latestForegroundMessage.value = message;
           unreadNotificationsCount.value += 1;
+          final client = _apiClient;
+          if (client != null && client.isAuthenticated) {
+            refreshUnreadCount(client);
+          }
         });
 
         FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
           debugPrint('Opened app from notification: ${message.data}');
           latestForegroundMessage.value = message;
+          handleNotificationTap(message);
         });
 
         final initialMessage = await messaging.getInitialMessage();
         if (initialMessage != null) {
           latestForegroundMessage.value = initialMessage;
+          if (_navigatorKey?.currentState != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              handleNotificationTap(initialMessage);
+            });
+          } else {
+            _pendingInitialMessage = initialMessage;
+          }
         }
       }
 
       // Get FCM token
       _fcmToken = await messaging.getToken();
 
-      if (_fcmToken != null && _fcmToken!.isNotEmpty) {
+      if (_fcmToken != null && _fcmToken!.isNotEmpty && apiClient.isAuthenticated) {
         await _registerWithBackend(apiClient, _fcmToken!);
       }
 
@@ -86,6 +124,56 @@ class PushNotificationService {
       await refreshUnreadCount(apiClient);
     } catch (e) {
       debugPrint('Error initializing PushNotificationService: $e');
+    }
+  }
+
+  Future<void> onTokensUpdated(ApiClient apiClient) async {
+    _apiClient = apiClient;
+    try {
+      if (!apiClient.isAuthenticated) return;
+      if (_fcmToken == null || _fcmToken!.isEmpty) {
+        _fcmToken = await FirebaseMessaging.instance.getToken();
+      }
+      if (_fcmToken != null && _fcmToken!.isNotEmpty) {
+        await _registerWithBackend(apiClient, _fcmToken!);
+      }
+      await refreshUnreadCount(apiClient);
+    } catch (e) {
+      debugPrint('Error in onTokensUpdated: $e');
+    }
+  }
+
+  Future<void> handleNotificationTap(RemoteMessage message) async {
+    final data = message.data;
+    final momentId = data['momentId'] as String?;
+    final client = _apiClient;
+
+    if (momentId != null && momentId.isNotEmpty && client != null && client.isAuthenticated) {
+      try {
+        final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+        final momentModel = await repo.getMomentById(momentId);
+        final moment = momentModel.toEntity();
+        if (_navigatorKey?.currentState != null) {
+          _navigatorKey!.currentState!.push(
+            MaterialPageRoute<void>(
+              builder: (_) => moment.isReadyToOpen
+                  ? UnlockedMomentScreen(moment: moment)
+                  : LockedMomentScreen(moment: moment),
+            ),
+          );
+          return;
+        }
+      } catch (e) {
+        debugPrint('Failed to open moment details from notification: $e');
+      }
+    }
+
+    if (_navigatorKey?.currentState != null) {
+      _navigatorKey!.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const NotificationsScreen(),
+        ),
+      );
     }
   }
 

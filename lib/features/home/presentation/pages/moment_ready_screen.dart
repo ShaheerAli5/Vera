@@ -33,9 +33,10 @@ class MomentReadyScreen extends StatelessWidget {
     final scale = VeraResponsive.scale(screen.width, designWidth: 390);
     final contentWidth = VeraResponsive.contentWidth(screen.width, horizontalPadding: 24 * scale);
 
+    final titleText = isPublic ? 'Submitted for approval!' : 'Moment Created!';
     final subtitleText = isPublic
         ? 'Your public moment was created and submitted for admin review. Once approved by an admin, it will be published to Discover.'
-        : 'Your moment was created and submitted for admin review (Pending Review). Once approved by an admin, it will be published and recipients can unlock and view it.';
+        : 'Your private moment was created and shared! Recipients have been notified and can view and unlock it.';
 
     return Scaffold(
       backgroundColor: VeraTheme.background,
@@ -74,9 +75,9 @@ class MomentReadyScreen extends StatelessWidget {
 
                     SizedBox(height: 28 * scale),
 
-                    // Title: Submitted for approval!
+                    // Title
                     Text(
-                      'Submitted for approval!',
+                      titleText,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: const Color(0xFFF7F5FF),

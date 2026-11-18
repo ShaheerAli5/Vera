@@ -1831,13 +1831,14 @@ class _ReviewMomentScreenState extends State<ReviewMomentScreen> {
                   sentBadgeTitle: _isPrivate
                       ? 'To $recipientLabel'
                       : 'To Everyone (public)',
-                  sentBadgeSubtitle: 'Pending review',
+                  sentBadgeSubtitle:
+                      _isPrivate ? 'Delivered' : 'Pending review',
                   isPublicSentMoment: !_isPrivate,
                   message: _message,
                   title: _title,
                   teaser: _teaser,
                   version: momentVersion,
-                  status: 'PENDING_REVIEW',
+                  status: _isPrivate ? 'PUBLISHED' : 'PENDING_REVIEW',
                 );
             HomeScreen.sentMoments.insert(0, createdMoment);
 
