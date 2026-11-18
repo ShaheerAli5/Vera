@@ -56,11 +56,11 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyAYq8pwZ4U5wr3LnQ1pHPJbHyanZScLbB4',
-    appId: '1:615422190489:ios:5611b05ecb80826929a908',
+    appId: '1:615422190489:ios:c7471874a9b389d729a908',
     messagingSenderId: '615422190489',
     projectId: 'vera-2a46c',
     storageBucket: 'vera-2a46c.firebasestorage.app',
-    iosBundleId: 'com.example.vera',
+    iosBundleId: 'com.maistockholm.vera',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
