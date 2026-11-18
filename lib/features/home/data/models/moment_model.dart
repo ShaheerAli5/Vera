@@ -211,8 +211,15 @@ class MomentModel {
         json['date']?.toString() ??
         rawJson['date']?.toString();
 
-    final recipients = (json['recipientUserIds'] ?? json['recipient_user_ids']) is List
-        ? ((json['recipientUserIds'] ?? json['recipient_user_ids']) as List)
+    final rawRecipients = json['recipientUserIds'] ??
+        json['recipient_user_ids'] ??
+        (json['recipients'] is Map ? json['recipients']['userIds'] : null) ??
+        json['recipients'];
+
+    final recipients = rawRecipients is List
+        ? rawRecipients
+            .map((e) => e is Map ? (e['recipientUserId'] ?? e['recipient_user_id'] ?? e['id']) : e)
+            .where((e) => e != null)
             .map((e) => e.toString())
             .toList()
         : <String>[];
@@ -233,6 +240,12 @@ class MomentModel {
         rawJson['mediaUrl']?.toString() ??
         rawJson['media_url']?.toString();
 
+    final momentId = json['id']?.toString() ??
+        json['_id']?.toString() ??
+        json['momentId']?.toString() ??
+        json['moment_id']?.toString() ??
+        '';
+
     String? mediaUrl;
     if (rawMediaUrl != null && rawMediaUrl.trim().isNotEmpty) {
       final trimmed = rawMediaUrl.trim();
@@ -243,6 +256,8 @@ class MomentModel {
       } else {
         mediaUrl = 'https://vera.aptechmedia.com/$trimmed';
       }
+    } else if (momentId.isNotEmpty && (json['hasMedia'] == true || rawJson['hasMedia'] == true)) {
+      mediaUrl = 'https://vera.aptechmedia.com/api/v1/moments/$momentId/media';
     }
 
     final version = (json['version'] as num?)?.toInt() ??
@@ -263,6 +278,7 @@ class MomentModel {
 
     final avatarPath = creator?['avatarUrl']?.toString() ??
         creator?['avatar_url']?.toString() ??
+        creator?['avatarPath']?.toString() ??
         json['creatorAvatarUrl']?.toString();
     final fullAvatarUrl = (avatarPath != null && avatarPath.startsWith('/'))
         ? 'https://vera.aptechmedia.com$avatarPath'
@@ -294,21 +310,33 @@ class MomentModel {
             mediaUrl.toLowerCase().contains('.avi') ||
             mediaUrl.toLowerCase().contains('/video/'))));
 
-    final hasMedia = (media != null && (media['uploaded'] == true || (mediaUrl != null && mediaUrl.isNotEmpty))) ||
+    final hasMedia = json['hasMedia'] == true ||
+        rawJson['hasMedia'] == true ||
+        (media != null && (media['uploaded'] == true || (mediaUrl != null && mediaUrl.isNotEmpty))) ||
         contentType.toUpperCase() == 'IMAGE' ||
         contentType.toUpperCase() == 'VIDEO' ||
         isVideo;
 
+    final rawVis = json['visibility']?.toString().toUpperCase() ??
+        rawJson['visibility']?.toString().toUpperCase();
+    final hasRecipientsOrInvites = recipients.isNotEmpty || invites.isNotEmpty;
+    final String visibility;
+    if (rawVis != null && (rawVis == 'PRIVATE' || rawVis == 'PUBLIC')) {
+      visibility = rawVis;
+    } else if (hasRecipientsOrInvites) {
+      visibility = 'PRIVATE';
+    } else {
+      visibility = 'PRIVATE';
+    }
+
     return MomentModel(
-      id: json['id']?.toString() ??
-          json['_id']?.toString() ??
-          '',
+      id: momentId,
       title: json['title']?.toString() ?? 'Untitled Moment',
       version: version,
       category: json['category']?.toString(),
       teaser: json['teaser']?.toString(),
       message: json['message']?.toString(),
-      visibility: json['visibility']?.toString() ?? 'PUBLIC',
+      visibility: visibility,
       status: json['status']?.toString() ?? 'PUBLISHED',
       unlockRuleType: unlockRule?['type']?.toString() ??
           json['unlockType']?.toString() ??
