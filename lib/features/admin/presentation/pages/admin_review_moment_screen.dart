@@ -584,6 +584,29 @@ class _AdminReviewMomentScreenState extends State<AdminReviewMomentScreen> {
             caption,
             style: TextStyle(color: Colors.white, fontSize: 15 * scale, height: 1.4),
           ),
+          SizedBox(height: 20 * scale),
+          Text('Audience / Privacy', style: TextStyle(color: const Color(0xFF8A8EB3), fontSize: 13 * scale)),
+          SizedBox(height: 6 * scale),
+          Row(
+            children: [
+              Icon(
+                (moment.visibility?.toUpperCase() == 'PRIVATE') ? Icons.lock_rounded : Icons.public_rounded,
+                color: (moment.visibility?.toUpperCase() == 'PRIVATE') ? const Color(0xFFFFB300) : const Color(0xFF00E5FF),
+                size: 16 * scale,
+              ),
+              SizedBox(width: 6 * scale),
+              Text(
+                (moment.visibility?.toUpperCase() == 'PRIVATE')
+                    ? 'Private Moment (${moment.recipientUserIds.length + moment.inviteEmails.length} recipient${(moment.recipientUserIds.length + moment.inviteEmails.length) == 1 ? '' : 's'})'
+                    : 'Public Moment (Discover feed)',
+                style: TextStyle(
+                  color: (moment.visibility?.toUpperCase() == 'PRIVATE') ? const Color(0xFFFFB300) : const Color(0xFF00E5FF),
+                  fontSize: 14 * scale,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
           if (moment.unlockRuleType != null) ...[
             SizedBox(height: 20 * scale),
             Text('Unlock Rule', style: TextStyle(color: const Color(0xFF8A8EB3), fontSize: 13 * scale)),

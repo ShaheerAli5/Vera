@@ -78,7 +78,27 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
         final unlockedModel = await repo.unlockMoment(
           momentId: _currentMoment.id,
         );
-        final unlockedEntity = unlockedModel.toEntity().copyWith(isReadyToOpen: true);
+        final base = unlockedModel.toEntity();
+        final unlockedEntity = base.copyWith(
+          isReadyToOpen: true,
+          userName: (base.userName.isNotEmpty && base.userName != 'You')
+              ? base.userName
+              : _currentMoment.userName,
+          userAvatarUrl: base.userAvatarUrl.isNotEmpty
+              ? base.userAvatarUrl
+              : _currentMoment.userAvatarUrl,
+          timeAgo: base.timeAgo.isNotEmpty ? base.timeAgo : _currentMoment.timeAgo,
+          message: base.message ?? _currentMoment.message,
+          title: (base.title != null && base.title!.isNotEmpty && base.title != 'Untitled Moment')
+              ? base.title
+              : _currentMoment.title,
+          teaser: base.teaser ?? _currentMoment.teaser,
+          backgroundImageUrl: (base.backgroundImageUrl.isNotEmpty && !base.backgroundImageUrl.contains('api/v1/moments'))
+              ? base.backgroundImageUrl
+              : _currentMoment.backgroundImageUrl,
+          hasMedia: base.hasMedia || _currentMoment.hasMedia,
+          isVideo: base.isVideo || _currentMoment.isVideo,
+        );
         if (!mounted) return;
         setState(() {
           _currentMoment = unlockedEntity;
@@ -123,7 +143,27 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
         final unlockedModel = await repo.unlockMoment(
           momentId: _currentMoment.id,
         );
-        final unlockedEntity = unlockedModel.toEntity().copyWith(isReadyToOpen: true);
+        final base = unlockedModel.toEntity();
+        final unlockedEntity = base.copyWith(
+          isReadyToOpen: true,
+          userName: (base.userName.isNotEmpty && base.userName != 'You')
+              ? base.userName
+              : _currentMoment.userName,
+          userAvatarUrl: base.userAvatarUrl.isNotEmpty
+              ? base.userAvatarUrl
+              : _currentMoment.userAvatarUrl,
+          timeAgo: base.timeAgo.isNotEmpty ? base.timeAgo : _currentMoment.timeAgo,
+          message: base.message ?? _currentMoment.message,
+          title: (base.title != null && base.title!.isNotEmpty && base.title != 'Untitled Moment')
+              ? base.title
+              : _currentMoment.title,
+          teaser: base.teaser ?? _currentMoment.teaser,
+          backgroundImageUrl: (base.backgroundImageUrl.isNotEmpty && !base.backgroundImageUrl.contains('api/v1/moments'))
+              ? base.backgroundImageUrl
+              : _currentMoment.backgroundImageUrl,
+          hasMedia: base.hasMedia || _currentMoment.hasMedia,
+          isVideo: base.isVideo || _currentMoment.isVideo,
+        );
         if (!mounted) return;
         setState(() {
           _currentMoment = unlockedEntity;
