@@ -118,6 +118,7 @@ class MomentModel {
     this.invitationStatus,
     this.unlockedAt,
     this.openedAt,
+    this.serverIsUnlocked,
     this.isVideo = false,
     this.timeAgo,
     this.contentType,
@@ -148,6 +149,9 @@ class MomentModel {
   final String? invitationStatus;
   final DateTime? unlockedAt;
   final DateTime? openedAt;
+  /// Server-authoritative unlock state when an endpoint provides it.
+  /// Null means the endpoint did not provide availability information.
+  final bool? serverIsUnlocked;
   final bool isVideo;
   final String? timeAgo;
   final String? contentType;
@@ -177,8 +181,21 @@ class MomentModel {
 
     final unlockAtStr = unlockRule?['unlockAt']?.toString() ??
         unlockRule?['unlock_at']?.toString() ??
+        unlockRule?['unlockAtUtc']?.toString() ??
+        unlockRule?['unlock_at_utc']?.toString() ??
         json['unlockAt']?.toString() ??
         json['unlock_at']?.toString();
+
+    final viewer = json['viewer'] is Map<String, dynamic>
+        ? json['viewer'] as Map<String, dynamic>
+        : null;
+    final availability = json['availability'] is Map<String, dynamic>
+        ? json['availability'] as Map<String, dynamic>
+        : null;
+    final serverIsUnlocked = viewer?['isUnlocked'] as bool? ??
+        availability?['isUnlocked'] as bool? ??
+        json['isUnlocked'] as bool? ??
+        json['unlocked'] as bool?;
 
     final apiTimeAgo = json['timeAgo']?.toString() ??
         json['time_ago']?.toString() ??
@@ -233,11 +250,15 @@ class MomentModel {
         (json['__v'] as num?)?.toInt() ??
         1;
 
-    final unlockedAtStr = json['unlockedAt']?.toString() ??
+    final unlockedAtStr = viewer?['unlockedAt']?.toString() ??
+        availability?['unlockedAt']?.toString() ??
+        json['unlockedAt']?.toString() ??
         json['unlocked_at']?.toString();
-    final openedAtStr = json['openedAt']?.toString() ??
+    final openedAtStr = viewer?['openedAt']?.toString() ??
+        json['openedAt']?.toString() ??
         json['opened_at']?.toString();
-    final invitationStatus = json['invitationStatus']?.toString() ??
+    final invitationStatus = viewer?['inviteStatus']?.toString() ??
+        json['invitationStatus']?.toString() ??
         json['invitation_status']?.toString();
 
     final avatarPath = creator?['avatarUrl']?.toString() ??
@@ -294,6 +315,8 @@ class MomentModel {
           'DATE',
       unlockAt: unlockAtStr != null ? DateTime.tryParse(unlockAtStr) : null,
       timezone: unlockRule?['timezone']?.toString() ??
+          unlockRule?['timezoneId']?.toString() ??
+          unlockRule?['timezone_id']?.toString() ??
           json['timezone']?.toString() ??
           'UTC',
       locationName: unlockRule?['locationName']?.toString() ??
@@ -318,6 +341,7 @@ class MomentModel {
       invitationStatus: invitationStatus,
       unlockedAt: unlockedAtStr != null ? DateTime.tryParse(unlockedAtStr) : null,
       openedAt: openedAtStr != null ? DateTime.tryParse(openedAtStr) : null,
+      serverIsUnlocked: serverIsUnlocked,
       isVideo: isVideo,
       contentType: contentType,
       hasMedia: hasMedia,
@@ -330,17 +354,15 @@ class MomentModel {
     final isDateUnlock = (unlockRuleType ?? 'DATE').toUpperCase() == 'DATE';
     final now = ServerTimeManager.instance.now;
 
-    bool isReady;
-    if (unlockedAt != null) {
-      isReady = true;
-    } else if (unlockAt != null) {
-      isReady = !now.isBefore(unlockAt!);
-    } else {
-      isReady = true;
-    }
-
-    final isApprovedAndPublished = status == 'PUBLISHED';
-    final isReadyToOpen = isReady && isApprovedAndPublished;
+    final isApprovedAndPublished = status?.toUpperCase() == 'PUBLISHED';
+    final locallyDue = isDateUnlock &&
+        unlockAt != null &&
+        !now.isBefore(unlockAt!);
+    // Fail closed when an endpoint omits its unlock state/timestamp. The local
+    // clock is server-synchronised and is used only to transition a published
+    // DATE moment exactly when its original schedule becomes due.
+    final isReadyToOpen = isApprovedAndPublished &&
+        (serverIsUnlocked == true || unlockedAt != null || locallyDue);
 
     String conditionText;
     if (isDateUnlock && unlockAt != null) {
