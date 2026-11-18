@@ -30,10 +30,13 @@ class VeraApp extends StatelessWidget {
   const VeraApp({required this.apiClient, super.key});
 
   final ApiClient apiClient;
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
+    PushNotificationService.instance.setNavigatorKey(navigatorKey);
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'VERA',
       debugShowCheckedModeBanner: false,
       theme: VeraTheme.dark,
@@ -44,7 +47,6 @@ class VeraApp extends StatelessWidget {
       home: const SplashScreen(),
     );
   }
-
 }
 
 class ApiClientScope extends InheritedWidget {
