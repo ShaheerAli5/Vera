@@ -3,11 +3,14 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../firebase_options.dart';
 import '../network/api_client.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   debugPrint('Handling background FCM message: ${message.messageId}');
 }
 
@@ -21,52 +24,63 @@ class PushNotificationService {
   final ValueNotifier<int> unreadNotificationsCount = ValueNotifier<int>(0);
   final ValueNotifier<RemoteMessage?> latestForegroundMessage = ValueNotifier<RemoteMessage?>(null);
 
-  bool _initialized = false;
+  bool _listenersInitialized = false;
+  ApiClient? _apiClient;
 
   Future<void> initialize(ApiClient apiClient) async {
-    if (_initialized) return;
-    _initialized = true;
+    _apiClient = apiClient;
 
     try {
-      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
       final messaging = FirebaseMessaging.instance;
 
-      // Request permissions (especially required on iOS & Android 13+)
-      final settings = await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-        provisional: false,
-      );
+      if (!_listenersInitialized) {
+        _listenersInitialized = true;
+        FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-      debugPrint('User notification permission status: ${settings.authorizationStatus}');
+        // Request permissions (especially required on iOS & Android 13+)
+        final settings = await messaging.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+          provisional: false,
+        );
+        debugPrint(
+          'User notification permission status: ${settings.authorizationStatus}',
+        );
+
+        messaging.onTokenRefresh.listen((newToken) {
+          _fcmToken = newToken;
+          final client = _apiClient;
+          if (client != null) {
+            _registerWithBackend(client, newToken);
+          }
+        });
+
+        FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+          debugPrint(
+            'Received foreground notification: ${message.notification?.title}',
+          );
+          latestForegroundMessage.value = message;
+          unreadNotificationsCount.value += 1;
+        });
+
+        FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+          debugPrint('Opened app from notification: ${message.data}');
+          latestForegroundMessage.value = message;
+        });
+
+        final initialMessage = await messaging.getInitialMessage();
+        if (initialMessage != null) {
+          latestForegroundMessage.value = initialMessage;
+        }
+      }
 
       // Get FCM token
       _fcmToken = await messaging.getToken();
-      debugPrint('FCM Device Token: $_fcmToken');
 
       if (_fcmToken != null && _fcmToken!.isNotEmpty) {
         await _registerWithBackend(apiClient, _fcmToken!);
       }
-
-      // Listen for token updates
-      messaging.onTokenRefresh.listen((newToken) {
-        _fcmToken = newToken;
-        _registerWithBackend(apiClient, newToken);
-      });
-
-      // Handle foreground notifications
-      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        debugPrint('Received foreground notification: ${message.notification?.title}');
-        latestForegroundMessage.value = message;
-        unreadNotificationsCount.value += 1;
-      });
-
-      // Handle notification opened app
-      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-        debugPrint('Opened app from notification: ${message.data}');
-      });
 
       // Refresh unread count
       await refreshUnreadCount(apiClient);
@@ -113,7 +127,10 @@ class PushNotificationService {
       if (!apiClient.isAuthenticated) return;
       final response = await apiClient.get('/notifications/unread-count');
       if (response is Map<String, dynamic>) {
-        final count = (response['unreadCount'] as num?)?.toInt() ?? 0;
+        final count =
+            (response['unreadCount'] as num?)?.toInt() ??
+            (response['count'] as num?)?.toInt() ??
+            0;
         unreadNotificationsCount.value = count;
       }
     } catch (_) {}
