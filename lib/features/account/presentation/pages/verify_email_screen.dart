@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
@@ -149,10 +150,12 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       );
       if (!mounted) return;
       if (result.token != null && result.token!.isNotEmpty) {
-        await ApiClientScope.of(context).setTokens(
+        final apiClient = ApiClientScope.of(context);
+        await apiClient.setTokens(
           authToken: result.token,
           refreshToken: result.refreshToken,
         );
+        await PushNotificationService.instance.initialize(apiClient);
         if (!mounted) return;
       }
       VeraPopup.show(

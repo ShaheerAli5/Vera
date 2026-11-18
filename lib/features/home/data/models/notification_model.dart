@@ -4,6 +4,8 @@ class NotificationModel {
     required this.title,
     required this.body,
     required this.isRead,
+    this.type,
+    this.data = const {},
     this.imageUrl,
     this.createdAt,
   });
@@ -12,6 +14,8 @@ class NotificationModel {
   final String title;
   final String body;
   final bool isRead;
+  final String? type;
+  final Map<String, dynamic> data;
   final String? imageUrl;
   final DateTime? createdAt;
 
@@ -20,6 +24,8 @@ class NotificationModel {
     String? title,
     String? body,
     bool? isRead,
+    String? type,
+    Map<String, dynamic>? data,
     String? imageUrl,
     DateTime? createdAt,
   }) {
@@ -28,6 +34,8 @@ class NotificationModel {
       title: title ?? this.title,
       body: body ?? this.body,
       isRead: isRead ?? this.isRead,
+      type: type ?? this.type,
+      data: data ?? this.data,
       imageUrl: imageUrl ?? this.imageUrl,
       createdAt: createdAt ?? this.createdAt,
     );
@@ -45,9 +53,15 @@ class NotificationModel {
           json['message']?.toString() ??
           json['content']?.toString() ??
           '',
-      isRead: json['isRead'] == true ||
+      isRead: json['readAt'] != null ||
+          json['read_at'] != null ||
+          json['isRead'] == true ||
           json['is_read'] == true ||
           json['read'] == true,
+      type: json['type']?.toString(),
+      data: json['data'] is Map
+          ? Map<String, dynamic>.from(json['data'] as Map)
+          : const {},
       imageUrl: json['imageUrl']?.toString() ??
           json['image']?.toString() ??
           json['avatarUrl']?.toString(),

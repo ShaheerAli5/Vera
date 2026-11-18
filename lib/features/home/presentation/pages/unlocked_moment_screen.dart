@@ -129,12 +129,16 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
               : _currentMoment.userAvatarUrl,
           timeAgo: entity.timeAgo.isNotEmpty ? entity.timeAgo : _currentMoment.timeAgo,
           message: entity.message ?? _currentMoment.message,
-          title: entity.title ?? _currentMoment.title,
+          title: (entity.title != null && entity.title!.isNotEmpty && entity.title != 'Untitled Moment')
+              ? entity.title
+              : _currentMoment.title,
           teaser: entity.teaser ?? _currentMoment.teaser,
           backgroundImageUrl: (entity.backgroundImageUrl.isNotEmpty && !entity.backgroundImageUrl.contains('api/v1/moments'))
               ? entity.backgroundImageUrl
               : _currentMoment.backgroundImageUrl,
           openedAt: entity.openedAt ?? _currentMoment.openedAt,
+          hasMedia: entity.hasMedia || _currentMoment.hasMedia,
+          isVideo: entity.isVideo || _currentMoment.isVideo,
         );
         _isLoading = false;
       });
@@ -492,18 +496,18 @@ class _VideoPreviewState extends State<_VideoPreview> {
   @override
   void didUpdateWidget(covariant _VideoPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.moment.id != oldWidget.moment.id ||
-        widget.streamUrl != oldWidget.streamUrl ||
-        widget.isStreamVideo != oldWidget.isStreamVideo) {
+    if (widget.moment.id != oldWidget.moment.id) {
       _controller?.pause();
       _controller?.dispose();
       _controller = null;
       _isInitialized = false;
       _hasError = false;
+      _isLoading = false;
       _checkAndInitVideo();
     } else if (!_isInitialized &&
         !_isLoading &&
         widget.mediaBytes != null &&
+        widget.mediaBytes!.isNotEmpty &&
         widget.mediaBytes != oldWidget.mediaBytes) {
       _checkAndInitVideo();
     }
@@ -539,43 +543,45 @@ class _VideoPreviewState extends State<_VideoPreview> {
       if (widget.mediaBytes != null && widget.mediaBytes!.isNotEmpty) {
         final tempFile = File('${Directory.systemTemp.path}/moment_${widget.moment.id}.mp4');
         await tempFile.writeAsBytes(widget.mediaBytes!, flush: true);
-        controller = VideoPlayerController.file(tempFile);
-        await controller.initialize();
-      } else if (widget.streamUrl.isNotEmpty) {
-        // 2. Try networkUrl with timeout, or download bytes directly via ApiClient
-        bool initialized = false;
-        VideoPlayerController? netController;
-        try {
-          netController = VideoPlayerController.networkUrl(
-            Uri.parse(widget.streamUrl),
-            httpHeaders: widget.streamHeaders,
-          );
-          await netController.initialize().timeout(const Duration(seconds: 4));
-          controller = netController;
-          initialized = true;
-        } catch (_) {
-          netController?.dispose();
-          initialized = false;
-        }
-
-        if (!initialized) {
-          final client = ApiClientScope.of(context);
-          final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
-          final stream = await repo.getMomentMedia(widget.moment.id);
-          final tempFile = File('${Directory.systemTemp.path}/moment_${widget.moment.id}.mp4');
-          await tempFile.writeAsBytes(stream.bytes, flush: true);
-          controller = VideoPlayerController.file(tempFile);
-          await controller.initialize();
-        }
+        final fileCtrl = VideoPlayerController.file(tempFile);
+        await fileCtrl.initialize().timeout(const Duration(seconds: 10));
+        controller = fileCtrl;
       } else {
-        if (!mounted) return;
-        setState(() => _isLoading = false);
-        return;
+        // 2. Try fetching the media directly via ApiClient (reliable file stream with auth)
+        final client = ApiClientScope.of(context);
+        final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+
+        try {
+          final stream = await repo.getMomentMedia(widget.moment.id).timeout(const Duration(seconds: 15));
+          if (stream.bytes.isNotEmpty) {
+            final tempFile = File('${Directory.systemTemp.path}/moment_${widget.moment.id}.mp4');
+            await tempFile.writeAsBytes(stream.bytes, flush: true);
+            final fileCtrl = VideoPlayerController.file(tempFile);
+            await fileCtrl.initialize().timeout(const Duration(seconds: 10));
+            controller = fileCtrl;
+          }
+        } catch (_) {
+          // 3. Fallback to direct networkUrl streaming
+          if (widget.streamUrl.isNotEmpty) {
+            final netController = VideoPlayerController.networkUrl(
+              Uri.parse(widget.streamUrl),
+              httpHeaders: widget.streamHeaders,
+            );
+            await netController.initialize().timeout(const Duration(seconds: 8));
+            controller = netController;
+          } else {
+            rethrow;
+          }
+        }
       }
 
       if (controller == null) {
         if (!mounted) return;
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+          _errorMessage = 'Failed to load video stream';
+        });
         return;
       }
 
@@ -600,7 +606,7 @@ class _VideoPreviewState extends State<_VideoPreview> {
       setState(() {
         _isLoading = false;
         _hasError = true;
-        _errorMessage = e.toString();
+        _errorMessage = e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
       });
     }
   }

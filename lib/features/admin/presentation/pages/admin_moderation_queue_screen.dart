@@ -345,16 +345,58 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 8 * scale, vertical: 4 * scale),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF9044FB).withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(4 * scale),
-                        ),
-                        child: Text(
-                          'Pending',
-                          style: TextStyle(color: const Color(0xFFC057FF), fontSize: 10 * scale, fontWeight: FontWeight.bold),
-                        ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8 * scale, vertical: 4 * scale),
+                            decoration: BoxDecoration(
+                              color: (moment.visibility?.toUpperCase() == 'PRIVATE')
+                                  ? const Color(0x33FFB300)
+                                  : const Color(0x3300E5FF),
+                              borderRadius: BorderRadius.circular(4 * scale),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  (moment.visibility?.toUpperCase() == 'PRIVATE')
+                                      ? Icons.lock_rounded
+                                      : Icons.public_rounded,
+                                  size: 10 * scale,
+                                  color: (moment.visibility?.toUpperCase() == 'PRIVATE')
+                                      ? const Color(0xFFFFB300)
+                                      : const Color(0xFF00E5FF),
+                                ),
+                                SizedBox(width: 4 * scale),
+                                Text(
+                                  (moment.visibility?.toUpperCase() == 'PRIVATE')
+                                      ? 'Private'
+                                      : 'Public',
+                                  style: TextStyle(
+                                    color: (moment.visibility?.toUpperCase() == 'PRIVATE')
+                                        ? const Color(0xFFFFB300)
+                                        : const Color(0xFF00E5FF),
+                                    fontSize: 10 * scale,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(width: 6 * scale),
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8 * scale, vertical: 4 * scale),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF9044FB).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4 * scale),
+                            ),
+                            child: Text(
+                              'Pending',
+                              style: TextStyle(color: const Color(0xFFC057FF), fontSize: 10 * scale, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

@@ -110,24 +110,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
+        final bottomPad = MediaQuery.paddingOf(ctx).bottom;
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF131024),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24 * scale)),
-            border: Border.all(color: const Color(0x33443C68), width: scale),
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF1E1735),
+                Color(0xFF131024),
+              ],
+            ),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28 * scale)),
+            border: Border.all(color: const Color(0x555C428C), width: 1.2 * scale),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x99000000),
+                blurRadius: 32,
+                offset: Offset(0, -8),
+              ),
+            ],
           ),
-          padding: EdgeInsets.fromLTRB(24 * scale, 16 * scale, 24 * scale, 32 * scale),
+          padding: EdgeInsets.fromLTRB(24 * scale, 16 * scale, 24 * scale, 32 * scale + bottomPad),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Center(
                 child: Container(
-                  width: 40 * scale,
-                  height: 4 * scale,
+                  width: 44 * scale,
+                  height: 5 * scale,
                   decoration: BoxDecoration(
-                    color: const Color(0x44AAA6C2),
-                    borderRadius: BorderRadius.circular(2 * scale),
+                    color: const Color(0x66C792EA),
+                    borderRadius: BorderRadius.circular(2.5 * scale),
                   ),
                 ),
               ),
@@ -290,20 +305,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
           builder: (modalContext, setModalState) {
             return Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF131024),
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFF1E1735),
+                    Color(0xFF131024),
+                  ],
+                ),
                 borderRadius: BorderRadius.vertical(
-                  top: Radius.circular(24 * scale),
+                  top: Radius.circular(28 * scale),
                 ),
                 border: Border.all(
-                  color: const Color(0x33443C68),
-                  width: scale,
+                  color: const Color(0x555C428C),
+                  width: 1.2 * scale,
                 ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x99000000),
+                    blurRadius: 32,
+                    offset: Offset(0, -8),
+                  ),
+                ],
               ),
               padding: EdgeInsets.fromLTRB(
                 24 * scale,
                 16 * scale,
                 24 * scale,
-                MediaQuery.of(modalContext).viewInsets.bottom + 24 * scale,
+                MediaQuery.of(modalContext).viewInsets.bottom + 24 * scale + MediaQuery.paddingOf(modalContext).bottom,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -311,11 +340,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   Center(
                     child: Container(
-                      width: 40 * scale,
-                      height: 4 * scale,
+                      width: 44 * scale,
+                      height: 5 * scale,
                       decoration: BoxDecoration(
-                        color: const Color(0x44AAA6C2),
-                        borderRadius: BorderRadius.circular(2 * scale),
+                        color: const Color(0x66C792EA),
+                        borderRadius: BorderRadius.circular(2.5 * scale),
                       ),
                     ),
                   ),
@@ -607,24 +636,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
+        final bottomPad = MediaQuery.paddingOf(ctx).bottom;
         return Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF131024),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24 * scale)),
-            border: Border.all(color: const Color(0x33443C68), width: scale),
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFF1E1735),
+                Color(0xFF131024),
+              ],
+            ),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28 * scale)),
+            border: Border.all(color: const Color(0x555C428C), width: 1.2 * scale),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x99000000),
+                blurRadius: 32,
+                offset: Offset(0, -8),
+              ),
+            ],
           ),
-          padding: EdgeInsets.fromLTRB(24 * scale, 16 * scale, 24 * scale, 32 * scale),
+          padding: EdgeInsets.fromLTRB(24 * scale, 16 * scale, 24 * scale, 32 * scale + bottomPad),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Center(
                 child: Container(
-                  width: 40 * scale,
-                  height: 4 * scale,
+                  width: 44 * scale,
+                  height: 5 * scale,
                   decoration: BoxDecoration(
-                    color: const Color(0x44AAA6C2),
-                    borderRadius: BorderRadius.circular(2 * scale),
+                    color: const Color(0x66C792EA),
+                    borderRadius: BorderRadius.circular(2.5 * scale),
                   ),
                 ),
               ),
@@ -1071,9 +1115,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ? _profile!.displayName
         : (_isLoading ? 'Loading...' : 'Sam Rivera');
 
-    final username = _profile != null
-        ? _profile!.effectiveUsername
-        : (_isLoading ? '' : '@samrivera');
 
     return Column(
       children: [
@@ -1274,14 +1315,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               ],
                             ),
-                          ),
-                        ),
-                        Text(
-                          username,
-                          style: TextStyle(
-                            color: const Color(0xFFAAA6C2),
-                            fontSize: 12 * scale,
-                            height: 16 / 12,
                           ),
                         ),
                         if (_errorMessage != null && _profile == null) ...[

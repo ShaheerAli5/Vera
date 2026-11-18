@@ -239,15 +239,20 @@ class AccountRemoteDataSource {
         discoverableByEmail ?? settings?.discoverableByEmail;
     final finalAnalyticsEnabled =
         analyticsEnabled ?? settings?.analyticsEnabled;
+    final finalPrivacy = privacy ?? settings?.privacy;
+    final finalAllowLocationChecks =
+        allowLocationChecks ?? settings?.allowLocationChecks;
 
     final payload = <String, dynamic>{
-      'language': ?finalLanguage,
-      'timezone': ?finalTimezone,
-      'pushInvitations': ?finalPushInvitations,
-      'pushUnlocks': ?finalPushUnlocks,
-      'pushReplies': ?finalPushReplies,
-      'discoverableByEmail': ?finalDiscoverableByEmail,
-      'analyticsEnabled': ?finalAnalyticsEnabled,
+      if (finalLanguage != null) 'language': finalLanguage,
+      if (finalTimezone != null) 'timezone': finalTimezone,
+      if (finalPushInvitations != null) 'pushInvitations': finalPushInvitations,
+      if (finalPushUnlocks != null) 'pushUnlocks': finalPushUnlocks,
+      if (finalPushReplies != null) 'pushReplies': finalPushReplies,
+      if (finalDiscoverableByEmail != null) 'discoverableByEmail': finalDiscoverableByEmail,
+      if (finalAnalyticsEnabled != null) 'analyticsEnabled': finalAnalyticsEnabled,
+      if (finalPrivacy != null) 'privacy': finalPrivacy,
+      if (finalAllowLocationChecks != null) 'allowLocationChecks': finalAllowLocationChecks,
     };
     final response = await _apiClient.patch(
       '/profile/settings',
@@ -258,11 +263,7 @@ class AccountRemoteDataSource {
         'Settings update response must be a JSON object.',
       );
     }
-    final updated = ProfileSettings.fromJson(response);
-    return updated.copyWith(
-      privacy: privacy ?? settings?.privacy,
-      allowLocationChecks: allowLocationChecks ?? settings?.allowLocationChecks,
-    );
+    return ProfileSettings.fromJson(response);
   }
 
   Future<String> changePassword({

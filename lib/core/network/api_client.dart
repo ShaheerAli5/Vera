@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
+import '../services/push_notification_service.dart';
 import 'api_exception.dart';
 
 class ApiClient {
@@ -92,9 +93,13 @@ class ApiClient {
       if (refreshToken != null) _saveToken(_refreshTokenKey, refreshToken),
       if (userRole != null) _saveToken(_userRoleKey, userRole),
     ]);
+    if (authToken != null && authToken.isNotEmpty) {
+      PushNotificationService.instance.onTokensUpdated(this).catchError((_) {});
+    }
   }
 
   Future<void> clearTokens() async {
+    PushNotificationService.instance.unregisterDevice(this).catchError((_) {});
     _authToken = null;
     _refreshToken = null;
     _userRole = null;

@@ -433,10 +433,10 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                           24 * scale,
                           8 * scale,
                           24 * scale,
-                          24 * scale,
+                          12 * scale,
                         ),
                         child: Text(
-                          'Public moments are reviewed by moderators before they appear in Discover. Your lock place is never shown publicly.',
+                          'Public moments appear in Discover once approved. You can also optionally tag friends below to notify them directly.',
                           style: TextStyle(
                             color: const Color(0xFFA6A6C1),
                             fontSize: 13.5 * scale,
@@ -445,29 +445,30 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                           ),
                         ),
                       ),
-                    ] else ...[
-                      // Section 2: Who should get it?
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          24 * scale,
-                          8 * scale,
-                          24 * scale,
-                          16 * scale,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Who should get it?',
-                              style: TextStyle(
-                                color: const Color(0xFFF7F5FF),
-                                fontSize: 24 * scale,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            SizedBox(height: 16 * scale),
+                    ],
 
-                            // Dynamic Search Field
+                    // Section 2: Who should get it?
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        24 * scale,
+                        8 * scale,
+                        24 * scale,
+                        16 * scale,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _isPrivate ? 'Who should get it?' : 'Who should get it? (Optional)',
+                            style: TextStyle(
+                              color: const Color(0xFFF7F5FF),
+                              fontSize: 24 * scale,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          SizedBox(height: 16 * scale),
+
+                          // Dynamic Search Field
                             SizedBox(
                               width: contentWidth,
                               height: 50 * scale,
@@ -779,10 +780,9 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                         ),
                       ),
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
 
             // Bottom Navigation Action Container
             Container(
