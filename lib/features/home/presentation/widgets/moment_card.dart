@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../../../core/utils/server_time_manager.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../domain/entities/moment.dart';
 import '../pages/edit_moment_screen.dart';
@@ -25,10 +24,7 @@ class MomentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     const cardHeight = 194.0;
     const cardRadius = 20.0;
-    final bool isUnlocked = moment.isReadyToOpen ||
-        moment.unlockedAt != null ||
-        (moment.unlockAt != null &&
-            !ServerTimeManager.instance.now.isBefore(moment.unlockAt!));
+    final bool isUnlocked = moment.isReadyToOpen;
     final client = ApiClientScope.of(context);
     final token = client.authToken;
     final headers = <String, String>{
@@ -292,10 +288,7 @@ class MomentCard extends StatelessWidget {
     );
   }
   Widget _buildTopLock(double scale) {
-    final bool isUnlocked = moment.isReadyToOpen ||
-        moment.unlockedAt != null ||
-        (moment.unlockAt != null &&
-            !ServerTimeManager.instance.now.isBefore(moment.unlockAt!));
+    final bool isUnlocked = moment.isReadyToOpen;
     return ClipOval(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
