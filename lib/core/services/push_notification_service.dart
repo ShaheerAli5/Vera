@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../../firebase_options.dart';
 import '../network/api_client.dart';
@@ -23,6 +23,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 class PushNotificationService {
   PushNotificationService._();
   static final PushNotificationService instance = PushNotificationService._();
+
+  final FlutterLocalNotificationsPlugin _localNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
 
   String? _fcmToken;
   String? get fcmToken => _fcmToken;
@@ -52,11 +55,57 @@ class PushNotificationService {
     try {
       final messaging = FirebaseMessaging.instance;
 
+      // Initialize local notifications plugin
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const iosSettings = DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+      );
+      const initSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      );
+
+      await _localNotificationsPlugin.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: (response) {
+          final payload = response.payload;
+          if (payload != null && payload.isNotEmpty) {
+            handlePayloadTap(payload);
+          } else {
+            if (_navigatorKey?.currentState != null) {
+              _navigatorKey!.currentState!.push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const NotificationsScreen(),
+                ),
+              );
+            }
+          }
+        },
+      );
+
+      // Create Android High Importance Notification Channel
+      if (Platform.isAndroid) {
+        const androidChannel = AndroidNotificationChannel(
+          'vera_moments_channel',
+          'VERA Moments',
+          description: 'Notifications for private moments, invitations, and approvals',
+          importance: Importance.high,
+          playSound: true,
+          enableVibration: true,
+        );
+        await _localNotificationsPlugin
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>()
+            ?.createNotificationChannel(androidChannel);
+      }
+
       if (!_listenersInitialized) {
         _listenersInitialized = true;
         FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-        // Request permissions (especially required on iOS & Android 13+)
+        // Request permissions (Alert, Badge, Sound, POST_NOTIFICATIONS on Android 13+)
         final settings = await messaging.requestPermission(
           alert: true,
           badge: true,
@@ -67,7 +116,7 @@ class PushNotificationService {
           'User notification permission status: ${settings.authorizationStatus}',
         );
 
-        // Configure iOS foreground presentation options so banner & sound work
+        // Configure iOS foreground presentation options
         await messaging.setForegroundNotificationPresentationOptions(
           alert: true,
           badge: true,
@@ -88,6 +137,10 @@ class PushNotificationService {
           );
           latestForegroundMessage.value = message;
           unreadNotificationsCount.value += 1;
+
+          // Show local system notification banner/drawer entry in foreground
+          _showLocalNotification(message);
+
           final client = _apiClient;
           if (client != null && client.isAuthenticated) {
             refreshUnreadCount(client);
@@ -127,6 +180,43 @@ class PushNotificationService {
     }
   }
 
+  Future<void> _showLocalNotification(RemoteMessage message) async {
+    try {
+      final notification = message.notification;
+      final title = notification?.title ?? message.data['title']?.toString() ?? 'VERA Notification';
+      final body = notification?.body ?? message.data['body']?.toString() ?? 'You have a new notification';
+      final momentId = message.data['momentId']?.toString();
+
+      const androidDetails = AndroidNotificationDetails(
+        'vera_moments_channel',
+        'VERA Moments',
+        channelDescription: 'Notifications for private moments, invitations, and approvals',
+        importance: Importance.high,
+        priority: Priority.high,
+        ticker: 'ticker',
+      );
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+      const details = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
+
+      await _localNotificationsPlugin.show(
+        DateTime.now().millisecond,
+        title,
+        body,
+        details,
+        payload: momentId,
+      );
+    } catch (e) {
+      debugPrint('Failed to show local notification: $e');
+    }
+  }
+
   Future<void> onTokensUpdated(ApiClient apiClient) async {
     _apiClient = apiClient;
     try {
@@ -143,12 +233,9 @@ class PushNotificationService {
     }
   }
 
-  Future<void> handleNotificationTap(RemoteMessage message) async {
-    final data = message.data;
-    final momentId = data['momentId'] as String?;
+  Future<void> handlePayloadTap(String momentId) async {
     final client = _apiClient;
-
-    if (momentId != null && momentId.isNotEmpty && client != null && client.isAuthenticated) {
+    if (momentId.isNotEmpty && client != null && client.isAuthenticated) {
       try {
         final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
         final momentModel = await repo.getMomentById(momentId);
@@ -164,7 +251,7 @@ class PushNotificationService {
           return;
         }
       } catch (e) {
-        debugPrint('Failed to open moment details from notification: $e');
+        debugPrint('Failed to open moment details from payload: $e');
       }
     }
 
@@ -174,6 +261,22 @@ class PushNotificationService {
           builder: (_) => const NotificationsScreen(),
         ),
       );
+    }
+  }
+
+  Future<void> handleNotificationTap(RemoteMessage message) async {
+    final data = message.data;
+    final momentId = data['momentId'] as String?;
+    if (momentId != null && momentId.isNotEmpty) {
+      await handlePayloadTap(momentId);
+    } else {
+      if (_navigatorKey?.currentState != null) {
+        _navigatorKey!.currentState!.push(
+          MaterialPageRoute<void>(
+            builder: (_) => const NotificationsScreen(),
+          ),
+        );
+      }
     }
   }
 
