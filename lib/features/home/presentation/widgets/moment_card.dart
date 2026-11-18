@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 import '../../../../core/utils/server_time_manager.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../domain/entities/moment.dart';
@@ -54,44 +55,53 @@ class MomentCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Background Image with Blur
+            // Background Image / Video Cover with Blur
             ImageFiltered(
               imageFilter: ImageFilter.blur(
                 sigmaX: isUnlocked ? 0 : 7,
                 sigmaY: isUnlocked ? 0 : 7,
               ),
-              child: moment.backgroundImageUrl.isNotEmpty
-                  ? Image.network(
-                      moment.backgroundImageUrl,
+              child: (moment.isVideo || moment.contentType?.toUpperCase() == 'VIDEO')
+                  ? _VideoThumbnailCover(
+                      videoUrl: moment.backgroundImageUrl.isNotEmpty
+                          ? moment.backgroundImageUrl
+                          : (moment.id.isNotEmpty
+                              ? 'https://vera.aptechmedia.com/api/v1/moments/${moment.id}/media'
+                              : ''),
                       headers: headers,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Color(0xFF1E2B45),
-                              Color(0xFF0F172A),
-                              Color(0xFF2C1338),
-                            ],
-                          ),
-                        ),
-                      ),
                     )
-                  : Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Color(0xFF1E2B45),
-                            Color(0xFF0F172A),
-                            Color(0xFF2C1338),
-                          ],
-                        ),
-                      ),
-                    ),
+                  : (moment.backgroundImageUrl.isNotEmpty
+                      ? Image.network(
+                          moment.backgroundImageUrl,
+                          headers: headers,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Color(0xFF1E2B45),
+                                  Color(0xFF0F172A),
+                                  Color(0xFF2C1338),
+                                ],
+                              ),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFF1E2B45),
+                                Color(0xFF0F172A),
+                                Color(0xFF2C1338),
+                              ],
+                            ),
+                          ),
+                        )),
             ),
 
             // Dark gradient overlay
@@ -356,12 +366,13 @@ class MomentCard extends StatelessWidget {
       backgroundColor: Colors.transparent,
       barrierColor: const Color(0xB3090A17),
       builder: (sheetContext) {
+        final bottomPad = MediaQuery.paddingOf(sheetContext).bottom;
         return Container(
             padding: EdgeInsets.fromLTRB(
               24 * responsiveScale,
               12 * responsiveScale,
               24 * responsiveScale,
-              40 * responsiveScale,
+              (40 * responsiveScale) + bottomPad,
             ),
             decoration: BoxDecoration(
               color: const Color(0x59090A17),
@@ -491,96 +502,99 @@ class MomentCard extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: const Color(0xB3090A17),
-      builder: (sheetContext) => Container(
-        padding: EdgeInsets.fromLTRB(
-          24 * responsiveScale,
-          12 * responsiveScale,
-          24 * responsiveScale,
-          40 * responsiveScale,
-        ),
-        decoration: BoxDecoration(
-          color: const Color(0x59090A17),
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(24 * responsiveScale),
-            bottom: Radius.circular(24 * responsiveScale),
+      builder: (sheetContext) {
+        final bottomPad = MediaQuery.paddingOf(sheetContext).bottom;
+        return Container(
+          padding: EdgeInsets.fromLTRB(
+            24 * responsiveScale,
+            12 * responsiveScale,
+            24 * responsiveScale,
+            (40 * responsiveScale) + bottomPad,
           ),
-          border: Border.all(
-            color: const Color(0x454B3B70),
-            width: 1 * responsiveScale,
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x77000000),
-              blurRadius: 30,
-              offset: Offset(0, -8),
+          decoration: BoxDecoration(
+            color: const Color(0x59090A17),
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(24 * responsiveScale),
+              bottom: Radius.circular(24 * responsiveScale),
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              height: 36 * responsiveScale,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Block $firstName?',
-                      style: TextStyle(
-                        color: const Color(0xFFF7F5FF),
-                        fontSize: 24 * responsiveScale,
-                        fontWeight: FontWeight.w600,
-                        height: 32 / 24,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 36 * responsiveScale,
-                    height: 36 * responsiveScale,
-                    child: IconButton(
-                      onPressed: () => Navigator.of(sheetContext).pop(),
-                      icon: Icon(
-                        Icons.close_rounded,
-                        color: Colors.white,
-                        size: 18 * responsiveScale,
-                      ),
-                      style: IconButton.styleFrom(
-                        backgroundColor: const Color(0x4410101D),
-                        padding: EdgeInsets.zero,
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                    ),
-                  ),
-                ],
+            border: Border.all(
+              color: const Color(0x454B3B70),
+              width: 1 * responsiveScale,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x77000000),
+                blurRadius: 30,
+                offset: Offset(0, -8),
               ),
-            ),
-            SizedBox(height: 4 * responsiveScale),
-            SizedBox(
-              width: 286 * responsiveScale,
-              height: 66 * responsiveScale,
-              child: Text(
-                "You won't receive new invitations or notifications from "
-                '${moment.userName}. You can unblock them in Privacy settings.',
-                style: TextStyle(
-                  color: const Color(0xFFA2A5C2),
-                  fontSize: 14 * responsiveScale,
-                  fontWeight: FontWeight.w400,
-                  height: 22 / 14,
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                height: 36 * responsiveScale,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Block $firstName?',
+                        style: TextStyle(
+                          color: const Color(0xFFF7F5FF),
+                          fontSize: 24 * responsiveScale,
+                          fontWeight: FontWeight.w600,
+                          height: 32 / 24,
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 36 * responsiveScale,
+                      height: 36 * responsiveScale,
+                      child: IconButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                          size: 18 * responsiveScale,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: const Color(0x4410101D),
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            SizedBox(height: 24 * responsiveScale),
-            _MomentActionButton(
-              label: 'Block ${moment.userName}',
-              scale: responsiveScale,
-              isDestructive: true,
-              onTap: () => Navigator.of(sheetContext).pop(),
-            ),
-          ],
-        ),
-      ),
+              SizedBox(height: 4 * responsiveScale),
+              SizedBox(
+                width: 286 * responsiveScale,
+                height: 66 * responsiveScale,
+                child: Text(
+                  "You won't receive new invitations or notifications from "
+                  '${moment.userName}. You can unblock them in Privacy settings.',
+                  style: TextStyle(
+                    color: const Color(0xFFA2A5C2),
+                    fontSize: 14 * responsiveScale,
+                    fontWeight: FontWeight.w400,
+                    height: 22 / 14,
+                  ),
+                ),
+              ),
+              SizedBox(height: 24 * responsiveScale),
+              _MomentActionButton(
+                label: 'Block ${moment.userName}',
+                scale: responsiveScale,
+                isDestructive: true,
+                onTap: () => Navigator.of(sheetContext).pop(),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -592,87 +606,90 @@ class MomentCard extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: const Color(0xB3090A17),
-      builder: (sheetContext) => Container(
-        padding: EdgeInsets.fromLTRB(
-          24 * responsiveScale,
-          12 * responsiveScale,
-          24 * responsiveScale,
-          40 * responsiveScale,
-        ),
-        decoration: BoxDecoration(
-          color: const Color(0x59090A17),
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(24 * responsiveScale),
-            bottom: Radius.circular(24 * responsiveScale),
+      builder: (sheetContext) {
+        final bottomPad = MediaQuery.paddingOf(sheetContext).bottom;
+        return Container(
+          padding: EdgeInsets.fromLTRB(
+            24 * responsiveScale,
+            12 * responsiveScale,
+            24 * responsiveScale,
+            (40 * responsiveScale) + bottomPad,
           ),
-          border: Border.all(
-            color: const Color(0x454B3B70),
-            width: 1 * responsiveScale,
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x77000000),
-              blurRadius: 30,
-              offset: Offset(0, -8),
+          decoration: BoxDecoration(
+            color: const Color(0x59090A17),
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(24 * responsiveScale),
+              bottom: Radius.circular(24 * responsiveScale),
             ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              height: 36 * responsiveScale,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Why are you reporting this?',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16 * responsiveScale,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                  SizedBox(
-                    width: 36 * responsiveScale,
-                    height: 36 * responsiveScale,
-                    child: IconButton(
-                      onPressed: () => Navigator.of(sheetContext).pop(),
-                      icon: Icon(
-                        Icons.close_rounded,
-                        color: Colors.white,
-                        size: 18 * responsiveScale,
-                      ),
-                      style: IconButton.styleFrom(
-                        backgroundColor: const Color(0x4410101D),
-                        padding: EdgeInsets.zero,
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            border: Border.all(
+              color: const Color(0x454B3B70),
+              width: 1 * responsiveScale,
             ),
-            SizedBox(height: 24 * responsiveScale),
-            for (final reason in const [
-              'Spam',
-              'Inappropriate content',
-              'Harassment',
-              'Something else',
-            ]) ...[
-              _MomentActionButton(
-                label: reason,
-                scale: responsiveScale,
-                onTap: () => Navigator.of(sheetContext).pop(),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x77000000),
+                blurRadius: 30,
+                offset: Offset(0, -8),
               ),
-              if (reason != 'Something else')
-                SizedBox(height: 16 * responsiveScale),
             ],
-          ],
-        ),
-      ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 36 * responsiveScale,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Why are you reporting this?',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16 * responsiveScale,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 36 * responsiveScale,
+                      height: 36 * responsiveScale,
+                      child: IconButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                          size: 18 * responsiveScale,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: const Color(0x4410101D),
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 24 * responsiveScale),
+              for (final reason in const [
+                'Spam',
+                'Inappropriate content',
+                'Harassment',
+                'Something else',
+              ]) ...[
+                _MomentActionButton(
+                  label: reason,
+                  scale: responsiveScale,
+                  onTap: () => Navigator.of(sheetContext).pop(),
+                ),
+                if (reason != 'Something else')
+                  SizedBox(height: 16 * responsiveScale),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -749,6 +766,120 @@ class _MomentActionButton extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VideoThumbnailCover extends StatefulWidget {
+  const _VideoThumbnailCover({
+    required this.videoUrl,
+    required this.headers,
+  });
+
+  final String videoUrl;
+  final Map<String, String> headers;
+
+  @override
+  State<_VideoThumbnailCover> createState() => _VideoThumbnailCoverState();
+}
+
+class _VideoThumbnailCoverState extends State<_VideoThumbnailCover> {
+  VideoPlayerController? _controller;
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initController();
+  }
+
+  Future<void> _initController() async {
+    if (widget.videoUrl.isEmpty) return;
+    try {
+      final controller = VideoPlayerController.networkUrl(
+        Uri.parse(widget.videoUrl),
+        httpHeaders: widget.headers,
+      );
+      await controller.initialize();
+      if (!mounted) {
+        controller.dispose();
+        return;
+      }
+      controller.setVolume(0);
+      controller.setLooping(true);
+      setState(() {
+        _controller = controller;
+        _isInitialized = true;
+      });
+    } catch (_) {
+      // Fallback
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isInitialized && _controller != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(
+              width: _controller!.value.size.width > 0 ? _controller!.value.size.width : 100,
+              height: _controller!.value.size.height > 0 ? _controller!.value.size.height : 100,
+              child: VideoPlayer(_controller!),
+            ),
+          ),
+          Center(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.4),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF8B5CF6),
+            Color(0xFF6D28D9),
+            Color(0xFF312E81),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.3),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.play_arrow_rounded,
+            color: Colors.white,
+            size: 28,
           ),
         ),
       ),

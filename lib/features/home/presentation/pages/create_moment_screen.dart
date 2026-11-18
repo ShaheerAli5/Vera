@@ -28,6 +28,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
   XFile? _pickedMediaFile;
   Uint8List? _mediaBytes;
   bool _isVideo = false;
+  bool _showTitleError = false;
 
   final List<Map<String, dynamic>> _categories = const [
     {'icon': Icons.airplanemode_active_rounded, 'label': 'Travel', 'value': 'TRAVEL'},
@@ -110,7 +111,19 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
 
   void _navigateToNextStep() {
     final titleInput = _titleController.text.trim();
-    final title = titleInput.isNotEmpty ? titleInput : 'Untitled Moment';
+    if (titleInput.isEmpty) {
+      setState(() => _showTitleError = true);
+      VeraPopup.show(
+        context,
+        title: 'Title required',
+        message: 'Please enter a title for your moment to continue.',
+        icon: Icons.warning_amber_rounded,
+        accent: VeraTheme.warning,
+      );
+      return;
+    }
+    setState(() => _showTitleError = false);
+    final title = titleInput;
 
     final category = _selectedCategoryIndex >= 0
         ? ((_categories[_selectedCategoryIndex]['value'] as String? ??
@@ -434,6 +447,11 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                             height: 48 * scale,
                             child: TextField(
                               controller: _titleController,
+                              onChanged: (_) {
+                                if (_showTitleError) {
+                                  setState(() => _showTitleError = false);
+                                }
+                              },
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 14 * scale,
@@ -454,11 +472,36 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                                 ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12 * scale),
-                                  borderSide: BorderSide.none,
+                                  borderSide: _showTitleError
+                                      ? BorderSide(color: VeraTheme.error, width: 1.2 * scale)
+                                      : BorderSide.none,
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12 * scale),
+                                  borderSide: _showTitleError
+                                      ? BorderSide(color: VeraTheme.error, width: 1.2 * scale)
+                                      : BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12 * scale),
+                                  borderSide: _showTitleError
+                                      ? BorderSide(color: VeraTheme.error, width: 1.2 * scale)
+                                      : const BorderSide(color: Color(0xFF9044FB), width: 1.2),
                                 ),
                               ),
                             ),
                           ),
+                          if (_showTitleError) ...[
+                            SizedBox(height: 6 * scale),
+                            Text(
+                              'Title is required',
+                              style: TextStyle(
+                                color: VeraTheme.error,
+                                fontSize: 12 * scale,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                           SizedBox(height: 14 * scale),
                           Text(
                             'Teaser (visible while locked)',

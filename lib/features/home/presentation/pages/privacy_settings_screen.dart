@@ -762,7 +762,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                   24 * scale,
                   24 * scale,
                   24 * scale,
-                  36 * scale,
+                  36 * scale + MediaQuery.paddingOf(modalContext).bottom,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -991,7 +991,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                   24 * scale,
                   24 * scale,
                   24 * scale,
-                  36 * scale,
+                  36 * scale + MediaQuery.paddingOf(modalContext).bottom,
                 ),
                 child: SingleChildScrollView(
                   child: Column(
@@ -1415,7 +1415,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                   24 * scale,
                   24 * scale,
                   24 * scale,
-                  36 * scale,
+                  36 * scale + MediaQuery.paddingOf(context).bottom,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1976,7 +1976,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
             24 * scale,
             24 * scale,
             24 * scale,
-            36 * scale,
+            36 * scale + MediaQuery.paddingOf(sheetContext).bottom,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -2083,7 +2083,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
             24 * scale,
             24 * scale,
             24 * scale,
-            36 * scale,
+            36 * scale + MediaQuery.paddingOf(sheetContext).bottom,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,

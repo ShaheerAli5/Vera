@@ -441,6 +441,10 @@ class MomentsRemoteDataSource {
         itemsRaw = response['items'] as List;
       } else if (response['data'] is List) {
         itemsRaw = response['data'] as List;
+      } else if (response['users'] is List) {
+        itemsRaw = response['users'] as List;
+      } else if (response['results'] is List) {
+        itemsRaw = response['results'] as List;
       }
     } else if (response is List) {
       itemsRaw = response;

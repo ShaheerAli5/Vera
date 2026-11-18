@@ -14,18 +14,28 @@ class RecipientUserModel {
   final String? avatarUrl;
 
   factory RecipientUserModel.fromJson(Map<String, dynamic> json) {
-    final avatar = json['avatarUrl']?.toString() ?? json['avatar_url']?.toString();
+    final avatar = json['avatarUrl']?.toString() ??
+        json['avatar_url']?.toString() ??
+        json['avatar']?.toString() ??
+        json['profilePicture']?.toString();
     final fullAvatarUrl = (avatar != null && avatar.startsWith('/'))
         ? 'https://vera.aptechmedia.com$avatar'
         : avatar;
 
+    final displayName = json['displayName']?.toString() ??
+        json['name']?.toString() ??
+        json['fullName']?.toString() ??
+        json['username']?.toString() ??
+        'User';
+
+    final username = json['username']?.toString() ??
+        json['handle']?.toString() ??
+        json['user_name']?.toString();
+
     return RecipientUserModel(
-      id: json['id']?.toString() ?? '',
-      displayName: json['displayName']?.toString() ??
-          json['name']?.toString() ??
-          json['username']?.toString() ??
-          'User',
-      username: json['username']?.toString(),
+      id: json['id']?.toString() ?? json['_id']?.toString() ?? '',
+      displayName: displayName,
+      username: username,
       email: json['email']?.toString(),
       avatarUrl: fullAvatarUrl,
     );
