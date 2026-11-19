@@ -108,6 +108,8 @@ class MomentModel {
     this.timezone,
     this.locationName,
     this.locationRadius,
+    this.locationLatitude,
+    this.locationLongitude,
     this.creatorId,
     this.creatorName,
     this.creatorAvatarUrl,
@@ -139,6 +141,8 @@ class MomentModel {
   final String? timezone;
   final String? locationName;
   final String? locationRadius;
+  final double? locationLatitude;
+  final double? locationLongitude;
   final String? creatorId;
   final String? creatorName;
   final String? creatorAvatarUrl;
@@ -352,7 +356,10 @@ class MomentModel {
           json['locationName']?.toString(),
       locationRadius: unlockRule?['radius']?.toString() ??
           unlockRule?['locationRadius']?.toString() ??
+          unlockRule?['radiusM']?.toString() ??
           json['radius']?.toString(),
+      locationLatitude: (unlockRule?['latitude'] as num?)?.toDouble(),
+      locationLongitude: (unlockRule?['longitude'] as num?)?.toDouble(),
       creatorId: creator?['id']?.toString() ??
           creator?['_id']?.toString() ??
           json['creatorId']?.toString(),
@@ -501,6 +508,10 @@ class MomentModel {
       unlockedAt: unlockedAt,
       openedAt: openedAt,
       unlockAt: unlockAt,
+      unlockLatitude: locationLatitude,
+      unlockLongitude: locationLongitude,
+      unlockRadiusM: int.tryParse(locationRadius ?? ''),
+      unlockPlaceName: locationName,
       isVideo: isVideo,
       contentType: contentType,
       hasMedia: hasMedia,
