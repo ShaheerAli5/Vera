@@ -92,8 +92,10 @@ class MomentUnlockRule {
     if (t == 'LOCATION') {
       return {
         'type': 'LOCATION',
-        if (latitude != null) 'latitude': latitude,
-        if (longitude != null) 'longitude': longitude,
+        if (latitude != null)
+          'latitude': double.parse(latitude!.toStringAsFixed(6)),
+        if (longitude != null)
+          'longitude': double.parse(longitude!.toStringAsFixed(6)),
         if (radiusM != null) 'radiusM': radiusM,
         if (placeName != null && placeName!.isNotEmpty) 'placeName': placeName,
       };
@@ -112,7 +114,8 @@ class MomentUnlockRule {
       timezone: json['timezone']?.toString() ?? 'UTC',
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
-      radiusM: (json['radiusM'] as num?)?.toInt(),
+      radiusM: (json['radiusM'] as num?)?.toInt() ??
+          (json['radius'] as num?)?.toInt(),
       placeName: json['placeName']?.toString(),
     );
   }
