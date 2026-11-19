@@ -183,6 +183,9 @@ class MomentModel {
             ? json['user'] as Map<String, dynamic>
             : null);
 
+    final creatorStr = json['creator'] is String ? json['creator']?.toString() : null;
+    final userStr = json['user'] is String ? json['user']?.toString() : null;
+
     final unlockAtStr = unlockRule?['unlockAt']?.toString() ??
         unlockRule?['unlock_at']?.toString() ??
         unlockRule?['unlockAtUtc']?.toString() ??
@@ -362,7 +365,16 @@ class MomentModel {
       locationLongitude: (unlockRule?['longitude'] as num?)?.toDouble(),
       creatorId: creator?['id']?.toString() ??
           creator?['_id']?.toString() ??
-          json['creatorId']?.toString(),
+          creatorStr ??
+          userStr ??
+          json['creatorId']?.toString() ??
+          json['creator_id']?.toString() ??
+          json['userId']?.toString() ??
+          json['user_id']?.toString() ??
+          json['ownerId']?.toString() ??
+          json['owner_id']?.toString() ??
+          json['authorId']?.toString() ??
+          json['author_id']?.toString(),
       creatorName: creator?['displayName']?.toString() ??
           creator?['name']?.toString() ??
           creator?['username']?.toString() ??
@@ -516,7 +528,6 @@ class MomentModel {
       isVideo: isVideo,
       contentType: contentType,
       hasMedia: hasMedia,
-      creatorId: creatorId,
     );
   }
 }

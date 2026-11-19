@@ -763,7 +763,7 @@ class _MomentCardState extends State<MomentCard> {
                   }
                   try {
                     await momentsRepo.reportMoment(
-                      momentId: moment.id,
+                      momentId: widget.moment.id,
                       reason: entry.value,
                       details: details,
                     );

@@ -1796,7 +1796,7 @@ class _ReviewMomentScreenState extends State<ReviewMomentScreen> {
             final createdMoment = finalModel?.toEntity() ??
                 Moment(
                   id: result.id,
-                  creatorId: (publishedMoment.creatorId ?? result.creatorId),
+                  creatorId: finalModel?.creatorId,
                   userName: 'You',
                   userAvatarUrl: '',
                   timeAgo: 'Just now',

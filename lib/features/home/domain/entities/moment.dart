@@ -33,7 +33,6 @@ class Moment {
     this.isVideo = false,
     this.contentType,
     this.hasMedia = true,
-    this.creatorId,
   });
 
   final String id;
@@ -64,7 +63,6 @@ class Moment {
   final bool isVideo;
   final String? contentType;
   final bool hasMedia;
-  final String? creatorId;
 
   Moment copyWith({
     String? id,
@@ -95,7 +93,6 @@ class Moment {
     bool? isVideo,
     String? contentType,
     bool? hasMedia,
-    String? creatorId,
   }) {
     return Moment(
       id: id ?? this.id,
@@ -126,7 +123,6 @@ class Moment {
       isVideo: isVideo ?? this.isVideo,
       contentType: contentType ?? this.contentType,
       hasMedia: hasMedia ?? this.hasMedia,
-      creatorId: creatorId ?? this.creatorId,
     );
   }
 }
