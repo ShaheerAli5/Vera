@@ -95,7 +95,15 @@ abstract interface class AccountRepository {
 
   Future<BlockedUserListResponse> getBlockedUsers();
 
+  Future<void> blockUser(String userId);
+
   Future<void> unblockUser(String userId);
+
+  Future<void> reportUser({
+    required String userId,
+    required String reason,
+    String? details,
+  });
 
   Future<void> deleteAccount();
 }

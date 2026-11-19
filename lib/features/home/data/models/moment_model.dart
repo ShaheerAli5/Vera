@@ -475,6 +475,7 @@ class MomentModel {
 
     return Moment(
       id: id,
+      creatorId: creatorId,
       userName: creatorName ?? 'You',
       userAvatarUrl: avatar,
       timeAgo: timeAgoText,

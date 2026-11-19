@@ -2,6 +2,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/utils/server_time_manager.dart';
 import '../../../../main.dart' show ApiClientScope;
+import '../../../account/data/datasources/account_remote_data_source.dart';
+import '../../../account/data/repositories/account_repository_impl.dart';
+import '../../data/datasources/moments_remote_data_source.dart';
+import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
 import '../pages/edit_moment_screen.dart';
 import '../utils/moment_permission_utils.dart';
@@ -14,6 +18,7 @@ class MomentCard extends StatefulWidget {
     this.showDiscoverActions = false,
     this.onTap,
     this.onMomentUpdated,
+    this.onMomentBlocked,
   });
 
   final Moment moment;
@@ -21,6 +26,7 @@ class MomentCard extends StatefulWidget {
   final bool showDiscoverActions;
   final VoidCallback? onTap;
   final ValueChanged<Moment>? onMomentUpdated;
+  final ValueChanged<Moment>? onMomentBlocked;
 
   @override
   State<MomentCard> createState() => _MomentCardState();
@@ -488,32 +494,32 @@ class _MomentCardState extends State<MomentCard> {
                         }
                       },
                     ),
+                  ] else ...[
+                    _MomentActionButton(
+                      label: 'Report moment',
+                      scale: responsiveScale,
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        Future<void>.delayed(const Duration(milliseconds: 250), () {
+                          if (context.mounted) _showReportReasons(context);
+                        });
+                      },
+                    ),
                     SizedBox(height: 16 * responsiveScale),
+                    _MomentActionButton(
+                      label: 'Block $_displayName',
+                      scale: responsiveScale,
+                      isDestructive: true,
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        Future<void>.delayed(const Duration(milliseconds: 250), () {
+                          if (context.mounted) {
+                            _showBlockConfirmation(context);
+                          }
+                        });
+                      },
+                    ),
                   ],
-                  _MomentActionButton(
-                    label: 'Report moment',
-                    scale: responsiveScale,
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      Future<void>.delayed(const Duration(milliseconds: 250), () {
-                        if (context.mounted) _showReportReasons(context);
-                      });
-                    },
-                  ),
-                  SizedBox(height: 16 * responsiveScale),
-                  _MomentActionButton(
-                    label: 'Block $_displayName',
-                    scale: responsiveScale,
-                    isDestructive: true,
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      Future<void>.delayed(const Duration(milliseconds: 250), () {
-                        if (context.mounted) {
-                          _showBlockConfirmation(context);
-                        }
-                      });
-                    },
-                  ),
                 ],
             ),
         );
@@ -526,6 +532,8 @@ class _MomentCardState extends State<MomentCard> {
     final responsiveScale =
         (MediaQuery.sizeOf(context).width / 393).clamp(.82, 1.12);
     final firstName = displayName.split(' ').first;
+    final client = ApiClientScope.of(context);
+
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -616,7 +624,41 @@ class _MomentCardState extends State<MomentCard> {
               label: 'Block $displayName',
               scale: responsiveScale,
               isDestructive: true,
-              onTap: () => Navigator.of(sheetContext).pop(),
+              onTap: () async {
+                Navigator.of(sheetContext).pop();
+                final targetUserId = widget.moment.creatorId;
+                if (targetUserId == null || targetUserId.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Cannot block this user.'),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                  return;
+                }
+                try {
+                  final accountRepo = AccountRepositoryImpl(AccountRemoteDataSource(client));
+                  await accountRepo.blockUser(targetUserId);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('$displayName has been blocked.'),
+                        backgroundColor: const Color(0xFF6B42FF),
+                      ),
+                    );
+                    widget.onMomentBlocked?.call(widget.moment);
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to block user: $e'),
+                        backgroundColor: Colors.redAccent,
+                      ),
+                    );
+                  }
+                }
+              },
             ),
           ],
         ),
@@ -627,6 +669,9 @@ class _MomentCardState extends State<MomentCard> {
   void _showReportReasons(BuildContext context) {
     final responsiveScale =
         (MediaQuery.sizeOf(context).width / 393).clamp(.82, 1.12);
+    final client = ApiClientScope.of(context);
+    final momentsRepo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -696,22 +741,100 @@ class _MomentCardState extends State<MomentCard> {
               ),
             ),
             SizedBox(height: 24 * responsiveScale),
-            for (final reason in const [
-              'Spam',
-              'Inappropriate content',
-              'Harassment',
-              'Something else',
+            for (final entry in const [
+              MapEntry('Spam', 'SPAM'),
+              MapEntry('Inappropriate content', 'INAPPROPRIATE_CONTENT'),
+              MapEntry('Harassment', 'HARASSMENT'),
+              MapEntry('Something else', 'OTHER'),
             ]) ...[
               _MomentActionButton(
-                label: reason,
+                label: entry.key,
                 scale: responsiveScale,
-                onTap: () => Navigator.of(sheetContext).pop(),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  String? details;
+                  if (entry.value == 'OTHER') {
+                    if (context.mounted) {
+                      details = await _promptReportDetails(context, responsiveScale);
+                      if (details == null || details.trim().isEmpty) {
+                        return;
+                      }
+                    }
+                  }
+                  try {
+                    await momentsRepo.reportMoment(
+                      momentId: moment.id,
+                      reason: entry.value,
+                      details: details,
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Report submitted. Thank you for keeping Vera safe.'),
+                          backgroundColor: Color(0xFF6B42FF),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Report submission failed: $e'),
+                          backgroundColor: Colors.redAccent,
+                        ),
+                      );
+                    }
+                  }
+                },
               ),
-              if (reason != 'Something else')
+              if (entry.key != 'Something else')
                 SizedBox(height: 16 * responsiveScale),
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Future<String?> _promptReportDetails(BuildContext context, double scale) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF17182D),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20 * scale)),
+        title: Text(
+          'Report details',
+          style: TextStyle(color: Colors.white, fontSize: 18 * scale),
+        ),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          style: TextStyle(color: Colors.white, fontSize: 14 * scale),
+          decoration: InputDecoration(
+            hintText: 'Please describe the issue...',
+            hintStyle: TextStyle(color: const Color(0xFFA2A5C2), fontSize: 14 * scale),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12 * scale),
+              borderSide: const BorderSide(color: Color(0xFF373657)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12 * scale),
+              borderSide: const BorderSide(color: Color(0xFF9044FB)),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: Text('Cancel', style: TextStyle(color: const Color(0xFFA2A5C2), fontSize: 14 * scale)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF9044FB)),
+            onPressed: () => Navigator.of(dialogCtx).pop(controller.text.trim()),
+            child: Text('Submit', style: TextStyle(color: Colors.white, fontSize: 14 * scale)),
+          ),
+        ],
       ),
     );
   }

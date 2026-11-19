@@ -250,6 +250,27 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                         fontWeight: FontWeight.w500,
                       ),
                     ),
+                    Builder(
+                      builder: (topCtx) {
+                        final client = ApiClientScope.of(topCtx);
+                        final isAuthor = (_currentMoment.creatorId != null &&
+                                client.currentUserId != null &&
+                                _currentMoment.creatorId == client.currentUserId) ||
+                            _currentMoment.userName.trim().toLowerCase() == 'you';
+                        if (isAuthor) return const SizedBox.shrink();
+                        return Align(
+                          alignment: Alignment.centerRight,
+                          child: IconButton(
+                            onPressed: () => _showSafetyMenu(context, scale),
+                            icon: Icon(Icons.more_horiz_rounded,
+                                color: Colors.white, size: 22 * scale),
+                            padding: EdgeInsets.zero,
+                            constraints: BoxConstraints.tightFor(
+                                width: 40 * scale, height: 40 * scale),
+                          ),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -497,6 +518,200 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
             errorMessage.isNotEmpty ? errorMessage : 'Failed to send reply.',
       );
     }
+  }
+
+  void _showSafetyMenu(BuildContext context, double scale) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0xB3090A17),
+      builder: (sheetContext) => Container(
+        padding: EdgeInsets.fromLTRB(24 * scale, 16 * scale, 24 * scale, 32 * scale),
+        decoration: BoxDecoration(
+          color: const Color(0xFF17182D),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24 * scale)),
+          border: Border.all(color: const Color(0xFF373657)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36 * scale,
+              height: 4 * scale,
+              margin: EdgeInsets.only(bottom: 20 * scale),
+              decoration: BoxDecoration(
+                color: const Color(0xFF454B70),
+                borderRadius: BorderRadius.circular(2 * scale),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.flag_outlined, color: Colors.white),
+              title: const Text('Report moment', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _showReportSheet(context, scale);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.block, color: Color(0xFFFF4D4F)),
+              title: Text('Block ${_currentMoment.userName}',
+                  style: const TextStyle(color: Color(0xFFFF4D4F))),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _showBlockConfirmation(context, scale);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showBlockConfirmation(BuildContext context, double scale) {
+    final client = ApiClientScope.of(context);
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF17182D),
+        title: Text('Block ${_currentMoment.userName}?',
+            style: const TextStyle(color: Colors.white)),
+        content: Text(
+          "You won't receive new invitations or notifications from ${_currentMoment.userName}. You can unblock them in Privacy settings.",
+          style: const TextStyle(color: Color(0xFFA2A5C2)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFFA2A5C2))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF4D4F)),
+            onPressed: () async {
+              Navigator.of(dialogCtx).pop();
+              final targetId = _currentMoment.creatorId;
+              if (targetId == null || targetId.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Cannot block this user.')),
+                );
+                return;
+              }
+              try {
+                final repo = AccountRepositoryImpl(AccountRemoteDataSource(client));
+                await repo.blockUser(targetId);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('${_currentMoment.userName} has been blocked.')),
+                  );
+                  Navigator.of(context).pop(_currentMoment.copyWith(
+                    id: '__DELETED__:${_currentMoment.id}',
+                  ));
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to block user: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Block', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReportSheet(BuildContext context, double scale) {
+    final client = ApiClientScope.of(context);
+    final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0xB3090A17),
+      builder: (sheetCtx) => Container(
+        padding: EdgeInsets.fromLTRB(24 * scale, 16 * scale, 24 * scale, 32 * scale),
+        decoration: BoxDecoration(
+          color: const Color(0xFF17182D),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24 * scale)),
+          border: Border.all(color: const Color(0xFF373657)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Why are you reporting this?',
+                style: TextStyle(color: Colors.white, fontSize: 18 * scale, fontWeight: FontWeight.bold)),
+            SizedBox(height: 16 * scale),
+            for (final entry in const [
+              MapEntry('Spam', 'SPAM'),
+              MapEntry('Inappropriate content', 'INAPPROPRIATE_CONTENT'),
+              MapEntry('Harassment', 'HARASSMENT'),
+              MapEntry('Something else', 'OTHER'),
+            ])
+              ListTile(
+                title: Text(entry.key, style: const TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.of(sheetCtx).pop();
+                  String? details;
+                  if (entry.value == 'OTHER') {
+                    details = await _promptReportDetails(context, scale);
+                    if (details == null || details.trim().isEmpty) return;
+                  }
+                  try {
+                    await repo.reportMoment(
+                      momentId: _currentMoment.id,
+                      reason: entry.value,
+                      details: details,
+                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Report submitted. Thank you for keeping Vera safe.')),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to submit report: $e')),
+                      );
+                    }
+                  }
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<String?> _promptReportDetails(BuildContext context, double scale) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF17182D),
+        title: const Text('Report details', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Please describe the issue...',
+            hintStyle: TextStyle(color: Color(0xFFA2A5C2)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFFA2A5C2))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF9044FB)),
+            onPressed: () => Navigator.of(dialogCtx).pop(controller.text.trim()),
+            child: const Text('Submit', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 }
 

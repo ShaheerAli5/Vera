@@ -589,6 +589,20 @@ class _HomeScreenState extends State<HomeScreen> {
                                     }
                                   });
                                 },
+                                onMomentBlocked: (blocked) {
+                                  setState(() {
+                                    final creatorId = blocked.creatorId;
+                                    bool matches(Moment m) =>
+                                        m.id == blocked.id ||
+                                        (creatorId != null && m.creatorId == creatorId) ||
+                                        (creatorId == null && m.userName == blocked.userName);
+                                    _fetchedForYouMoments.removeWhere(matches);
+                                    _fetchedDiscoverMoments.removeWhere(matches);
+                                    _fetchedYourMoments.removeWhere(matches);
+                                    _fetchedInboxMoments.removeWhere(matches);
+                                    HomeScreen.sentMoments.removeWhere(matches);
+                                  });
+                                },
                                 showDiscoverActions:
                                     _isDiscoverMode ||
                                     _selectedNavIndex == 2,

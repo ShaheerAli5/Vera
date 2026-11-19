@@ -195,8 +195,26 @@ class AccountRepositoryImpl implements AccountRepository {
   }
 
   @override
+  Future<void> blockUser(String userId) {
+    return _remoteDataSource.blockUser(userId);
+  }
+
+  @override
   Future<void> unblockUser(String userId) {
     return _remoteDataSource.unblockUser(userId);
+  }
+
+  @override
+  Future<void> reportUser({
+    required String userId,
+    required String reason,
+    String? details,
+  }) {
+    return _remoteDataSource.reportUser(
+      userId: userId,
+      reason: reason,
+      details: details,
+    );
   }
 
   @override

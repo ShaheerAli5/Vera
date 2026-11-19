@@ -6,6 +6,7 @@ enum MomentUnlockType {
 class Moment {
   const Moment({
     required this.id,
+    this.creatorId,
     required this.userName,
     required this.userAvatarUrl,
     required this.timeAgo,
@@ -36,6 +37,7 @@ class Moment {
   });
 
   final String id;
+  final String? creatorId;
   final String userName;
   final String userAvatarUrl;
   final String timeAgo;
@@ -66,6 +68,7 @@ class Moment {
 
   Moment copyWith({
     String? id,
+    String? creatorId,
     String? userName,
     String? userAvatarUrl,
     String? timeAgo,
@@ -96,6 +99,7 @@ class Moment {
   }) {
     return Moment(
       id: id ?? this.id,
+      creatorId: creatorId ?? this.creatorId,
       userName: userName ?? this.userName,
       userAvatarUrl: userAvatarUrl ?? this.userAvatarUrl,
       timeAgo: timeAgo ?? this.timeAgo,

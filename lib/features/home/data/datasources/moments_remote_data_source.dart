@@ -191,6 +191,21 @@ class MomentsRemoteDataSource {
     return MomentModel.fromJson(response);
   }
 
+  Future<void> reportMoment({
+    required String momentId,
+    required String reason,
+    String? details,
+  }) async {
+    await _apiClient.post(
+      '/moments/$momentId/report',
+      body: {
+        'reason': reason,
+        if (details != null && details.trim().isNotEmpty)
+          'details': details.trim(),
+      },
+    );
+  }
+
   Future<MomentModel> unlockMoment({
     required String momentId,
     double? latitude,
