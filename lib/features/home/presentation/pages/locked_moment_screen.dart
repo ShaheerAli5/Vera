@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
@@ -12,6 +13,22 @@ import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
 import 'edit_moment_screen.dart';
 import 'unlocked_moment_screen.dart';
+
+class _LocationProof {
+  const _LocationProof({
+    required this.latitude,
+    required this.longitude,
+    required this.accuracyM,
+    required this.capturedAt,
+    required this.isMocked,
+  });
+
+  final double latitude;
+  final double longitude;
+  final double accuracyM;
+  final DateTime capturedAt;
+  final bool isMocked;
+}
 
 class LockedMomentScreen extends StatefulWidget {
   const LockedMomentScreen({super.key, required this.moment});
@@ -44,6 +61,7 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
 
   void _onResumed() {
     if (!mounted) return;
+    if (_currentMoment.unlockType == MomentUnlockType.location) return;
     _checkIfReadySilent();
   }
 
@@ -70,6 +88,7 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
 
   Future<void> _checkIfReadySilent() async {
     if (_isChecking || _currentMoment.id.isEmpty) return;
+    if (_currentMoment.unlockType == MomentUnlockType.location) return;
     try {
       final client = ApiClientScope.of(context);
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
@@ -138,10 +157,33 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
       final client = ApiClientScope.of(context);
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
 
+      _LocationProof? locationProof;
+      if (_currentMoment.unlockType == MomentUnlockType.location) {
+        try {
+          locationProof = await _captureLocationProof();
+        } catch (error) {
+          if (!mounted) return;
+          setState(() => _isChecking = false);
+          VeraPopup.show(
+            context,
+            title: 'Location unavailable',
+            message: error.toString().replaceFirst('Exception: ', ''),
+            icon: Icons.location_off_outlined,
+            accent: VeraTheme.warning,
+          );
+          return;
+        }
+      }
+
       // Attempt to unlock on the server
       try {
         final unlockedModel = await repo.unlockMoment(
           momentId: _currentMoment.id,
+          latitude: locationProof?.latitude,
+          longitude: locationProof?.longitude,
+          accuracyM: locationProof?.accuracyM,
+          capturedAt: locationProof?.capturedAt,
+          isMocked: locationProof?.isMocked,
         );
         final base = unlockedModel.toEntity();
         final unlockedEntity = base.copyWith(
@@ -228,6 +270,43 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
         accent: VeraTheme.warning,
       );
     }
+  }
+
+  Future<_LocationProof> _captureLocationProof() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      throw Exception('Enable Location Services to unlock this Moment.');
+    }
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.deniedForever) {
+      throw Exception(
+        'Location permission is permanently denied. Enable it in device settings.',
+      );
+    }
+    if (permission == LocationPermission.denied) {
+      throw Exception('Location permission is required to unlock this Moment.');
+    }
+    final position = await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        timeLimit: Duration(seconds: 15),
+      ),
+    );
+    if (position.accuracy > 100) {
+      throw Exception(
+        'Location accuracy is ${position.accuracy.round()}m. '
+        'Move near a window or outdoors and try again.',
+      );
+    }
+    return _LocationProof(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      accuracyM: position.accuracy,
+      capturedAt: position.timestamp,
+      isMocked: position.isMocked,
+    );
   }
 
   bool _isResendingInvite = false;
@@ -531,7 +610,10 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
                               : Text(
                                   _currentMoment.isReadyToOpen
                                       ? "Unlock moment"
-                                      : "Check if it's ready",
+                                      : (_currentMoment.unlockType ==
+                                              MomentUnlockType.location
+                                          ? 'Check current location'
+                                          : "Check if it's ready"),
                                   style: TextStyle(
                                     fontSize: 14 * scale,
                                     fontWeight: FontWeight.w600,

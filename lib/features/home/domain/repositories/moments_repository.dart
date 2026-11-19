@@ -49,6 +49,9 @@ abstract class MomentsRepository {
     required String momentId,
     double? latitude,
     double? longitude,
+    double? accuracyM,
+    DateTime? capturedAt,
+    bool? isMocked,
   });
   Future<MomentModel> uploadMomentMedia({
     required String momentId,

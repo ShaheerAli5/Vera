@@ -25,6 +25,10 @@ class Moment {
     this.unlockedAt,
     this.openedAt,
     this.unlockAt,
+    this.unlockLatitude,
+    this.unlockLongitude,
+    this.unlockRadiusM,
+    this.unlockPlaceName,
     this.isVideo = false,
     this.contentType,
     this.hasMedia = true,
@@ -50,6 +54,10 @@ class Moment {
   final DateTime? unlockedAt;
   final DateTime? openedAt;
   final DateTime? unlockAt;
+  final double? unlockLatitude;
+  final double? unlockLongitude;
+  final int? unlockRadiusM;
+  final String? unlockPlaceName;
   final bool isVideo;
   final String? contentType;
   final bool hasMedia;
@@ -75,6 +83,10 @@ class Moment {
     DateTime? unlockedAt,
     DateTime? openedAt,
     DateTime? unlockAt,
+    double? unlockLatitude,
+    double? unlockLongitude,
+    int? unlockRadiusM,
+    String? unlockPlaceName,
     bool? isVideo,
     String? contentType,
     bool? hasMedia,
@@ -100,6 +112,10 @@ class Moment {
       unlockedAt: unlockedAt ?? this.unlockedAt,
       openedAt: openedAt ?? this.openedAt,
       unlockAt: unlockAt ?? this.unlockAt,
+      unlockLatitude: unlockLatitude ?? this.unlockLatitude,
+      unlockLongitude: unlockLongitude ?? this.unlockLongitude,
+      unlockRadiusM: unlockRadiusM ?? this.unlockRadiusM,
+      unlockPlaceName: unlockPlaceName ?? this.unlockPlaceName,
       isVideo: isVideo ?? this.isVideo,
       contentType: contentType ?? this.contentType,
       hasMedia: hasMedia ?? this.hasMedia,

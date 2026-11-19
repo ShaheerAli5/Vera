@@ -195,10 +195,16 @@ class MomentsRemoteDataSource {
     required String momentId,
     double? latitude,
     double? longitude,
+    double? accuracyM,
+    DateTime? capturedAt,
+    bool? isMocked,
   }) async {
     final Map<String, dynamic> body = {};
     if (latitude != null) body['latitude'] = latitude;
     if (longitude != null) body['longitude'] = longitude;
+    if (accuracyM != null) body['accuracyM'] = accuracyM;
+    if (capturedAt != null) body['capturedAt'] = capturedAt.toUtc().toIso8601String();
+    if (isMocked != null) body['isMocked'] = isMocked;
 
     final response = await _apiClient.post(
       '/moments/$momentId/unlock',

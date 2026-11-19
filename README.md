@@ -134,6 +134,26 @@ For a local Android emulator backend, use the host machine address (commonly
 `http://10.0.2.2:3000`) instead of `localhost`. Do not put passwords or
 private tokens in `--dart-define`.
 
+### Map and location-unlock configuration
+
+Moment creation uses an interactive map and explicit place search. Development
+defaults to OpenStreetMap tiles and Nominatim search. Both origins can be
+changed at build time so production can use a contracted or self-hosted
+provider without changing application code:
+
+```sh
+flutter run \
+  --dart-define=API_BASE_URL=https://vera.aptechmedia.com \
+  --dart-define=MAP_TILE_URL=https://tile.openstreetmap.org/{z}/{x}/{y}.png \
+  --dart-define=GEOCODING_BASE_URL=https://nominatim.openstreetmap.org
+```
+
+Location permission is requested only when a user chooses their current
+position or explicitly checks a location lock. The app does not perform
+background location tracking. Unlock requests include a fresh GPS timestamp,
+accuracy, and the platform mock-location signal; the backend remains the
+authority for distance, approval, privacy, and media access.
+
 Add each endpoint under its feature: `data/datasources` contains endpoint
 calls and response parsing, `data/repositories` implements the feature
 repository, and `domain/repositories` defines the contract consumed by BLoCs
