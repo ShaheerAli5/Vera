@@ -5,6 +5,7 @@ import '../../../../main.dart' show ApiClientScope;
 import '../../data/datasources/admin_remote_data_source.dart';
 import '../../data/models/admin_audit_log_model.dart';
 import '../../data/repositories/admin_repository_impl.dart';
+import 'admin_reports_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -105,6 +106,76 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             _buildStatCardsRow(scale, 'Suspended', '$_suspendedUsers', 'Pending Moments', '$_pendingMomentsCount', const Color(0xFFE291FF), const Color(0xFF9044FB)),
             SizedBox(height: 16 * scale),
             _buildStatCardsRow(scale, 'Approved Moments', '$_approvedMoments', 'Rejected Moments', '$_rejectedMoments', const Color(0xFFC057FF), const Color(0xFF8A8EB3)),
+            SizedBox(height: 20 * scale),
+            GestureDetector(
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const AdminReportsScreen(),
+                  ),
+                );
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: 16 * scale,
+                  vertical: 14 * scale,
+                ),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF2A1B4E), Color(0xFF1E1538)],
+                  ),
+                  borderRadius: BorderRadius.circular(16 * scale),
+                  border: Border.all(
+                    color: const Color(0xFF9044FB).withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(10 * scale),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF9044FB).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12 * scale),
+                      ),
+                      child: Icon(
+                        Icons.shield_outlined,
+                        color: const Color(0xFFC857FF),
+                        size: 24 * scale,
+                      ),
+                    ),
+                    SizedBox(width: 14 * scale),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'User & Moment Reports',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 15 * scale,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 2 * scale),
+                          Text(
+                            'Review reported users, spam, and policy violations',
+                            style: TextStyle(
+                              color: const Color(0xFFB3AFD0),
+                              fontSize: 12 * scale,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: const Color(0xFF8A8EB3),
+                      size: 16 * scale,
+                    ),
+                  ],
+                ),
+              ),
+            ),
             SizedBox(height: 32 * scale),
             Text(
               'Recent Activities',

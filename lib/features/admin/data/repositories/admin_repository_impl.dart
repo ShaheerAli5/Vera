@@ -2,6 +2,7 @@ import '../../../home/data/models/moment_model.dart';
 import '../../domain/repositories/admin_repository.dart';
 import '../datasources/admin_remote_data_source.dart';
 import '../models/admin_audit_log_model.dart';
+import '../models/admin_report_model.dart';
 import '../models/admin_user_model.dart';
 
 class AdminRepositoryImpl implements AdminRepository {
@@ -112,5 +113,33 @@ class AdminRepositoryImpl implements AdminRepository {
   @override
   Future<Map<String, int>> getModerationStats() {
     return _remoteDataSource.getModerationStats();
+  }
+
+  @override
+  Future<AdminReportsResponse> getReports({
+    int page = 1,
+    int limit = 20,
+    String? status,
+    String? type,
+  }) {
+    return _remoteDataSource.getReports(
+      page: page,
+      limit: limit,
+      status: status,
+      type: type,
+    );
+  }
+
+  @override
+  Future<AdminReportModel> resolveReport({
+    required String reportId,
+    required String resolution,
+    String? note,
+  }) {
+    return _remoteDataSource.resolveReport(
+      reportId: reportId,
+      resolution: resolution,
+      note: note,
+    );
   }
 }

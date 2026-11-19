@@ -1,6 +1,7 @@
 import '../../../../core/network/api_client.dart';
 import '../../../home/data/models/moment_model.dart';
 import '../models/admin_audit_log_model.dart';
+import '../models/admin_report_model.dart';
 import '../models/admin_user_model.dart';
 
 class AdminRemoteDataSource {
@@ -233,5 +234,47 @@ class AdminRemoteDataSource {
       }
     } catch (_) {}
     return {};
+  }
+
+  Future<AdminReportsResponse> getReports({
+    int page = 1,
+    int limit = 20,
+    String? status,
+    String? type,
+  }) async {
+    final queryParams = {
+      'page': page.toString(),
+      'limit': limit.toString(),
+    };
+    if (status != null && status.isNotEmpty) {
+      queryParams['status'] = status;
+    }
+    if (type != null && type.isNotEmpty) {
+      queryParams['type'] = type;
+    }
+
+    final response = await _apiClient.get(
+      '/admin/reports',
+      queryParameters: queryParams,
+    );
+    return AdminReportsResponse.fromJson(response);
+  }
+
+  Future<AdminReportModel> resolveReport({
+    required String reportId,
+    required String resolution,
+    String? note,
+  }) async {
+    final response = await _apiClient.post(
+      '/admin/reports/$reportId/resolve',
+      body: {
+        'resolution': resolution,
+        if (note != null && note.isNotEmpty) 'note': note,
+      },
+    );
+    if (response is Map<String, dynamic>) {
+      return AdminReportModel.fromJson(response);
+    }
+    throw const FormatException('Invalid report resolution response');
   }
 }
