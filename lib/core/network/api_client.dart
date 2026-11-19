@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
 import '../services/push_notification_service.dart';
 import 'api_exception.dart';
+import 'unlock_diagnostics.dart';
 
 class ApiClient {
   ApiClient({
@@ -407,11 +408,38 @@ class ApiClient {
   }
 
   Future<Object?> _executeRequest(http.BaseRequest request) async {
+    final isUnlockRequest = request.method == 'POST' &&
+        RegExp(r'/moments/[^/]+/unlock$').hasMatch(request.url.path);
+    final approvalMatch = request.method == 'POST'
+        ? RegExp(r'/admin/moments/([^/]+)/approve$').firstMatch(request.url.path)
+        : null;
+    final isApprovalRequest = approvalMatch != null;
+    final isChatRequest = request.url.path.contains('/chat/');
+    final isDiagnosticRequest = isUnlockRequest || isApprovalRequest || isChatRequest;
+    final logDiagnostic = isChatRequest
+        ? logChatDiagnostic
+        : isApprovalRequest ? logApprovalDiagnostic : logUnlockDiagnostic;
+    if (isChatRequest) {
+      logDiagnostic('request', {
+        'method': request.method,
+        'path': request.url.path,
+        if (request.url.queryParameters['box'] != null)
+          'box': request.url.queryParameters['box'],
+        if (request.url.queryParameters['limit'] != null)
+          'limit': request.url.queryParameters['limit'],
+      });
+    }
+    if (isApprovalRequest) {
+      logDiagnostic('request', {'momentId': approvalMatch.group(1)});
+    }
     try {
       final streamed = await _httpClient.send(request).timeout(connectTimeout);
       final response = await http.Response.fromStream(
         streamed,
       ).timeout(receiveTimeout);
+      if (isDiagnosticRequest) {
+        logDiagnostic('response', {'httpStatus': response.statusCode});
+      }
       final Object? decoded;
       try {
         decoded = _decode(response.body);
@@ -428,15 +456,28 @@ class ApiClient {
         throw _toException(response.statusCode, decoded);
       }
       return decoded;
-    } on ApiException {
+    } on ApiException catch (error) {
+      if (isDiagnosticRequest) {
+        logDiagnostic('error', {
+          'httpStatus': error.statusCode,
+          'code': error.code == null ? null : redactUnlockError(error.code!),
+          'message': redactUnlockError(error.message),
+        });
+      }
       rethrow;
     } on TimeoutException {
+      if (isDiagnosticRequest) {
+        logDiagnostic('error', {'code': 'timeout'});
+      }
       throw const ApiException(
         statusCode: 0,
         code: 'timeout',
         message: 'The request timed out.',
       );
     } on http.ClientException catch (error) {
+      if (isDiagnosticRequest) {
+        logDiagnostic('error', {'code': 'network_error'});
+      }
       throw ApiException(
         statusCode: 0,
         code: 'network_error',

@@ -5,6 +5,7 @@ import 'package:http_parser/http_parser.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/network/unlock_diagnostics.dart';
 import '../models/chat_message_model.dart';
 import '../models/create_moment_params.dart';
 import '../models/create_moment_result.dart';
@@ -215,11 +216,34 @@ class MomentsRemoteDataSource {
     bool? isMocked,
   }) async {
     final Map<String, dynamic> body = {};
-    if (latitude != null) body['latitude'] = latitude;
-    if (longitude != null) body['longitude'] = longitude;
-    if (accuracyM != null) body['accuracyM'] = accuracyM;
+    if ((latitude != null && (!latitude.isFinite || latitude < -90 || latitude > 90)) ||
+        (longitude != null && (!longitude.isFinite || longitude < -180 || longitude > 180)) ||
+        (accuracyM != null && (!accuracyM.isFinite || accuracyM < 0))) {
+      throw const ApiException(
+        statusCode: 0,
+        code: 'invalid_location_proof',
+        message: 'Your device returned an invalid location. Please try again.',
+      );
+    }
+    // Match creation's coordinate precision and keep JSON values numeric.
+    if (latitude != null) body['latitude'] = double.parse(latitude.toStringAsFixed(6));
+    if (longitude != null) body['longitude'] = double.parse(longitude.toStringAsFixed(6));
+    if (accuracyM != null) {
+      // Round uncertainty upwards so the payload never overstates GPS accuracy.
+      body['accuracyM'] = double.parse(((accuracyM * 100).ceil() / 100).toStringAsFixed(2));
+    }
     if (capturedAt != null) body['capturedAt'] = capturedAt.toUtc().toIso8601String();
     if (isMocked != null) body['isMocked'] = isMocked;
+
+    logUnlockDiagnostic('request', {
+      'momentId': momentId,
+      'hasCoordinates': latitude != null && longitude != null,
+      'hasAccuracy': accuracyM != null,
+      'hasCaptureTime': capturedAt != null,
+      'isMocked': isMocked,
+      'coordinateDecimalPlaces': 6,
+      'accuracyDecimalPlaces': 2,
+    });
 
     final response = await _apiClient.post(
       '/moments/$momentId/unlock',

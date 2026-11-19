@@ -46,6 +46,9 @@ class LockedMomentScreen extends StatefulWidget {
 class _LockedMomentScreenState extends State<LockedMomentScreen> {
   late Moment _currentMoment;
   bool _isChecking = false;
+  bool _isRefreshingStatus = false;
+  DateTime? _nextStatusRefreshAt;
+  DateTime? _retryAfter;
   int _ticksCount = 0;
   bool _isOwner = false;
 
@@ -280,7 +283,9 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
     _ticksCount++;
     final now = ServerTimeManager.instance.now;
 
-    if (_currentMoment.unlockAt != null && _currentMoment.status == 'PUBLISHED') {
+    if (_currentMoment.unlockType == MomentUnlockType.time &&
+        _currentMoment.unlockAt != null &&
+        _currentMoment.status == 'PUBLISHED') {
       final isTimeReached = !now.isBefore(_currentMoment.unlockAt!);
       if (isTimeReached && !_isChecking && !_currentMoment.isReadyToOpen) {
         _checkIfReadySilent();
@@ -288,7 +293,7 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
       }
     }
 
-    if (_currentMoment.status == 'PENDING_REVIEW' && _ticksCount % 5 == 0 && !_isChecking) {
+    if (_currentMoment.status == 'PENDING_REVIEW' && _ticksCount % 15 == 0 && !_isChecking) {
       _checkIfReadySilent();
       return;
     }
@@ -297,65 +302,40 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
   }
 
   Future<void> _checkIfReadySilent() async {
-    if (_isChecking || _currentMoment.id.isEmpty) return;
+    final now = DateTime.now();
+    if (!mounted || _isChecking || _isRefreshingStatus ||
+        _currentMoment.id.isEmpty ||
+        ModalRoute.of(context)?.isCurrent != true ||
+        (_retryAfter != null && now.isBefore(_retryAfter!)) ||
+        (_nextStatusRefreshAt != null && now.isBefore(_nextStatusRefreshAt!))) {
+      return;
+    }
+    _isRefreshingStatus = true;
+    _nextStatusRefreshAt = now.add(const Duration(seconds: 15));
     try {
       final client = ApiClientScope.of(context);
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
-
-      try {
-        final unlockedModel = await repo.unlockMoment(
-          momentId: _currentMoment.id,
-        );
-        final base = unlockedModel.toEntity();
-        final unlockedEntity = base.copyWith(
-          isReadyToOpen: true,
-          userName: (base.userName.isNotEmpty && base.userName != 'You')
-              ? base.userName
-              : _currentMoment.userName,
-          userAvatarUrl: base.userAvatarUrl.isNotEmpty
-              ? base.userAvatarUrl
-              : _currentMoment.userAvatarUrl,
-          timeAgo: base.timeAgo.isNotEmpty ? base.timeAgo : _currentMoment.timeAgo,
-          message: base.message ?? _currentMoment.message,
-          title: (base.title != null && base.title!.isNotEmpty && base.title != 'Untitled Moment')
-              ? base.title
-              : _currentMoment.title,
-          teaser: base.teaser ?? _currentMoment.teaser,
-          backgroundImageUrl: (base.backgroundImageUrl.isNotEmpty && !base.backgroundImageUrl.contains('api/v1/moments'))
-              ? base.backgroundImageUrl
-              : _currentMoment.backgroundImageUrl,
-          hasMedia: base.hasMedia || _currentMoment.hasMedia,
-          isVideo: base.isVideo || _currentMoment.isVideo,
-        );
-        if (!mounted) return;
-        setState(() {
-          _currentMoment = unlockedEntity;
-        });
-
+      // Refreshing status must never attempt an unlock without user location proof.
+      final model = await repo.getMomentById(_currentMoment.id);
+      final updated = model.toEntity();
+      if (!mounted) return;
+      setState(() => _currentMoment = updated);
+      if (updated.isReadyToOpen && ModalRoute.of(context)?.isCurrent == true) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(
-            builder: (_) => UnlockedMomentScreen(moment: unlockedEntity),
+            builder: (_) => UnlockedMomentScreen(moment: updated),
           ),
         );
-        return;
-      } catch (_) {
-        final model = await repo.getMomentById(_currentMoment.id);
-        final updated = model.toEntity();
-
-        if (!mounted) return;
-        setState(() {
-          _currentMoment = updated;
-        });
-
-        if (updated.isReadyToOpen) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute<void>(
-              builder: (_) => UnlockedMomentScreen(moment: updated),
-            ),
-          );
-        }
       }
-    } catch (_) {}
+    } on ApiException catch (error) {
+      if (error.statusCode == 429) {
+        _retryAfter = DateTime.now().add(const Duration(minutes: 1));
+      }
+    } catch (_) {
+      // Keep the current screen and allow a later refresh after transient errors.
+    } finally {
+      _isRefreshingStatus = false;
+    }
   }
 
   Future<_LocationProof> _captureLocationProof() async {
@@ -396,7 +376,17 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
   }
 
   Future<void> _checkIfReady() async {
-    if (_isChecking) return;
+    if (_isChecking || _isRefreshingStatus) return;
+    if (_retryAfter != null && DateTime.now().isBefore(_retryAfter!)) {
+      VeraPopup.show(
+        context,
+        title: 'Please wait',
+        message: 'Too many requests. Please wait a minute before trying again.',
+        icon: Icons.hourglass_empty_rounded,
+        accent: VeraTheme.warning,
+      );
+      return;
+    }
     setState(() => _isChecking = true);
 
     _LocationProof? locationProof;
@@ -488,20 +478,30 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
           isVideo: base.isVideo || _currentMoment.isVideo,
         );
       } catch (unlockErr) {
-        String errMsg = '';
         if (unlockErr is ApiException) {
-          errMsg = unlockErr.message;
+          if (unlockErr.statusCode == 429) {
+            _retryAfter = DateTime.now().add(const Duration(minutes: 1));
+          }
+          if (unlockErr.statusCode == 0 ||
+              unlockErr.statusCode == 401 ||
+              unlockErr.statusCode == 404 ||
+              unlockErr.statusCode == 429 ||
+              (unlockErr.statusCode == 400 &&
+                  unlockErr.message.contains('must be a number')) ||
+              unlockErr.statusCode >= 500) {
+            rethrow;
+          }
         } else {
-          errMsg = unlockErr.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
+          rethrow;
         }
+        final errMsg = unlockErr.message;
 
         final lowerMsg = errMsg.toLowerCase();
         if (lowerMsg.contains('location') ||
             lowerMsg.contains('distance') ||
             lowerMsg.contains('radius') ||
             lowerMsg.contains('far') ||
-            lowerMsg.contains('not at') ||
-            _currentMoment.unlockType == MomentUnlockType.location) {
+            lowerMsg.contains('not at')) {
           isLocationMismatch = true;
         }
 
@@ -585,6 +585,9 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
         setState(() => _isChecking = false);
       }
     } catch (e) {
+      if (e is ApiException && e.statusCode == 429) {
+        _retryAfter = DateTime.now().add(const Duration(minutes: 1));
+      }
       if (!mounted) return;
       try {
         Navigator.of(context, rootNavigator: true).pop(); // ensure waiting dialog is closed

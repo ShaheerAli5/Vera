@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -6,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../../core/layout/responsive.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
@@ -16,7 +16,6 @@ import '../../data/models/chat_message_model.dart';
 import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
 import 'edit_moment_screen.dart';
-import '../utils/moment_permission_utils.dart';
 
 class UnlockedMomentScreen extends StatefulWidget {
   const UnlockedMomentScreen({super.key, required this.moment});
@@ -38,8 +37,15 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
   List<ChatMessageModel> _messages = [];
   bool _isLoadingMessages = false;
   String _displayName = '';
-  Timer? _pollTimer;
   String? _currentUserId;
+  bool _conversationReady = false;
+  bool _isCreator = false;
+  String? _threadId;
+  String? _selectedRecipientId;
+  String? _conversationError;
+  final Map<String, String> _recipientLabels = {};
+  final Map<String, String> _recipientThreadIds = {};
+
 
   @override
   void initState() {
@@ -47,23 +53,15 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
     _currentMoment = widget.moment;
     _displayName = widget.moment.userName;
     PushNotificationService.instance.latestForegroundMessage.addListener(_onNewForegroundMessage);
-    _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) {
-      if (mounted) {
-        _fetchThreadMessages();
-      }
-    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadPermissions();
-      _fetchFullMoment();
       _fetchMediaStream();
-      _fetchThreadMessages();
+      _initializeConversation();
     });
   }
 
   @override
   void dispose() {
     PushNotificationService.instance.latestForegroundMessage.removeListener(_onNewForegroundMessage);
-    _pollTimer?.cancel();
     _replyController.dispose();
     super.dispose();
   }
@@ -73,23 +71,46 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
     _fetchThreadMessages();
   }
 
-  Future<void> _loadPermissions() async {
+  Future<void> _initializeConversation() async {
+    if (!mounted) return;
+    setState(() {
+      _conversationReady = false;
+      _conversationError = null;
+    });
     try {
       final client = ApiClientScope.of(context);
       final accountRepo = AccountRepositoryImpl(AccountRemoteDataSource(client));
       final profile = await accountRepo.getProfile();
       if (!mounted) return;
+      if (profile.id.isEmpty) throw const FormatException('Missing user identity');
+      _currentUserId = profile.id;
+      await _fetchFullMoment();
+      if (!mounted) return;
       setState(() {
-        _currentUserId = profile.id;
+        _isCreator = _currentMoment.creatorId != null
+            ? _currentMoment.creatorId == profile.id
+            : widget.moment.userName.trim().toLowerCase() == 'you';
+        _displayName = _isCreator ? profile.displayName : _currentMoment.userName;
+        _recipientLabels.remove(profile.id);
+        _conversationReady = true;
       });
-    } catch (_) {}
+      await _fetchThreadMessages();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _conversationError = 'Could not load your conversation. Please retry.');
+    }
+  }
 
-    if (!mounted) return;
-    final result = await MomentPermissionUtils.resolve(context: context, moment: _currentMoment);
-    if (!mounted) return;
-    setState(() {
-      _displayName = result['displayName']?.toString() ?? _currentMoment.userName;
-    });
+  String _recipientLabel(String id, [Map<String, dynamic>? raw]) {
+    final data = raw?['data'] is Map ? raw!['data'] as Map : raw;
+    final person = data?['recipient'] ?? data?['recipientUser'];
+    if (person is Map) {
+      for (final key in ['displayName', 'name', 'username', 'email']) {
+        final name = person[key]?.toString().trim();
+        if (name != null && name.isNotEmpty) return name;
+      }
+    }
+    return _recipientLabels[id] ?? 'Recipient ${_recipientLabels.length + 1}';
   }
 
   String _formatMessageTime(DateTime dt) {
@@ -101,15 +122,47 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
   }
 
   Future<void> _fetchThreadMessages([String? knownThreadId]) async {
-    if (_currentMoment.id.isEmpty) return;
-    setState(() => _isLoadingMessages = true);
+    if (!mounted || !_conversationReady || _isLoadingMessages ||
+        _isSendingReply || _currentMoment.id.isEmpty) {
+      return;
+    }
+    setState(() {
+      _isLoadingMessages = true;
+      _conversationError = null;
+    });
 
     try {
       final client = ApiClientScope.of(context);
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
 
-      final threadId = knownThreadId ??
-          (await repo.createOrGetMomentThread(momentId: _currentMoment.id)).id;
+      if (_isCreator && _selectedRecipientId == null) {
+        // A creator must choose an actual recipient; never create a self-thread.
+        String? cursor;
+        final seenCursors = <String>{};
+        do {
+          final page = await repo.getChatThreads(box: 'SENT', limit: 20, cursor: cursor);
+          if (!mounted) return;
+          for (final thread in page.items) {
+            final recipient = thread.recipientUserId;
+            if (thread.momentId != _currentMoment.id || recipient == null ||
+                recipient.isEmpty || recipient == _currentUserId) {
+              continue;
+            }
+            _recipientLabels[recipient] = _recipientLabel(recipient, thread.raw);
+            if (thread.id.isNotEmpty) _recipientThreadIds[recipient] = thread.id;
+          }
+          cursor = page.hasMore ? page.nextCursor : null;
+        } while (cursor != null && cursor.isNotEmpty && seenCursors.add(cursor));
+        setState(() => _isLoadingMessages = false);
+        return;
+      }
+      final threadId = knownThreadId ?? _threadId ??
+          _recipientThreadIds[_selectedRecipientId] ??
+          (await repo.createOrGetMomentThread(
+            momentId: _currentMoment.id,
+            recipientUserId: _isCreator ? _selectedRecipientId : null,
+          )).id;
+      _threadId = threadId;
 
       if (threadId.isNotEmpty) {
         final history = await repo.getThreadMessages(
@@ -138,7 +191,10 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
       }
     } catch (_) {
       if (!mounted) return;
-      setState(() => _isLoadingMessages = false);
+      setState(() {
+        _isLoadingMessages = false;
+        _conversationError = 'Could not load the conversation. Please retry.';
+      });
     }
   }
 
@@ -177,7 +233,22 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
 
       if (!mounted) return;
       setState(() {
+        for (final id in model.recipientUserIds) {
+          if (id.isNotEmpty && id != _currentUserId) {
+            _recipientLabels.putIfAbsent(id, () => _recipientLabel(id));
+          }
+        }
+        final recipients = model.raw['recipients'];
+        if (recipients is List) {
+          for (final person in recipients.whereType<Map>()) {
+            final id = (person['recipientUserId'] ?? person['id'])?.toString();
+            if (id != null && id.isNotEmpty && id != _currentUserId) {
+              _recipientLabels[id] = _recipientLabel(id, {'recipient': person});
+            }
+          }
+        }
         _currentMoment = entity.copyWith(
+          creatorId: entity.creatorId ?? _currentMoment.creatorId,
           userName: (entity.userName.isNotEmpty && entity.userName != 'You')
               ? entity.userName
               : _currentMoment.userName,
@@ -331,6 +402,43 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                                 ),
                         ),
                         SizedBox(height: 16 * scale),
+                        if (_isCreator && _recipientLabels.isNotEmpty) ...[
+                          DropdownButton<String>(
+                            key: const ValueKey('conversation-recipient'),
+                            value: _selectedRecipientId,
+                            hint: const Text('Choose a recipient'),
+                            isExpanded: true,
+                            dropdownColor: const Color(0xFF17182D),
+                            items: _recipientLabels.entries.map((entry) => DropdownMenuItem(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            )).toList(),
+                            onChanged: _isLoadingMessages || _isSendingReply ? null : (id) {
+                              setState(() {
+                                _selectedRecipientId = id;
+                                _threadId = null;
+                                _messages = [];
+                                _replyController.clear();
+                              });
+                              _fetchThreadMessages();
+                            },
+                          ),
+                          SizedBox(height: 8 * scale),
+                        ],
+                        if (_conversationError != null)
+                          Column(children: [
+                            Text(_conversationError!, style: const TextStyle(color: Color(0xFFB4B4CD))),
+                            TextButton(
+                              onPressed: _isLoadingMessages ? null : () {
+                                if (_conversationReady) {
+                                  _fetchThreadMessages();
+                                } else {
+                                  _initializeConversation();
+                                }
+                              },
+                              child: const Text('Retry conversation'),
+                            ),
+                          ]),
                         Row(
                           children: [
                             Text(
@@ -340,6 +448,18 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                                 fontSize: 14 * scale,
                                 fontWeight: FontWeight.w600,
                               ),
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              tooltip: 'Refresh conversation',
+                              icon: const Icon(Icons.refresh_rounded),
+                              onPressed: _isLoadingMessages || _isSendingReply ? null : () {
+                                if (_conversationReady) {
+                                  _fetchThreadMessages();
+                                } else {
+                                  _initializeConversation();
+                                }
+                              },
                             ),
                             if (_isLoadingMessages) ...[
                               SizedBox(width: 8 * scale),
@@ -355,7 +475,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                           ],
                         ),
                         SizedBox(height: 8 * scale),
-                        if (_messages.isEmpty)
+                        if (_messages.isEmpty && _conversationError == null)
                           Container(
                             width: contentWidth,
                             padding: EdgeInsets.all(16 * scale),
@@ -367,7 +487,13 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                             child: Text(
                               _isLoadingMessages
                                   ? 'Loading conversation...'
-                                  : 'No messages yet. Send a reply below to start the conversation!',
+                                  : !_conversationReady
+                                      ? 'Loading conversation...'
+                                      : _isCreator && _selectedRecipientId == null
+                                          ? (_recipientLabels.isEmpty
+                                              ? 'Recipient conversations will appear here when someone replies.'
+                                              : 'Choose a recipient to view or start a conversation.')
+                                          : 'No messages yet. Send a reply below to start the conversation!',
                               style: TextStyle(
                                 color: const Color(0xFF8A8EB3),
                                 fontSize: 13 * scale,
@@ -447,7 +573,8 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                 },
               ),
             ),
-            _ReplyBar(
+            if (_conversationReady && (!_isCreator || _selectedRecipientId != null))
+              _ReplyBar(
               scale: scale,
               controller: _replyController,
               isSending: _isSendingReply,
@@ -462,7 +589,10 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
 
   Future<void> _handleSendReply() async {
     final reply = _replyController.text.trim();
-    if (reply.isEmpty || _isSendingReply) return;
+    if (reply.isEmpty || _isSendingReply || _isLoadingMessages ||
+        !_conversationReady || (_isCreator && _selectedRecipientId == null)) {
+      return;
+    }
 
     setState(() => _isSendingReply = true);
 
@@ -470,13 +600,16 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
       final client = ApiClientScope.of(context);
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
 
-      final thread = await repo.createOrGetMomentThread(
+      final threadId = _threadId ?? (await repo.createOrGetMomentThread(
         momentId: _currentMoment.id,
-      );
+        recipientUserId: _isCreator ? _selectedRecipientId : null,
+      )).id;
+      if (threadId.isEmpty) throw const FormatException('Missing conversation');
+      _threadId = threadId;
 
-      if (thread.id.isNotEmpty) {
+      if (threadId.isNotEmpty) {
         final sentMsg = await repo.sendThreadMessage(
-          chatThreadId: thread.id,
+          chatThreadId: threadId,
           text: reply,
         );
 
@@ -500,13 +633,15 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSendingReply = false);
-      final errorMessage =
-          e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
+      final errorMessage = e is ApiException
+          ? e.message
+          : 'Your reply could not be sent. Please try again.';
       VeraPopup.show(
         context,
-        title: 'Error',
-        message:
-            errorMessage.isNotEmpty ? errorMessage : 'Failed to send reply.',
+        title: 'Could not send reply',
+        icon: Icons.error_outline_rounded,
+        accent: const Color(0xFFFFC46B),
+        message: errorMessage.isNotEmpty ? errorMessage : 'Failed to send reply.',
       );
     }
   }
@@ -1393,6 +1528,7 @@ class _ReplyBar extends StatelessWidget {
                     ),
                   )
                 : GestureDetector(
+                    key: const ValueKey('send-moment-reply'),
                     onTap: onSend,
                     child: Image.asset(
                       'assets/images/reply_send_button.png',
