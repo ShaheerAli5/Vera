@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../core/auth/user_role.dart';
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/services/push_notification_service.dart';
@@ -11,6 +12,7 @@ import '../../../../main.dart' show ApiClientScope;
 import '../../../home/presentation/pages/home_screen.dart';
 import '../../data/datasources/account_remote_data_source.dart';
 import '../../data/repositories/account_repository_impl.dart';
+import 'sign_in_screen.dart';
 
 class VerifyEmailScreen extends StatefulWidget {
   const VerifyEmailScreen({super.key, required this.email});
@@ -154,23 +156,40 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         await apiClient.setTokens(
           authToken: result.token,
           refreshToken: result.refreshToken,
+          userRole: UserRole.user.value,
         );
         await PushNotificationService.instance.initialize(apiClient);
         if (!mounted) return;
+        VeraPopup.show(
+          context,
+          title: 'Email verified',
+          message: result.message.isNotEmpty
+              ? result.message
+              : 'Your account has been successfully created and verified.',
+          icon: Icons.check_circle_rounded,
+          accent: VeraTheme.success,
+        );
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
+          (route) => false,
+        );
+      } else {
+        VeraPopup.show(
+          context,
+          title: 'Email verified',
+          message: result.message.isNotEmpty
+              ? result.message
+              : 'Your email has been verified. Please sign in to continue.',
+          icon: Icons.check_circle_rounded,
+          accent: VeraTheme.success,
+        );
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(
+            builder: (_) => SignInScreen(initialEmail: widget.email.trim()),
+          ),
+          (route) => false,
+        );
       }
-      VeraPopup.show(
-        context,
-        title: 'Email verified',
-        message: result.message.isNotEmpty
-            ? result.message
-            : 'Your account has been successfully created and verified.',
-        icon: Icons.check_circle_rounded,
-        accent: VeraTheme.success,
-      );
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
-        (route) => false,
-      );
     } on ApiException catch (error) {
       if (!mounted) return;
       VeraPopup.show(

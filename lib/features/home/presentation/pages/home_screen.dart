@@ -131,6 +131,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _validateRoleGuard() {
     final client = ApiClientScope.of(context);
+    if (!client.isAuthenticated) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(builder: (_) => const SplashScreen()),
+          (route) => false,
+        );
+      });
+      return;
+    }
+
     final parsedRole = UserRole.parse(client.userRole);
     if (parsedRole == UserRole.owner) {
       // An owner/admin must never access the User Dashboard as an authenticated user
@@ -139,23 +150,6 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute<void>(builder: (_) => const AdminMainScreen()),
           (route) => false,
-        );
-      });
-    } else if (parsedRole != UserRole.user) {
-      // Invalid or unauthenticated session
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        client.clearTokens();
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute<void>(builder: (_) => const SplashScreen()),
-          (route) => false,
-        );
-        VeraPopup.show(
-          context,
-          title: 'Access Denied',
-          message: 'Invalid role session. Please sign in again.',
-          icon: Icons.error_outline_rounded,
-          accent: VeraTheme.warning,
         );
       });
     }

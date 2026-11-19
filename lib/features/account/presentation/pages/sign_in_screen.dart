@@ -17,17 +17,36 @@ import 'forgot_password_screen.dart';
 import 'verify_email_screen.dart';
 
 class SignInScreen extends StatefulWidget {
-  const SignInScreen({super.key});
+  const SignInScreen({super.key, this.initialEmail});
+
+  final String? initialEmail;
 
   @override
   State<SignInScreen> createState() => _SignInScreenState();
 }
 
 class _SignInScreenState extends State<SignInScreen> {
+  late final TextEditingController _emailController;
+  late final TextEditingController _passwordController;
   String _email = '';
   String _password = '';
   bool _obscurePassword = true;
   bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _email = widget.initialEmail ?? '';
+    _emailController = TextEditingController(text: _email);
+    _passwordController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   Future<void> _signIn() async {
     if (_isSubmitting) return;
@@ -62,29 +81,29 @@ class _SignInScreenState extends State<SignInScreen> {
         deviceName: defaultTargetPlatform.name,
       );
 
-      // Set initial auth tokens to allow backend profile request
+      // Set auth tokens with user role immediately
       await apiClient.setTokens(
         authToken: result.accessToken,
         refreshToken: result.refreshToken,
+        userRole: UserRole.user.value,
       );
 
-      // Fetch user's complete profile directly from backend API
-      final profile = await repository.getProfile();
-      final parsedRole = UserRole.parse(profile.role ?? result.user.role);
+      // Check role if profile is available
+      String? role = result.user.role;
+      try {
+        final profile = await repository.getProfile();
+        if (profile.role != null && profile.role!.isNotEmpty) {
+          role = profile.role;
+        }
+      } catch (_) {}
+
+      final parsedRole = UserRole.parse(role);
 
       if (parsedRole == UserRole.owner) {
         await apiClient.clearTokens();
         throw const ApiException(
           statusCode: 403,
           message: 'Access denied. Please use the Admin Login page.',
-        );
-      }
-
-      if (parsedRole != UserRole.user) {
-        await apiClient.clearTokens();
-        throw const ApiException(
-          statusCode: 403,
-          message: 'Access denied. Unknown or invalid user role.',
         );
       }
 
@@ -282,6 +301,7 @@ class _SignInScreenState extends State<SignInScreen> {
                                 _InputField(
                                   label: 'Email',
                                   hint: 'name@example.com',
+                                  controller: _emailController,
                                   onChanged: (value) =>
                                       setState(() => _email = value),
                                   scale: scale,
@@ -292,6 +312,7 @@ class _SignInScreenState extends State<SignInScreen> {
                                 _InputField(
                                   label: 'Password',
                                   hint: 'Enter your password',
+                                  controller: _passwordController,
                                   onChanged: (value) =>
                                       setState(() => _password = value),
                                   scale: scale,
@@ -462,6 +483,7 @@ class _InputField extends StatelessWidget {
     required this.hint,
     required this.onChanged,
     required this.scale,
+    this.controller,
     this.keyboardType,
     this.obscureText = false,
     this.enabled = true,
@@ -472,6 +494,7 @@ class _InputField extends StatelessWidget {
   final String hint;
   final ValueChanged<String> onChanged;
   final double scale;
+  final TextEditingController? controller;
   final TextInputType? keyboardType;
   final bool obscureText;
   final bool enabled;
@@ -495,6 +518,7 @@ class _InputField extends StatelessWidget {
         SizedBox(
           height: 48 * scale,
           child: TextField(
+            controller: controller,
             onChanged: onChanged,
             keyboardType: keyboardType,
             obscureText: obscureText,
