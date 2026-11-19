@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../../core/layout/responsive.dart';
+import '../../../../core/realtime/moment_realtime_route.dart';
+import '../../../../core/realtime/moment_realtime_service.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/widgets/vera_popup.dart';
@@ -16,6 +18,7 @@ import '../../data/models/chat_message_model.dart';
 import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
 import 'edit_moment_screen.dart';
+import 'locked_moment_screen.dart';
 
 class UnlockedMomentScreen extends StatefulWidget {
   const UnlockedMomentScreen({super.key, required this.moment});
@@ -26,9 +29,40 @@ class UnlockedMomentScreen extends StatefulWidget {
   State<UnlockedMomentScreen> createState() => _UnlockedMomentScreenState();
 }
 
-class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
+class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with MomentRealtimeRoute<UnlockedMomentScreen> {
   final TextEditingController _replyController = TextEditingController();
   late Moment _currentMoment;
+  bool _realtimeNavigationScheduled = false;
+  @override
+  String get realtimeMomentId => widget.moment.id;
+
+  @override
+  void onMomentRealtime(MomentRealtimeUpdate update) {
+    final updated = update.apply(_currentMoment);
+    setState(() => _currentMoment = updated);
+    if (update.deleted ||
+        _realtimeNavigationScheduled ||
+        !(!updated.isReadyToOpen && update.isUnlocked == false)) {
+      return;
+    }
+    _realtimeNavigationScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _realtimeNavigationScheduled = false;
+      if (!mounted ||
+          realtimeDeleted ||
+          ModalRoute.of(context)?.isCurrent != true) {
+        return;
+      }
+      final latest = applyRealtime(_currentMoment);
+      if (latest.isReadyToOpen) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => LockedMomentScreen(moment: latest),
+        ),
+      );
+    });
+  }
+
   bool _isLoading = false;
   Uint8List? _mediaBytes;
   bool _isLoadingMedia = false;
@@ -278,6 +312,8 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (realtimeDeleted) return deletedMomentView();
+    _currentMoment = applyRealtime(_currentMoment);
     final moment = _currentMoment;
     final screenWidth = MediaQuery.sizeOf(context).width;
     final scale = VeraResponsive.scale(screenWidth);

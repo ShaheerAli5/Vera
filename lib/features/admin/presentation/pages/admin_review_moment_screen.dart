@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../../core/realtime/moment_realtime_route.dart';
+import '../../../../core/realtime/moment_realtime_service.dart';
 
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
@@ -24,8 +26,21 @@ class AdminReviewMomentScreen extends StatefulWidget {
   State<AdminReviewMomentScreen> createState() => _AdminReviewMomentScreenState();
 }
 
-class _AdminReviewMomentScreenState extends State<AdminReviewMomentScreen> {
+class _AdminReviewMomentScreenState extends State<AdminReviewMomentScreen> with MomentRealtimeRoute<AdminReviewMomentScreen> {
   MomentModel? _moment;
+  @override
+  String get realtimeMomentId => widget.momentId;
+
+  @override
+  void onMomentRealtime(MomentRealtimeUpdate update) {
+    setState(() {
+      final moment = _moment;
+      if (moment != null) {
+        _moment = MomentModel.fromJson(update.applyToJson(moment.raw));
+      }
+    });
+  }
+
   bool _isLoading = false;
   bool _isSubmitting = false;
   String? _errorMessage;
@@ -245,6 +260,11 @@ class _AdminReviewMomentScreenState extends State<AdminReviewMomentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (realtimeDeleted) return deletedMomentView();
+    final latest = ApiClientScope.of(context).momentRealtime.latest(widget.momentId);
+    if (latest != null && _moment != null) {
+      _moment = MomentModel.fromJson(latest.applyToJson(_moment!.raw));
+    }
     final screen = MediaQuery.sizeOf(context);
     final scale = VeraResponsive.scale(screen.width);
 

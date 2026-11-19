@@ -25,11 +25,11 @@ class AdminMainScreen extends StatefulWidget {
 class _AdminMainScreenState extends State<AdminMainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = const [
-    AdminDashboardScreen(),
-    AdminModerationQueueScreen(),
-    AdminUserListScreen(),
-    AdminAuditLogScreen(),
+  List<Widget> get _pages => [
+    AdminDashboardScreen(isActive: _currentIndex == 0),
+    AdminModerationQueueScreen(isActive: _currentIndex == 1),
+    const AdminUserListScreen(),
+    const AdminAuditLogScreen(),
   ];
 
   @override
@@ -135,7 +135,10 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                 Expanded(
                   child: IndexedStack(
                     index: _currentIndex,
-                    children: _pages,
+                    children: _pages.asMap().entries.map((entry) => TickerMode(
+                      enabled: entry.key == _currentIndex,
+                      child: entry.value,
+                    )).toList(),
                   ),
                 ),
               ],

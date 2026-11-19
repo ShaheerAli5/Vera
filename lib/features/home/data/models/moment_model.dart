@@ -199,8 +199,8 @@ class MomentModel {
     final availability = json['availability'] is Map<String, dynamic>
         ? json['availability'] as Map<String, dynamic>
         : null;
-    final serverIsUnlocked = viewer?['isUnlocked'] as bool? ??
-        availability?['isUnlocked'] as bool? ??
+    final serverIsUnlocked = availability?['isUnlocked'] as bool? ??
+        viewer?['isUnlocked'] as bool? ??
         json['isUnlocked'] as bool? ??
         json['unlocked'] as bool?;
 
@@ -406,11 +406,10 @@ class MomentModel {
     final locallyDue = isDateUnlock &&
         unlockAt != null &&
         !now.isBefore(unlockAt!);
-    // Fail closed when an endpoint omits its unlock state/timestamp. The local
-    // clock is server-synchronised and is used only to transition a published
-    // DATE moment exactly when its original schedule becomes due.
+    // An explicit server false overrides timestamps and the local clock.
+    // Legacy endpoints without availability retain the published-date fallback.
     final isReadyToOpen = isApprovedAndPublished &&
-        (serverIsUnlocked == true || unlockedAt != null || locallyDue);
+        (serverIsUnlocked ?? (unlockedAt != null || locallyDue));
 
     String conditionText;
     if (isDateUnlock && unlockAt != null) {

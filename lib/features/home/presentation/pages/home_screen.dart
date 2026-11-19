@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../core/auth/user_role.dart';
 import '../../../../core/layout/responsive.dart';
+import '../../../../core/realtime/moment_realtime_service.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/utils/server_time_manager.dart';
@@ -64,6 +66,26 @@ class _HomeScreenState extends State<HomeScreen> {
   List<MomentThreadModel> get sentThreads => _sentThreads;
 
   bool _hasLoadedOnce = false;
+  MomentRealtimeService? _realtime;
+  StreamSubscription<MomentRealtimeUpdate>? _realtimeSubscription;
+
+  void _onMomentRealtime(MomentRealtimeUpdate update) {
+    if (!mounted) return;
+    setState(() {
+      for (final list in [
+        _fetchedForYouMoments, _fetchedDiscoverMoments,
+        _fetchedYourMoments, _fetchedInboxMoments,
+      ]) {
+        if (update.deleted) {
+          list.removeWhere((moment) => moment.id == update.momentId);
+        } else {
+          final index = list.indexWhere((moment) => moment.id == update.momentId);
+          if (index >= 0) list[index] = update.apply(list[index]);
+        }
+      }
+    });
+  }
+
 
   @override
   void initState() {
@@ -77,6 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _realtimeSubscription?.cancel();
     ServerTimeManager.instance.ticker.removeListener(_onTick);
     ServerTimeManager.instance.removeResumedListener(_onResumed);
     super.dispose();
@@ -94,6 +117,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     List<Moment> checkAndUpdate(List<Moment> list) {
       return list.map((m) {
+        final latest = _realtime?.latest(m.id);
+        if (latest != null) {
+          final updated = latest.apply(m);
+          needsUpdate |= updated.isReadyToOpen != m.isReadyToOpen || updated.status != m.status;
+          return updated;
+        }
         if (!m.isReadyToOpen && m.status == 'PUBLISHED' && m.unlockAt != null) {
           if (!now.isBefore(m.unlockAt!)) {
             needsUpdate = true;
@@ -122,6 +151,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final realtime = ApiClientScope.of(context).momentRealtime;
+    if (!identical(realtime, _realtime)) {
+      _realtimeSubscription?.cancel();
+      _realtime = realtime;
+      _realtimeSubscription = realtime.updates.listen(_onMomentRealtime);
+    }
     _validateRoleGuard();
     if (!_hasLoadedOnce) {
       _hasLoadedOnce = true;
@@ -215,10 +250,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (!mounted) return;
       setState(() {
-        _fetchedForYouMoments = mappedForYou;
-        _fetchedDiscoverMoments = mappedDiscover;
-        _fetchedYourMoments = mappedYour;
-        _fetchedInboxMoments = mappedInbox;
+        _fetchedForYouMoments = mappedForYou.where((m) => _realtime?.latest(m.id)?.deleted != true).map((m) => _realtime?.applyLatest(m) ?? m).toList();
+        _fetchedDiscoverMoments = mappedDiscover.where((m) => _realtime?.latest(m.id)?.deleted != true).map((m) => _realtime?.applyLatest(m) ?? m).toList();
+        _fetchedYourMoments = mappedYour.where((m) => _realtime?.latest(m.id)?.deleted != true).map((m) => _realtime?.applyLatest(m) ?? m).toList();
+        _fetchedInboxMoments = mappedInbox.where((m) => _realtime?.latest(m.id)?.deleted != true).map((m) => _realtime?.applyLatest(m) ?? m).toList();
         _incomingThreads = incomingThreadsResponse.items;
         _sentThreads = sentThreadsResponse.items;
         HomeScreen.sentMoments.clear();

@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../../../core/utils/server_time_manager.dart';
+import '../../../../core/realtime/moment_realtime_route.dart';
+import '../../../../core/realtime/moment_realtime_service.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../../account/data/datasources/account_remote_data_source.dart';
 import '../../../account/data/repositories/account_repository_impl.dart';
@@ -32,7 +33,15 @@ class MomentCard extends StatefulWidget {
   State<MomentCard> createState() => _MomentCardState();
 }
 
-class _MomentCardState extends State<MomentCard> {
+class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<MomentCard> {
+  @override
+  String get realtimeMomentId => widget.moment.id;
+
+  @override
+  void onMomentRealtime(MomentRealtimeUpdate update) {
+    setState(() {});
+  }
+
   bool _isOwner = false;
   String _displayName = '';
 
@@ -56,17 +65,15 @@ class _MomentCardState extends State<MomentCard> {
 
   @override
   Widget build(BuildContext context) {
-    final moment = widget.moment;
+    if (realtimeDeleted) return const SizedBox.shrink();
+    final moment = applyRealtime(widget.moment);
     final scale = widget.scale;
     final showDiscoverActions = widget.showDiscoverActions;
     final onTap = widget.onTap;
 
     const cardHeight = 194.0;
     const cardRadius = 20.0;
-    final bool isUnlocked = moment.isReadyToOpen ||
-        moment.unlockedAt != null ||
-        (moment.unlockAt != null &&
-            !ServerTimeManager.instance.now.isBefore(moment.unlockAt!));
+    final bool isUnlocked = moment.isReadyToOpen;
     final client = ApiClientScope.of(context);
     final token = client.authToken;
     final headers = <String, String>{
@@ -254,7 +261,7 @@ class _MomentCardState extends State<MomentCard> {
   }
 
   Widget _buildAuthorBadge(double inputScale) {
-    final moment = widget.moment;
+    final moment = applyRealtime(widget.moment);
     final scale = widget.scale;
     final displayName = _displayName;
     return ClipRRect(
@@ -333,12 +340,9 @@ class _MomentCardState extends State<MomentCard> {
     );
   }
   Widget _buildTopLock(double inputScale) {
-    final moment = widget.moment;
+    final moment = applyRealtime(widget.moment);
     final scale = widget.scale;
-    final bool isUnlocked = moment.isReadyToOpen ||
-        moment.unlockedAt != null ||
-        (moment.unlockAt != null &&
-            !ServerTimeManager.instance.now.isBefore(moment.unlockAt!));
+    final bool isUnlocked = moment.isReadyToOpen;
     return ClipOval(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),

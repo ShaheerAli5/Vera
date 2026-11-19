@@ -8,15 +8,22 @@ import '../../data/datasources/admin_remote_data_source.dart';
 import '../../data/repositories/admin_repository_impl.dart';
 import 'admin_review_moment_screen.dart';
 import '../utils/admin_media_utils.dart';
+import '../utils/admin_live_refresh.dart';
 
 class AdminModerationQueueScreen extends StatefulWidget {
-  const AdminModerationQueueScreen({super.key});
+  const AdminModerationQueueScreen({super.key, this.isActive = true});
+
+  final bool isActive;
 
   @override
   State<AdminModerationQueueScreen> createState() => _AdminModerationQueueScreenState();
 }
 
-class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen> {
+class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen> with WidgetsBindingObserver, AdminLiveRefresh<AdminModerationQueueScreen> {
+  @override
+  bool get adminRefreshActive => widget.isActive;
+  @override
+  Iterable<String> get adminWatchedMomentIds => _moments.map((m) => m.id);
   List<MomentModel> _moments = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -27,16 +34,11 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
   void initState() {
     super.initState();
     ServerTimeManager.instance.ticker.addListener(_onTick);
-    ServerTimeManager.instance.addResumedListener(_fetchQueue);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _fetchQueue();
-    });
   }
 
   @override
   void dispose() {
     ServerTimeManager.instance.ticker.removeListener(_onTick);
-    ServerTimeManager.instance.removeResumedListener(_fetchQueue);
     _searchController.dispose();
     super.dispose();
   }
@@ -47,10 +49,11 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
     }
   }
 
-  Future<void> _fetchQueue() async {
+  @override
+  Future<void> loadAdminData({required bool showLoading}) async {
     if (!mounted) return;
     setState(() {
-      _isLoading = true;
+      if (showLoading) _isLoading = true;
       _errorMessage = null;
     });
 
@@ -80,7 +83,7 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
     final scale = VeraResponsive.scale(screen.width);
 
     return RefreshIndicator(
-      onRefresh: _fetchQueue,
+      onRefresh: refreshAdmin,
       color: const Color(0xFF9044FB),
       backgroundColor: const Color(0xFF161626),
       child: Column(
@@ -113,7 +116,7 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
                         setState(() {
                           _searchQuery = val.trim();
                         });
-                        _fetchQueue();
+                        refreshAdmin();
                       },
                       decoration: InputDecoration(
                         hintText: 'Search moments...',
@@ -129,7 +132,7 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
                                   setState(() {
                                     _searchQuery = '';
                                   });
-                                  _fetchQueue();
+                                  refreshAdmin();
                                 },
                               )
                             : null,
@@ -162,7 +165,8 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
                     borderRadius: BorderRadius.circular(12 * scale),
                   ),
                   child: IconButton(
-                    onPressed: _fetchQueue,
+                    onPressed: refreshAdmin,
+                    tooltip: 'Refresh moderation queue',
                     icon: Icon(Icons.refresh, color: const Color(0xFFC68CFF), size: 24 * scale),
                   ),
                 ),
@@ -200,7 +204,7 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
               ),
               SizedBox(height: 16 * scale),
               ElevatedButton.icon(
-                onPressed: _fetchQueue,
+                onPressed: refreshAdmin,
                 icon: const Icon(Icons.refresh, color: Colors.white),
                 label: const Text('Retry', style: TextStyle(color: Colors.white)),
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF9044FB)),
@@ -265,7 +269,7 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
           ),
         );
         if (result == true) {
-          _fetchQueue();
+          refreshAdmin();
         }
       },
       child: Container(

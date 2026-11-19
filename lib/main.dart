@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'core/config/app_config.dart';
+import 'core/realtime/moment_realtime_route.dart';
 import 'core/network/api_client.dart';
 import 'core/services/push_notification_service.dart';
 import 'core/theme/theme.dart';
@@ -37,6 +38,7 @@ class VeraApp extends StatelessWidget {
     PushNotificationService.instance.setNavigatorKey(navigatorKey);
     return MaterialApp(
       navigatorKey: navigatorKey,
+      navigatorObservers: [momentRouteObserver],
       title: 'VERA',
       debugShowCheckedModeBanner: false,
       theme: VeraTheme.dark,

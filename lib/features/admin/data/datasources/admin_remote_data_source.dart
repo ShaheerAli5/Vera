@@ -227,7 +227,8 @@ class AdminRemoteDataSource {
           'totalUsers': (data['totalUsers'] as num?)?.toInt() ?? 0,
           'activeUsers': (data['activeUsers'] as num?)?.toInt() ?? 0,
           'suspendedUsers': (data['suspendedUsers'] as num?)?.toInt() ?? 0,
-          'pendingMoments': (data['pendingMoments'] as num?)?.toInt() ?? 0,
+          if (data['pendingMoments'] is num)
+            'pendingMoments': (data['pendingMoments'] as num).toInt(),
           'approvedMoments': (data['approvedMoments'] as num?)?.toInt() ?? 0,
           'rejectedMoments': (data['rejectedMoments'] as num?)?.toInt() ?? 0,
         };

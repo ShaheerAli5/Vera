@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
+import '../realtime/moment_realtime_service.dart';
 import '../services/push_notification_service.dart';
 import 'api_exception.dart';
 import 'unlock_diagnostics.dart';
@@ -15,6 +16,7 @@ class ApiClient {
     http.Client? httpClient,
     this.connectTimeout = const Duration(seconds: 15),
     this.receiveTimeout = const Duration(seconds: 30),
+    this.momentSocketFactory,
     String? initialAuthToken,
     String? initialRefreshToken,
   }) : _httpClient = httpClient ?? http.Client(),
@@ -24,6 +26,15 @@ class ApiClient {
   static const _authTokenKey = 'vera_auth_token';
   static const _refreshTokenKey = 'vera_refresh_token';
   static const _userRoleKey = 'vera_user_role';
+
+  final MomentSocketFactory? momentSocketFactory;
+  MomentRealtimeService? _momentRealtime;
+  MomentRealtimeService get momentRealtime =>
+      _momentRealtime ??= MomentRealtimeService(
+        baseUrl: config.apiBaseUrl,
+        token: _authToken,
+        socketFactory: momentSocketFactory,
+      );
 
   final AppConfig config;
   final http.Client _httpClient;
@@ -75,6 +86,7 @@ class ApiClient {
               savedRefresh != 'null')
           ? savedRefresh.trim()
           : null;
+      _momentRealtime?.updateToken(_authToken);
       _userRole =
           (savedRole != null &&
               savedRole.trim().isNotEmpty &&
@@ -86,6 +98,7 @@ class ApiClient {
 
   Future<void> setAuthToken(String? token) async {
     _authToken = token;
+    _momentRealtime?.updateToken(_authToken);
     await _saveToken(_authTokenKey, token);
   }
 
@@ -100,7 +113,10 @@ class ApiClient {
     String? userRole,
   }) async {
     // Omitted values preserve the current session. Use clearTokens to log out.
-    if (authToken != null) _authToken = authToken;
+    if (authToken != null) {
+      _authToken = authToken;
+      _momentRealtime?.updateToken(_authToken);
+    }
     if (refreshToken != null) _refreshToken = refreshToken;
     if (userRole != null) _userRole = userRole;
     await Future.wait([
@@ -116,6 +132,7 @@ class ApiClient {
   Future<void> clearTokens() async {
     PushNotificationService.instance.unregisterDevice(this).catchError((_) {});
     _authToken = null;
+    _momentRealtime?.updateToken(null);
     _refreshToken = null;
     _userRole = null;
     await Future.wait([
@@ -539,5 +556,8 @@ class ApiClient {
     return raw?.toString();
   }
 
-  void close() => _httpClient.close();
+  void close() {
+    _momentRealtime?.dispose();
+    _httpClient.close();
+  }
 }

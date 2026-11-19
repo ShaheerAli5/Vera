@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../../../core/layout/responsive.dart';
+import '../../../../core/realtime/moment_realtime_route.dart';
+import '../../../../core/realtime/moment_realtime_service.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/utils/server_time_manager.dart';
@@ -43,8 +45,39 @@ class LockedMomentScreen extends StatefulWidget {
   State<LockedMomentScreen> createState() => _LockedMomentScreenState();
 }
 
-class _LockedMomentScreenState extends State<LockedMomentScreen> {
+class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentRealtimeRoute<LockedMomentScreen> {
   late Moment _currentMoment;
+  bool _realtimeNavigationScheduled = false;
+  @override
+  String get realtimeMomentId => widget.moment.id;
+
+  @override
+  void onMomentRealtime(MomentRealtimeUpdate update) {
+    final updated = update.apply(_currentMoment);
+    setState(() => _currentMoment = updated);
+    if (update.deleted ||
+        _realtimeNavigationScheduled ||
+        !(updated.isReadyToOpen && !_isChecking)) {
+      return;
+    }
+    _realtimeNavigationScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _realtimeNavigationScheduled = false;
+      if (!mounted ||
+          realtimeDeleted ||
+          ModalRoute.of(context)?.isCurrent != true) {
+        return;
+      }
+      final latest = applyRealtime(_currentMoment);
+      if (!latest.isReadyToOpen || _isChecking) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => UnlockedMomentScreen(moment: latest),
+        ),
+      );
+    });
+  }
+
   bool _isChecking = false;
   bool _isRefreshingStatus = false;
   DateTime? _nextStatusRefreshAt;
@@ -317,7 +350,7 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
       // Refreshing status must never attempt an unlock without user location proof.
       final model = await repo.getMomentById(_currentMoment.id);
-      final updated = model.toEntity();
+      final updated = applyRealtime(model.toEntity());
       if (!mounted) return;
       setState(() => _currentMoment = updated);
       if (updated.isReadyToOpen && ModalRoute.of(context)?.isCurrent == true) {
@@ -458,7 +491,7 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
         );
         final base = unlockedModel.toEntity();
         readyMoment = base.copyWith(
-          isReadyToOpen: true,
+          isReadyToOpen: unlockedModel.serverIsUnlocked ?? true,
           userName: (base.userName.isNotEmpty && base.userName != 'You')
               ? base.userName
               : _currentMoment.userName,
@@ -506,8 +539,8 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
         }
 
         final model = await repo.getMomentById(_currentMoment.id);
-        final updated = model.toEntity();
-        if (updated.isReadyToOpen || updated.status == 'OPENED' || updated.unlockedAt != null) {
+        final updated = applyRealtime(model.toEntity());
+        if (updated.isReadyToOpen) {
           readyMoment = updated;
         } else {
           isNotReady = true;
@@ -523,6 +556,11 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
       } catch (_) {}
 
       if (readyMoment != null) {
+        readyMoment = applyRealtime(readyMoment);
+        if (realtimeDeleted || !readyMoment.isReadyToOpen) {
+          setState(() => _isChecking = false);
+          return;
+        }
         if (!mounted) return;
         showDialog(
           context: context,
@@ -556,6 +594,12 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
         try {
           Navigator.of(context, rootNavigator: true).pop(); // close success dialog
         } catch (_) {}
+
+        readyMoment = applyRealtime(readyMoment);
+        if (realtimeDeleted || !readyMoment.isReadyToOpen) {
+          setState(() => _isChecking = false);
+          return;
+        }
 
         setState(() {
           _currentMoment = readyMoment!;
@@ -667,7 +711,7 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
       final client = ApiClientScope.of(context);
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
       final model = await repo.acceptInvitation(_currentMoment.id);
-      final updated = model.toEntity();
+      final updated = applyRealtime(model.toEntity());
 
       if (!mounted) return;
       setState(() {
@@ -706,7 +750,7 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
       final client = ApiClientScope.of(context);
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
       final model = await repo.declineInvitation(_currentMoment.id);
-      final updated = model.toEntity();
+      final updated = applyRealtime(model.toEntity());
 
       if (!mounted) return;
       setState(() {
@@ -776,6 +820,8 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
   @override
   Widget build(BuildContext context) {
     final scale = VeraResponsive.scale(MediaQuery.sizeOf(context).width);
+    if (realtimeDeleted) return deletedMomentView();
+    _currentMoment = applyRealtime(_currentMoment);
     final moment = _currentMoment;
 
     return Scaffold(

@@ -6,15 +6,23 @@ import '../../data/datasources/admin_remote_data_source.dart';
 import '../../data/models/admin_audit_log_model.dart';
 import '../../data/repositories/admin_repository_impl.dart';
 import 'admin_reports_screen.dart';
+import '../utils/admin_live_refresh.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({super.key});
+  const AdminDashboardScreen({super.key, this.isActive = true});
+
+  final bool isActive;
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
-class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+class _AdminDashboardScreenState extends State<AdminDashboardScreen> with WidgetsBindingObserver, AdminLiveRefresh<AdminDashboardScreen> {
+  @override
+  bool get adminRefreshActive => widget.isActive;
+  final List<String> _pendingIds = [];
+  @override
+  Iterable<String> get adminWatchedMomentIds => _pendingIds;
   int _pendingMomentsCount = 0;
   int _totalUsers = 0;
   int _activeUsers = 0;
@@ -25,18 +33,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   bool _isLoading = true;
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadStats();
-    });
-  }
-
-  Future<void> _loadStats() async {
+  Future<void> loadAdminData({required bool showLoading}) async {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-    });
+    if (showLoading) setState(() => _isLoading = true);
 
     try {
       final client = ApiClientScope.of(context);
@@ -48,7 +47,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
       if (!mounted) return;
       setState(() {
-        _pendingMomentsCount = pendingRes.moments.length;
+        _pendingIds..clear()..addAll(pendingRes.moments.map((m) => m.id));
+        _pendingMomentsCount = statsMap['pendingMoments'] ?? pendingRes.total;
         _totalUsers = statsMap['totalUsers'] ?? 0;
         _activeUsers = statsMap['activeUsers'] ?? 0;
         _suspendedUsers = statsMap['suspendedUsers'] ?? 0;
@@ -71,7 +71,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final scale = VeraResponsive.scale(screen.width);
 
     return RefreshIndicator(
-      onRefresh: _loadStats,
+      onRefresh: refreshAdmin,
       color: const Color(0xFF9044FB),
       backgroundColor: const Color(0xFF161626),
       child: SingleChildScrollView(
@@ -83,7 +83,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                Expanded(child: Text(
                   'Dashboard Overview',
                   style: TextStyle(
                     color: const Color(0xFFF7F5FF),
@@ -91,6 +91,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     fontWeight: FontWeight.w600,
                     letterSpacing: -.3,
                   ),
+                )),
+                IconButton(
+                  tooltip: 'Refresh dashboard',
+                  onPressed: _isLoading ? null : refreshAdmin,
+                  icon: const Icon(Icons.refresh, color: Color(0xFFC68CFF)),
                 ),
                 if (_isLoading)
                   SizedBox(

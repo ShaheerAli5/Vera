@@ -105,6 +105,17 @@ void main() {
       expect(response.moments.single.toEntity().isReadyToOpen, isTrue);
     });
 
+    test('explicit availability false overrides viewer and past timestamps', () {
+      final model = MomentModel.fromJson({
+        'id': 'still-locked', 'status': 'PUBLISHED',
+        'unlock': {'type': 'DATE', 'unlockAt': '2000-01-01T00:00:00Z'},
+        'unlockedAt': '2000-01-01T00:00:00Z',
+        'viewer': {'isUnlocked': true},
+        'availability': {'isUnlocked': false},
+      });
+      expect(model.toEntity().isReadyToOpen, isFalse);
+    });
+
     test('location Moment requires server-confirmed unlock', () {
       final model = MomentModel.fromJson({
         'id': 'location-moment',

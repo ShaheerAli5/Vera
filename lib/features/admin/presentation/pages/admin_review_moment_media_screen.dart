@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../../../../core/realtime/moment_realtime_route.dart';
+import '../../../../core/realtime/moment_realtime_service.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../../main.dart' show ApiClientScope;
@@ -23,8 +25,21 @@ class AdminReviewMomentMediaScreen extends StatefulWidget {
   State<AdminReviewMomentMediaScreen> createState() => _AdminReviewMomentMediaScreenState();
 }
 
-class _AdminReviewMomentMediaScreenState extends State<AdminReviewMomentMediaScreen> {
+class _AdminReviewMomentMediaScreenState extends State<AdminReviewMomentMediaScreen> with MomentRealtimeRoute<AdminReviewMomentMediaScreen> {
   MomentModel? _moment;
+  @override
+  String get realtimeMomentId => widget.momentId;
+
+  @override
+  void onMomentRealtime(MomentRealtimeUpdate update) {
+    setState(() {
+      final moment = _moment;
+      if (moment != null) {
+        _moment = MomentModel.fromJson(update.applyToJson(moment.raw));
+      }
+    });
+  }
+
   bool _isLoading = false;
   bool _isSubmitting = false;
 
@@ -298,6 +313,11 @@ class _AdminReviewMomentMediaScreenState extends State<AdminReviewMomentMediaScr
 
   @override
   Widget build(BuildContext context) {
+    if (realtimeDeleted) return deletedMomentView();
+    final latest = ApiClientScope.of(context).momentRealtime.latest(widget.momentId);
+    if (latest != null && _moment != null) {
+      _moment = MomentModel.fromJson(latest.applyToJson(_moment!.raw));
+    }
     final moment = _moment;
     final apiClient = ApiClientScope.of(context);
     final mediaUrl = adminMomentMediaUrl(apiClient, moment?.mediaUrl, widget.momentId);
