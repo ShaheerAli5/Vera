@@ -6,6 +6,7 @@ import '../../../../core/theme/theme.dart';
 import '../../../../core/utils/server_time_manager.dart';
 import '../../data/models/create_moment_params.dart';
 import 'review_moment_screen.dart';
+import 'location_picker_screen.dart';
 
 class ChooseConditionScreen extends StatefulWidget {
   const ChooseConditionScreen({
@@ -45,37 +46,18 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
   final TextEditingController _dateController = TextEditingController();
   late String _timezone;
 
-  final List<Map<String, dynamic>> _locationPresets = const [
-    {
-      'flag': '🇯🇵',
-      'name': 'Tokyo Tower',
-      'latitude': 35.6586,
-      'longitude': 139.7454,
-      'radiusM': 200,
-    },
-    {
-      'flag': '🇫🇷',
-      'name': 'Eiffel Tower',
-      'latitude': 48.8584,
-      'longitude': 2.2945,
-      'radiusM': 200,
-    },
-    {
-      'flag': '🇮🇸',
-      'name': 'Reykjavik harbor',
-      'latitude': 64.1508,
-      'longitude': -21.9406,
-      'radiusM': 200,
-    },
-  ];
-  String _selectedLocation = 'Tokyo Tower';
-  final String _selectedRadius = '200m';
+  SelectedMomentLocation? _selectedLocation;
 
-  Map<String, dynamic> get _activeLocationPreset =>
-      _locationPresets.firstWhere(
-        (loc) => loc['name'] == _selectedLocation,
-        orElse: () => _locationPresets.first,
-      );
+  Future<void> _pickLocation() async {
+    final selected = await Navigator.of(context).push<SelectedMomentLocation>(
+      MaterialPageRoute(
+        builder: (_) => LocationPickerScreen(initialLocation: _selectedLocation),
+      ),
+    );
+    if (selected != null && mounted) {
+      setState(() => _selectedLocation = selected);
+    }
+  }
 
   @override
   void initState() {
@@ -701,38 +683,15 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                             ),
                             SizedBox(height: 16 * scale),
 
-                            // Dynamic Location Preset Cards
-                            ..._locationPresets.map((loc) {
-                              final name = loc['name']!;
-                              final flag = loc['flag']!;
-                              return _LocationPresetCard(
-                                flag: flag,
-                                name: name,
-                                scale: scale,
-                                isSelected: _selectedLocation == name,
-                                onTap: () =>
-                                    setState(() => _selectedLocation = name),
-                              );
-                            }),
-
-                            SizedBox(height: 12 * scale),
-
-                            // Unlock Radius Sub-heading
-                            Text(
-                              'Unlock radius',
-                              style: TextStyle(
-                                color: const Color(0xFFD4D4E8),
-                                fontSize: 13 * scale,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            SizedBox(height: 10 * scale),
-
-                            Container(
+                            GestureDetector(
+                              onTap: _pickLocation,
+                              child: Container(
                               width: contentWidth,
-                              height: 48 * scale,
+                              constraints: BoxConstraints(minHeight: 72 * scale),
                               padding: EdgeInsets.symmetric(
-                                  horizontal: 16 * scale),
+                                horizontal: 16 * scale,
+                                vertical: 12 * scale,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF17182D),
                                 borderRadius:
@@ -743,24 +702,51 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                                 ),
                               ),
                               child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    _selectedRadius,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14 * scale,
-                                      fontWeight: FontWeight.w500,
+                                  Icon(
+                                    Icons.map_outlined,
+                                    color: VeraTheme.purpleBright,
+                                    size: 24 * scale,
+                                  ),
+                                  SizedBox(width: 12 * scale),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          _selectedLocation?.name ??
+                                              'Choose on map',
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14 * scale,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        SizedBox(height: 3 * scale),
+                                        Text(
+                                          _selectedLocation == null
+                                              ? 'Search a building, address, or pin an exact point'
+                                              : '${_selectedLocation!.latitude.toStringAsFixed(6)}, '
+                                                  '${_selectedLocation!.longitude.toStringAsFixed(6)} · '
+                                                  '${_selectedLocation!.radiusM}m radius',
+                                          style: TextStyle(
+                                            color: const Color(0xFF8A8EB3),
+                                            fontSize: 11.5 * scale,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                   Icon(
-                                    Icons.location_pin,
+                                    Icons.chevron_right_rounded,
                                     color: const Color(0xFF8A8EB3),
                                     size: 20 * scale,
                                   ),
                                 ],
                               ),
+                            ),
                             ),
                           ],
                         ),
@@ -804,7 +790,12 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                     ],
                   ),
                   child: TextButton(
-                    onPressed: () {
+                    onPressed: () async {
+                      if (!_isDateTimeCondition && _selectedLocation == null) {
+                        await _pickLocation();
+                        if (!mounted || _selectedLocation == null) return;
+                      }
+                      final selectedLocation = _selectedLocation;
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => ReviewMomentScreen(
@@ -818,10 +809,11 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                                 : 'Discoverable by other users',
                             condition: _isDateTimeCondition
                                 ? _dateController.text
-                                : "Opens when you're at $_selectedLocation",
+                                : "Opens when you're at ${selectedLocation!.name}",
                             conditionSubtitle: _isDateTimeCondition
                                 ? 'Date & time ($_timezone)'
-                                : '$_selectedLocation ($_selectedRadius radius)',
+                                : '${selectedLocation!.name} '
+                                    '(${selectedLocation.radiusM}m radius)',
                             isPrivate: widget.isPrivate,
                             recipientUserIds: widget.recipientUserIds,
                             recipientName: widget.recipientNames,
@@ -839,14 +831,16 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                             timezone: _timezone,
                             latitude: _isDateTimeCondition
                                 ? null
-                                : (_activeLocationPreset['latitude'] as num?)?.toDouble(),
+                                : selectedLocation!.latitude,
                             longitude: _isDateTimeCondition
                                 ? null
-                                : (_activeLocationPreset['longitude'] as num?)?.toDouble(),
+                                : selectedLocation!.longitude,
                             radiusM: _isDateTimeCondition
                                 ? null
-                                : (_activeLocationPreset['radiusM'] as num?)?.toInt(),
-                            placeName: _isDateTimeCondition ? null : _selectedLocation,
+                                : selectedLocation!.radiusM,
+                            placeName: _isDateTimeCondition
+                                ? null
+                                : selectedLocation!.name,
                             mediaFile: widget.mediaFile,
                             mediaBytes: widget.mediaBytes,
                             isVideo: widget.isVideo,
@@ -869,74 +863,6 @@ class _ChooseConditionScreenState extends State<ChooseConditionScreen> {
                 ),
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LocationPresetCard extends StatelessWidget {
-  const _LocationPresetCard({
-    required this.flag,
-    required this.name,
-    required this.scale,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final String flag;
-  final String name;
-  final double scale;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: VeraResponsive.contentWidth(
-          MediaQuery.sizeOf(context).width,
-          horizontalPadding: 24 * scale,
-        ),
-        height: 48 * scale,
-        margin: EdgeInsets.only(bottom: 12 * scale),
-        padding: EdgeInsets.symmetric(horizontal: 16 * scale),
-        decoration: BoxDecoration(
-          color: const Color(0xFF17182D),
-          borderRadius: BorderRadius.circular(12 * scale),
-          border: Border.all(
-            color: isSelected
-                ? VeraTheme.purpleBright
-                : const Color(0x1AFFFFFF),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Text(
-              flag,
-              style: TextStyle(fontSize: 18 * scale),
-            ),
-            SizedBox(width: 12 * scale),
-            Expanded(
-              child: Text(
-                name,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14 * scale,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            if (isSelected)
-              Icon(
-                Icons.check_circle_rounded,
-                color: VeraTheme.purpleBright,
-                size: 20 * scale,
-              ),
           ],
         ),
       ),

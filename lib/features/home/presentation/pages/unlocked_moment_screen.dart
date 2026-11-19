@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -5,12 +6,17 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../../core/layout/responsive.dart';
+import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
+import '../../../account/data/datasources/account_remote_data_source.dart';
+import '../../../account/data/repositories/account_repository_impl.dart';
 import '../../data/datasources/moments_remote_data_source.dart';
 import '../../data/models/chat_message_model.dart';
 import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
+import 'edit_moment_screen.dart';
+import '../utils/moment_permission_utils.dart';
 
 class UnlockedMomentScreen extends StatefulWidget {
   const UnlockedMomentScreen({super.key, required this.moment});
@@ -31,16 +37,67 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
   bool _isSendingReply = false;
   List<ChatMessageModel> _messages = [];
   bool _isLoadingMessages = false;
+  String _displayName = '';
+  Timer? _pollTimer;
+  String? _currentUserId;
 
   @override
   void initState() {
     super.initState();
     _currentMoment = widget.moment;
+    _displayName = widget.moment.userName;
+    PushNotificationService.instance.latestForegroundMessage.addListener(_onNewForegroundMessage);
+    _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (mounted) {
+        _fetchThreadMessages();
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadPermissions();
       _fetchFullMoment();
       _fetchMediaStream();
       _fetchThreadMessages();
     });
+  }
+
+  @override
+  void dispose() {
+    PushNotificationService.instance.latestForegroundMessage.removeListener(_onNewForegroundMessage);
+    _pollTimer?.cancel();
+    _replyController.dispose();
+    super.dispose();
+  }
+
+  void _onNewForegroundMessage() {
+    if (!mounted) return;
+    _fetchThreadMessages();
+  }
+
+  Future<void> _loadPermissions() async {
+    try {
+      final client = ApiClientScope.of(context);
+      final accountRepo = AccountRepositoryImpl(AccountRemoteDataSource(client));
+      final profile = await accountRepo.getProfile();
+      if (!mounted) return;
+      setState(() {
+        _currentUserId = profile.id;
+      });
+    } catch (_) {}
+
+    if (!mounted) return;
+    final result = await MomentPermissionUtils.resolve(context: context, moment: _currentMoment);
+    if (!mounted) return;
+    setState(() {
+      _displayName = result['displayName']?.toString() ?? _currentMoment.userName;
+    });
+  }
+
+  String _formatMessageTime(DateTime dt) {
+    final local = dt.toLocal();
+    final hour = local.hour > 12 ? local.hour - 12 : (local.hour == 0 ? 12 : local.hour);
+    final min = local.minute.toString().padLeft(2, '0');
+    final ampm = local.hour >= 12 ? 'PM' : 'AM';
+    return '$hour:$min $ampm';
   }
 
   Future<void> _fetchThreadMessages([String? knownThreadId]) async {
@@ -149,12 +206,6 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
   }
 
   @override
-  void dispose() {
-    _replyController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final moment = _currentMoment;
     final screenWidth = MediaQuery.sizeOf(context).width;
@@ -200,6 +251,17 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                         fontWeight: FontWeight.w500,
                       ),
                     ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: IconButton(
+                        onPressed: () => _showSafetyMenu(context, scale),
+                        icon: Icon(Icons.more_horiz_rounded,
+                            color: Colors.white, size: 22 * scale),
+                        padding: EdgeInsets.zero,
+                        constraints: BoxConstraints.tightFor(
+                            width: 40 * scale, height: 40 * scale),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -219,7 +281,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                         24 * scale, 20 * scale, 24 * scale, 104 * scale + bottomPad),
                     child: Column(
                       children: [
-                        _SenderBadge(moment: moment, scale: scale),
+                        _SenderBadge(moment: _currentMoment, scale: scale, displayName: _displayName),
                         if (hasMediaAttachment) ...[
                           SizedBox(height: 16 * scale),
                           _VideoPreview(
@@ -268,23 +330,10 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                                   ),
                                 ),
                         ),
-                        if (_isLoadingMessages) ...[
-                          SizedBox(height: 12 * scale),
-                          Center(
-                            child: SizedBox(
-                              width: 16 * scale,
-                              height: 16 * scale,
-                              child: const CircularProgressIndicator(
-                                strokeWidth: 1.5,
-                                color: Color(0xFF9044FB),
-                              ),
-                            ),
-                          ),
-                        ] else if (_messages.isNotEmpty) ...[
-                          SizedBox(height: 16 * scale),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
+                        SizedBox(height: 16 * scale),
+                        Row(
+                          children: [
+                            Text(
                               'Conversation (${_messages.length})',
                               style: TextStyle(
                                 color: const Color(0xFFF7F5FF),
@@ -292,29 +341,106 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ),
-                          SizedBox(height: 8 * scale),
-                          for (final msg in _messages) ...[
-                            Container(
-                              width: contentWidth,
-                              margin: EdgeInsets.only(bottom: 8 * scale),
-                              padding: EdgeInsets.all(12 * scale),
-                              decoration: BoxDecoration(
-                                color: const Color(0x2217182D),
-                                borderRadius: BorderRadius.circular(12 * scale),
-                                border: Border.all(
-                                    color: const Color(0x33373657), width: scale),
-                              ),
-                              child: Text(
-                                msg.content,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14 * scale,
+                            if (_isLoadingMessages) ...[
+                              SizedBox(width: 8 * scale),
+                              SizedBox(
+                                width: 12 * scale,
+                                height: 12 * scale,
+                                child: const CircularProgressIndicator(
+                                  strokeWidth: 1.5,
+                                  color: Color(0xFF9044FB),
                                 ),
                               ),
+                            ],
+                          ],
+                        ),
+                        SizedBox(height: 8 * scale),
+                        if (_messages.isEmpty)
+                          Container(
+                            width: contentWidth,
+                            padding: EdgeInsets.all(16 * scale),
+                            decoration: BoxDecoration(
+                              color: const Color(0x1A17182D),
+                              borderRadius: BorderRadius.circular(12 * scale),
+                              border: Border.all(color: const Color(0x22373657)),
+                            ),
+                            child: Text(
+                              _isLoadingMessages
+                                  ? 'Loading conversation...'
+                                  : 'No messages yet. Send a reply below to start the conversation!',
+                              style: TextStyle(
+                                color: const Color(0xFF8A8EB3),
+                                fontSize: 13 * scale,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          )
+                        else
+                          for (final msg in _messages) ...[
+                            Builder(
+                              builder: (context) {
+                                final isMe = _currentUserId != null && _currentUserId!.isNotEmpty
+                                    ? msg.senderId == _currentUserId
+                                    : false;
+
+                                return Align(
+                                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                                  child: Container(
+                                    constraints: BoxConstraints(maxWidth: contentWidth * 0.78),
+                                    margin: EdgeInsets.only(bottom: 8 * scale),
+                                    padding: EdgeInsets.symmetric(horizontal: 14 * scale, vertical: 10 * scale),
+                                    decoration: BoxDecoration(
+                                      color: isMe ? const Color(0xFF9044FB) : const Color(0xFF1E1E2F),
+                                      gradient: isMe
+                                          ? const LinearGradient(
+                                              colors: [Color(0xFF9044FB), Color(0xFF6B42FF)],
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                            )
+                                          : null,
+                                      borderRadius: BorderRadius.only(
+                                        topLeft: Radius.circular(16 * scale),
+                                        topRight: Radius.circular(16 * scale),
+                                        bottomLeft: Radius.circular(isMe ? 16 * scale : 4 * scale),
+                                        bottomRight: Radius.circular(isMe ? 4 * scale : 16 * scale),
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(alpha: 0.15),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          msg.content,
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14 * scale,
+                                            height: 1.35,
+                                          ),
+                                        ),
+                                        if (msg.createdAt != null) ...[
+                                          SizedBox(height: 4 * scale),
+                                          Text(
+                                            _formatMessageTime(msg.createdAt!),
+                                            style: TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 10 * scale,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ],
-                        ],
                       ],
                     ),
                   );
@@ -384,13 +510,317 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
       );
     }
   }
+
+  void _showSafetyMenu(BuildContext context, double scale) {
+    final client = ApiClientScope.of(context);
+    final isAuthor = (_currentMoment.creatorId != null &&
+            client.currentUserId != null &&
+            _currentMoment.creatorId == client.currentUserId) ||
+        _currentMoment.userName.trim().toLowerCase() == 'you';
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0xB3090A17),
+      builder: (sheetContext) => Container(
+        padding: EdgeInsets.fromLTRB(24 * scale, 16 * scale, 24 * scale, 32 * scale),
+        decoration: BoxDecoration(
+          color: const Color(0xFF17182D),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24 * scale)),
+          border: Border.all(color: const Color(0xFF373657)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36 * scale,
+              height: 4 * scale,
+              margin: EdgeInsets.only(bottom: 20 * scale),
+              decoration: BoxDecoration(
+                color: const Color(0xFF454B70),
+                borderRadius: BorderRadius.circular(2 * scale),
+              ),
+            ),
+            if (isAuthor) ...[
+              ListTile(
+                leading: const Icon(Icons.edit_outlined, color: Colors.white),
+                title: const Text('Edit moment', style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  final updated = await Navigator.of(context).push<Moment>(
+                    MaterialPageRoute<Moment>(
+                      builder: (_) => EditMomentScreen(moment: _currentMoment),
+                    ),
+                  );
+                  if (updated != null && mounted) {
+                    setState(() => _currentMoment = updated);
+                  }
+                },
+              ),
+            ],
+            ListTile(
+              leading: const Icon(Icons.flag_outlined, color: Colors.white),
+              title: const Text('Report moment', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _showReportSheet(context, scale);
+              },
+            ),
+            if (!isAuthor) ...[
+              ListTile(
+                leading: const Icon(Icons.person_off_outlined, color: Color(0xFFFFA05C)),
+                title: Text('Report ${_currentMoment.userName}',
+                    style: const TextStyle(color: Color(0xFFFFA05C))),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _showReportUserSheet(context, scale);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.block, color: Color(0xFFFF4D4F)),
+                title: Text('Block ${_currentMoment.userName}',
+                    style: const TextStyle(color: Color(0xFFFF4D4F))),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _showBlockConfirmation(context, scale);
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showReportUserSheet(BuildContext context, double scale) {
+    final client = ApiClientScope.of(context);
+    final accountRepo = AccountRepositoryImpl(AccountRemoteDataSource(client));
+    final targetUserId = _currentMoment.creatorId;
+
+    if (targetUserId == null || targetUserId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot identify user to report.')),
+      );
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0xB3090A17),
+      builder: (sheetCtx) => Container(
+        padding: EdgeInsets.fromLTRB(24 * scale, 16 * scale, 24 * scale, 32 * scale),
+        decoration: BoxDecoration(
+          color: const Color(0xFF17182D),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24 * scale)),
+          border: Border.all(color: const Color(0xFF373657)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Report ${_currentMoment.userName}',
+                style: TextStyle(color: Colors.white, fontSize: 18 * scale, fontWeight: FontWeight.bold)),
+            SizedBox(height: 16 * scale),
+            for (final entry in const [
+              MapEntry('Harassment or bullying', 'HARASSMENT'),
+              MapEntry('Spam or scam', 'SPAM'),
+              MapEntry('Hate speech', 'HATE_SPEECH'),
+              MapEntry('Explicit or inappropriate content', 'EXPLICIT_CONTENT'),
+              MapEntry('Something else', 'OTHER'),
+            ])
+              ListTile(
+                title: Text(entry.key, style: const TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.of(sheetCtx).pop();
+                  String? details;
+                  if (entry.value == 'OTHER') {
+                    details = await _promptReportDetails(context, scale);
+                    if (details == null || details.trim().isEmpty) return;
+                  }
+                  try {
+                    await accountRepo.reportUser(
+                      userId: targetUserId,
+                      reason: entry.value,
+                      details: details,
+                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Report against ${_currentMoment.userName} submitted. Thank you.'),
+                          backgroundColor: const Color(0xFF6B42FF),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to submit report: $e')),
+                      );
+                    }
+                  }
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showBlockConfirmation(BuildContext context, double scale) {
+    final client = ApiClientScope.of(context);
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF17182D),
+        title: Text('Block ${_currentMoment.userName}?',
+            style: const TextStyle(color: Colors.white)),
+        content: Text(
+          "You won't receive new invitations or notifications from ${_currentMoment.userName}. You can unblock them in Privacy settings.",
+          style: const TextStyle(color: Color(0xFFA2A5C2)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFFA2A5C2))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF4D4F)),
+            onPressed: () async {
+              Navigator.of(dialogCtx).pop();
+              final targetId = _currentMoment.creatorId;
+              if (targetId == null || targetId.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Cannot block this user.')),
+                );
+                return;
+              }
+              try {
+                final repo = AccountRepositoryImpl(AccountRemoteDataSource(client));
+                await repo.blockUser(targetId);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('${_currentMoment.userName} has been blocked.')),
+                  );
+                  Navigator.of(context).pop(_currentMoment.copyWith(
+                    id: '__DELETED__:${_currentMoment.id}',
+                  ));
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to block user: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Block', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReportSheet(BuildContext context, double scale) {
+    final client = ApiClientScope.of(context);
+    final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0xB3090A17),
+      builder: (sheetCtx) => Container(
+        padding: EdgeInsets.fromLTRB(24 * scale, 16 * scale, 24 * scale, 32 * scale),
+        decoration: BoxDecoration(
+          color: const Color(0xFF17182D),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24 * scale)),
+          border: Border.all(color: const Color(0xFF373657)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Why are you reporting this?',
+                style: TextStyle(color: Colors.white, fontSize: 18 * scale, fontWeight: FontWeight.bold)),
+            SizedBox(height: 16 * scale),
+            for (final entry in const [
+              MapEntry('Spam', 'SPAM'),
+              MapEntry('Inappropriate content', 'INAPPROPRIATE_CONTENT'),
+              MapEntry('Harassment', 'HARASSMENT'),
+              MapEntry('Something else', 'OTHER'),
+            ])
+              ListTile(
+                title: Text(entry.key, style: const TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.of(sheetCtx).pop();
+                  String? details;
+                  if (entry.value == 'OTHER') {
+                    details = await _promptReportDetails(context, scale);
+                    if (details == null || details.trim().isEmpty) return;
+                  }
+                  try {
+                    await repo.reportMoment(
+                      momentId: _currentMoment.id,
+                      reason: entry.value,
+                      details: details,
+                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Report submitted. Thank you for keeping Vera safe.')),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to submit report: $e')),
+                      );
+                    }
+                  }
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<String?> _promptReportDetails(BuildContext context, double scale) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF17182D),
+        title: const Text('Report details', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Please describe the issue...',
+            hintStyle: TextStyle(color: Color(0xFFA2A5C2)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFFA2A5C2))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF9044FB)),
+            onPressed: () => Navigator.of(dialogCtx).pop(controller.text.trim()),
+            child: const Text('Submit', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _SenderBadge extends StatelessWidget {
-  const _SenderBadge({required this.moment, required this.scale});
+  const _SenderBadge({required this.moment, required this.scale, required this.displayName});
 
   final Moment moment;
   final double scale;
+  final String displayName;
 
   @override
   Widget build(BuildContext context) {
@@ -433,7 +863,7 @@ class _SenderBadge extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'From ${moment.userName}',
+                'From $displayName',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 13 * scale,
@@ -907,20 +1337,6 @@ class _ReplyBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: 48 * scale,
-            height: 48 * scale,
-            child: IconButton(
-              onPressed: () {},
-              icon: Icon(Icons.add_rounded, color: Colors.white, size: 22 * scale),
-              style: IconButton.styleFrom(
-                backgroundColor: const Color(0x12F7F5FF),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16 * scale)),
-              ),
-            ),
-          ),
-          SizedBox(width: 8 * scale),
           Expanded(
             child: Container(
               height: 48 * scale,

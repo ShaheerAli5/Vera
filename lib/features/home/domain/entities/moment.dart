@@ -6,6 +6,7 @@ enum MomentUnlockType {
 class Moment {
   const Moment({
     required this.id,
+    this.creatorId,
     required this.userName,
     required this.userAvatarUrl,
     required this.timeAgo,
@@ -25,12 +26,17 @@ class Moment {
     this.unlockedAt,
     this.openedAt,
     this.unlockAt,
+    this.unlockLatitude,
+    this.unlockLongitude,
+    this.unlockRadiusM,
+    this.unlockPlaceName,
     this.isVideo = false,
     this.contentType,
     this.hasMedia = true,
   });
 
   final String id;
+  final String? creatorId;
   final String userName;
   final String userAvatarUrl;
   final String timeAgo;
@@ -50,12 +56,17 @@ class Moment {
   final DateTime? unlockedAt;
   final DateTime? openedAt;
   final DateTime? unlockAt;
+  final double? unlockLatitude;
+  final double? unlockLongitude;
+  final int? unlockRadiusM;
+  final String? unlockPlaceName;
   final bool isVideo;
   final String? contentType;
   final bool hasMedia;
 
   Moment copyWith({
     String? id,
+    String? creatorId,
     String? userName,
     String? userAvatarUrl,
     String? timeAgo,
@@ -75,12 +86,17 @@ class Moment {
     DateTime? unlockedAt,
     DateTime? openedAt,
     DateTime? unlockAt,
+    double? unlockLatitude,
+    double? unlockLongitude,
+    int? unlockRadiusM,
+    String? unlockPlaceName,
     bool? isVideo,
     String? contentType,
     bool? hasMedia,
   }) {
     return Moment(
       id: id ?? this.id,
+      creatorId: creatorId ?? this.creatorId,
       userName: userName ?? this.userName,
       userAvatarUrl: userAvatarUrl ?? this.userAvatarUrl,
       timeAgo: timeAgo ?? this.timeAgo,
@@ -100,6 +116,10 @@ class Moment {
       unlockedAt: unlockedAt ?? this.unlockedAt,
       openedAt: openedAt ?? this.openedAt,
       unlockAt: unlockAt ?? this.unlockAt,
+      unlockLatitude: unlockLatitude ?? this.unlockLatitude,
+      unlockLongitude: unlockLongitude ?? this.unlockLongitude,
+      unlockRadiusM: unlockRadiusM ?? this.unlockRadiusM,
+      unlockPlaceName: unlockPlaceName ?? this.unlockPlaceName,
       isVideo: isVideo ?? this.isVideo,
       contentType: contentType ?? this.contentType,
       hasMedia: hasMedia ?? this.hasMedia,

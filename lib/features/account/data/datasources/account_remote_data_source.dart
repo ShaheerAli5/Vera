@@ -391,26 +391,58 @@ class AccountRemoteDataSource {
 
   Future<BlockedUserListResponse> getBlockedUsers() async {
     try {
-      final response = await _apiClient.get('/users/blocked');
+      final response = await _apiClient.get('/profile/blocked-users');
       return BlockedUserListResponse.fromJson(response);
     } catch (_) {
       try {
-        final response = await _apiClient.get('/account/blocked');
+        final response = await _apiClient.get('/users/blocked');
         return BlockedUserListResponse.fromJson(response);
       } catch (_) {
-        return const BlockedUserListResponse(items: []);
+        try {
+          final response = await _apiClient.get('/account/blocked');
+          return BlockedUserListResponse.fromJson(response);
+        } catch (_) {
+          return const BlockedUserListResponse(items: []);
+        }
       }
+    }
+  }
+
+  Future<void> blockUser(String userId) async {
+    try {
+      await _apiClient.post('/users/$userId/block');
+    } catch (_) {
+      await _apiClient.post('/users/block', body: {'userId': userId});
     }
   }
 
   Future<void> unblockUser(String userId) async {
     try {
-      await _apiClient.delete('/users/blocked/$userId');
+      await _apiClient.delete('/users/$userId/block');
     } catch (_) {
       try {
-        await _apiClient.post('/users/unblock', body: {'userId': userId});
-      } catch (_) {}
+        await _apiClient.delete('/users/blocked/$userId');
+      } catch (_) {
+        try {
+          await _apiClient.post('/users/unblock', body: {'userId': userId});
+        } catch (_) {}
+      }
     }
+  }
+
+  Future<void> reportUser({
+    required String userId,
+    required String reason,
+    String? details,
+  }) async {
+    await _apiClient.post(
+      '/users/$userId/report',
+      body: {
+        'reason': reason,
+        if (details != null && details.trim().isNotEmpty)
+          'details': details.trim(),
+      },
+    );
   }
 
   static MediaType _resolveMediaType(String filename) {

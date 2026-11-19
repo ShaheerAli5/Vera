@@ -16,6 +16,7 @@ import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
 import 'home_screen.dart';
 import 'moment_ready_screen.dart';
+import 'location_picker_screen.dart';
 
 class _CreationResult {
   const _CreationResult({
@@ -1041,31 +1042,15 @@ class _ReviewMomentScreenState extends State<ReviewMomentScreen> {
             .add(const Duration(days: 1))
             .copyWith(hour: 9, minute: 0, second: 0, millisecond: 0);
     String selectedTz = _timezone;
-    String selectedLocation = _placeName ?? 'Tokyo Tower';
-
-    const locationPresets = [
-      {
-        'flag': '🇯🇵',
-        'name': 'Tokyo Tower',
-        'latitude': 35.6586,
-        'longitude': 139.7454,
-        'radiusM': 200,
-      },
-      {
-        'flag': '🇫🇷',
-        'name': 'Eiffel Tower',
-        'latitude': 48.8584,
-        'longitude': 2.2945,
-        'radiusM': 200,
-      },
-      {
-        'flag': '🇮🇸',
-        'name': 'Reykjavik harbor',
-        'latitude': 64.1508,
-        'longitude': -21.9406,
-        'radiusM': 200,
-      },
-    ];
+    SelectedMomentLocation? selectedLocation =
+        _latitude != null && _longitude != null
+            ? SelectedMomentLocation(
+                name: _placeName ?? 'Pinned location',
+                latitude: _latitude!,
+                longitude: _longitude!,
+                radiusM: _radiusM ?? 100,
+              )
+            : null;
 
     String formatDateString(DateTime dt) {
       const monthNames = [
@@ -1450,7 +1435,7 @@ class _ReviewMomentScreenState extends State<ReviewMomentScreen> {
                                   ),
                                 ] else ...[
                                   Text(
-                                    'Choose location',
+                                    'Choose exact location',
                                     style: TextStyle(
                                       color: const Color(0xFFD4D4E8),
                                       fontSize: 13 * scale,
@@ -1458,14 +1443,23 @@ class _ReviewMomentScreenState extends State<ReviewMomentScreen> {
                                     ),
                                   ),
                                   SizedBox(height: 10 * scale),
-                                  ...locationPresets.map((loc) {
-                                    final name = loc['name'] as String;
-                                    final flag = loc['flag'] as String;
-                                    final isSelected =
-                                        selectedLocation == name;
-                                    return GestureDetector(
-                                      onTap: () => setModalState(
-                                          () => selectedLocation = name),
+                                  GestureDetector(
+                                      onTap: () async {
+                                        final picked = await Navigator.of(
+                                          sheetContext,
+                                        ).push<SelectedMomentLocation>(
+                                          MaterialPageRoute(
+                                            builder: (_) => LocationPickerScreen(
+                                              initialLocation: selectedLocation,
+                                            ),
+                                          ),
+                                        );
+                                        if (picked != null) {
+                                          setModalState(
+                                            () => selectedLocation = picked,
+                                          );
+                                        }
+                                      },
                                       behavior: HitTestBehavior.opaque,
                                       child: Container(
                                         margin:
@@ -1475,49 +1469,45 @@ class _ReviewMomentScreenState extends State<ReviewMomentScreen> {
                                           vertical: 12 * scale,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: isSelected
-                                              ? const Color(0xFF231742)
-                                              : const Color(0xFF17182D),
+                                          color: const Color(0xFF17182D),
                                           borderRadius:
                                               BorderRadius.circular(12 * scale),
                                           border: Border.all(
-                                            color: isSelected
+                                            color: selectedLocation != null
                                                 ? VeraTheme.purpleBright
                                                 : const Color(0x1AFFFFFF),
                                           ),
                                         ),
                                         child: Row(
                                           children: [
-                                            Text(
-                                              flag,
-                                              style: TextStyle(
-                                                fontSize: 20 * scale,
-                                              ),
+                                            Icon(
+                                              Icons.map_outlined,
+                                              color: VeraTheme.purpleBright,
+                                              size: 22 * scale,
                                             ),
                                             SizedBox(width: 12 * scale),
                                             Expanded(
                                               child: Text(
-                                                name,
+                                                selectedLocation?.name ??
+                                                    'Select on map',
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
                                                 style: TextStyle(
                                                   color: Colors.white,
                                                   fontSize: 14 * scale,
-                                                  fontWeight: isSelected
-                                                      ? FontWeight.w600
-                                                      : FontWeight.w400,
+                                                  fontWeight: FontWeight.w600,
                                                 ),
                                               ),
                                             ),
-                                            if (isSelected)
-                                              Icon(
-                                                Icons.check_circle_rounded,
-                                                color: VeraTheme.purpleBright,
-                                                size: 18 * scale,
-                                              ),
+                                            Icon(
+                                              Icons.chevron_right_rounded,
+                                              color: const Color(0xFF8A8EB3),
+                                              size: 18 * scale,
+                                            ),
                                           ],
                                         ),
                                       ),
-                                    );
-                                  }),
+                                    ),
                                 ],
 
                                 SizedBox(height: 24 * scale),
@@ -1541,6 +1531,9 @@ class _ReviewMomentScreenState extends State<ReviewMomentScreen> {
                                     ),
                                     child: TextButton(
                                       onPressed: () {
+                                        if (!isDateType && selectedLocation == null) {
+                                          return;
+                                        }
                                         setState(() {
                                           if (isDateType) {
                                             _unlockRuleType = 'DATE';
@@ -1561,29 +1554,17 @@ class _ReviewMomentScreenState extends State<ReviewMomentScreen> {
                                             _longitude = null;
                                             _radiusM = null;
                                             _placeName = null;
-                                          } else {
-                                            final matched =
-                                                locationPresets.firstWhere(
-                                              (l) =>
-                                                  l['name'] == selectedLocation,
-                                              orElse: () =>
-                                                  locationPresets.first,
-                                            );
+                                          } else if (selectedLocation != null) {
                                             _unlockRuleType = 'LOCATION';
                                             _condition =
-                                                "Opens when you're at $selectedLocation";
+                                                "Opens when you're at ${selectedLocation!.name}";
                                             _conditionSubtitle =
-                                                '$selectedLocation (200m radius)';
-                                            _placeName = selectedLocation;
-                                            _latitude = (matched['latitude']
-                                                    as num)
-                                                .toDouble();
-                                            _longitude = (matched['longitude']
-                                                    as num)
-                                                .toDouble();
-                                            _radiusM =
-                                                (matched['radiusM'] as num)
-                                                    .toInt();
+                                                '${selectedLocation!.name} '
+                                                '(${selectedLocation!.radiusM}m radius)';
+                                            _placeName = selectedLocation!.name;
+                                            _latitude = selectedLocation!.latitude;
+                                            _longitude = selectedLocation!.longitude;
+                                            _radiusM = selectedLocation!.radiusM;
                                           }
                                         });
                                         Navigator.of(sheetContext).pop();
@@ -1815,6 +1796,7 @@ class _ReviewMomentScreenState extends State<ReviewMomentScreen> {
             final createdMoment = finalModel?.toEntity() ??
                 Moment(
                   id: result.id,
+                  creatorId: finalModel?.creatorId,
                   userName: 'You',
                   userAvatarUrl: '',
                   timeAgo: 'Just now',

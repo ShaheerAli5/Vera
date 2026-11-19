@@ -45,10 +45,18 @@ abstract class MomentsRepository {
   Future<ResendInviteResult> resendInvite(String momentId);
   Future<MomentModel> acceptInvitation(String momentId);
   Future<MomentModel> declineInvitation(String momentId);
+  Future<void> reportMoment({
+    required String momentId,
+    required String reason,
+    String? details,
+  });
   Future<MomentModel> unlockMoment({
     required String momentId,
     double? latitude,
     double? longitude,
+    double? accuracyM,
+    DateTime? capturedAt,
+    bool? isMocked,
   });
   Future<MomentModel> uploadMomentMedia({
     required String momentId,

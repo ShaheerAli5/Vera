@@ -2,10 +2,15 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/utils/server_time_manager.dart';
 import '../../../../main.dart' show ApiClientScope;
+import '../../../account/data/datasources/account_remote_data_source.dart';
+import '../../../account/data/repositories/account_repository_impl.dart';
+import '../../data/datasources/moments_remote_data_source.dart';
+import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
 import '../pages/edit_moment_screen.dart';
+import '../utils/moment_permission_utils.dart';
 
-class MomentCard extends StatelessWidget {
+class MomentCard extends StatefulWidget {
   const MomentCard({
     super.key,
     required this.moment,
@@ -13,6 +18,7 @@ class MomentCard extends StatelessWidget {
     this.showDiscoverActions = false,
     this.onTap,
     this.onMomentUpdated,
+    this.onMomentBlocked,
   });
 
   final Moment moment;
@@ -20,9 +26,41 @@ class MomentCard extends StatelessWidget {
   final bool showDiscoverActions;
   final VoidCallback? onTap;
   final ValueChanged<Moment>? onMomentUpdated;
+  final ValueChanged<Moment>? onMomentBlocked;
+
+  @override
+  State<MomentCard> createState() => _MomentCardState();
+}
+
+class _MomentCardState extends State<MomentCard> {
+  bool _isOwner = false;
+  String _displayName = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _displayName = widget.moment.userName;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadPermissions();
+    });
+  }
+
+  Future<void> _loadPermissions() async {
+    final result = await MomentPermissionUtils.resolve(context: context, moment: widget.moment);
+    if (!mounted) return;
+    setState(() {
+      _isOwner = result['isOwner'] == true;
+      _displayName = result['displayName']?.toString() ?? widget.moment.userName;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final moment = widget.moment;
+    final scale = widget.scale;
+    final showDiscoverActions = widget.showDiscoverActions;
+    final onTap = widget.onTap;
+
     const cardHeight = 194.0;
     const cardRadius = 20.0;
     final bool isUnlocked = moment.isReadyToOpen ||
@@ -215,7 +253,10 @@ class MomentCard extends StatelessWidget {
     );
   }
 
-  Widget _buildAuthorBadge(double scale) {
+  Widget _buildAuthorBadge(double inputScale) {
+    final moment = widget.moment;
+    final scale = widget.scale;
+    final displayName = _displayName;
     return ClipRRect(
       borderRadius: BorderRadius.circular(999 * scale),
       child: BackdropFilter(
@@ -270,7 +311,7 @@ class MomentCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(moment.sentBadgeTitle ?? moment.userName, style: TextStyle(
+                  Text(moment.sentBadgeTitle ?? displayName, style: TextStyle(
                     color: Colors.white,
                     fontSize: 13 * scale,
                     fontWeight: FontWeight.w600,
@@ -291,7 +332,9 @@ class MomentCard extends StatelessWidget {
       ),
     );
   }
-  Widget _buildTopLock(double scale) {
+  Widget _buildTopLock(double inputScale) {
+    final moment = widget.moment;
+    final scale = widget.scale;
     final bool isUnlocked = moment.isReadyToOpen ||
         moment.unlockedAt != null ||
         (moment.unlockAt != null &&
@@ -390,7 +433,7 @@ class MomentCard extends StatelessWidget {
                       children: [
                       ClipOval(
                         child: Image.network(
-                          moment.userAvatarUrl,
+                          widget.moment.userAvatarUrl,
                           width: 36 * responsiveScale,
                           height: 36 * responsiveScale,
                           fit: BoxFit.cover,
@@ -408,7 +451,7 @@ class MomentCard extends StatelessWidget {
                       SizedBox(width: 8 * responsiveScale),
                       Expanded(
                         child: Text(
-                          'Moment from ${moment.userName}',
+                          'Moment from $_displayName',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 16 * responsiveScale,
@@ -435,22 +478,24 @@ class MomentCard extends StatelessWidget {
                     ),
                   ),
                   SizedBox(height: 24 * responsiveScale),
-                  _MomentActionButton(
-                    label: 'Edit moment',
-                    scale: responsiveScale,
-                    onTap: () async {
-                      Navigator.of(sheetContext).pop();
-                      final updated = await Navigator.of(context).push<Moment>(
-                        MaterialPageRoute<Moment>(
-                          builder: (_) => EditMomentScreen(moment: moment),
-                        ),
-                      );
-                      if (updated != null && onMomentUpdated != null) {
-                        onMomentUpdated!(updated);
-                      }
-                    },
-                  ),
-                  SizedBox(height: 16 * responsiveScale),
+                  if (_isOwner) ...[
+                    _MomentActionButton(
+                      label: 'Edit moment',
+                      scale: responsiveScale,
+                      onTap: () async {
+                        Navigator.of(sheetContext).pop();
+                        final updated = await Navigator.of(context).push<Moment>(
+                          MaterialPageRoute<Moment>(
+                            builder: (_) => EditMomentScreen(moment: widget.moment),
+                          ),
+                        );
+                        if (updated != null && widget.onMomentUpdated != null) {
+                          widget.onMomentUpdated!(updated);
+                        }
+                      },
+                    ),
+                    SizedBox(height: 16 * responsiveScale),
+                  ],
                   _MomentActionButton(
                     label: 'Report moment',
                     scale: responsiveScale,
@@ -461,20 +506,33 @@ class MomentCard extends StatelessWidget {
                       });
                     },
                   ),
-                  SizedBox(height: 16 * responsiveScale),
-                  _MomentActionButton(
-                    label: 'Block ${moment.userName}',
-                    scale: responsiveScale,
-                    isDestructive: true,
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      Future<void>.delayed(const Duration(milliseconds: 250), () {
-                        if (context.mounted) {
-                          _showBlockConfirmation(context);
-                        }
-                      });
-                    },
-                  ),
+                  if (!_isOwner) ...[
+                    SizedBox(height: 16 * responsiveScale),
+                    _MomentActionButton(
+                      label: 'Report $_displayName',
+                      scale: responsiveScale,
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        Future<void>.delayed(const Duration(milliseconds: 250), () {
+                          if (context.mounted) _showReportUserReasons(context);
+                        });
+                      },
+                    ),
+                    SizedBox(height: 16 * responsiveScale),
+                    _MomentActionButton(
+                      label: 'Block $_displayName',
+                      scale: responsiveScale,
+                      isDestructive: true,
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        Future<void>.delayed(const Duration(milliseconds: 250), () {
+                          if (context.mounted) {
+                            _showBlockConfirmation(context);
+                          }
+                        });
+                      },
+                    ),
+                  ],
                 ],
             ),
         );
@@ -483,9 +541,12 @@ class MomentCard extends StatelessWidget {
   }
 
   void _showBlockConfirmation(BuildContext context) {
+    final displayName = _displayName;
     final responsiveScale =
         (MediaQuery.sizeOf(context).width / 393).clamp(.82, 1.12);
-    final firstName = moment.userName.split(' ').first;
+    final firstName = displayName.split(' ').first;
+    final client = ApiClientScope.of(context);
+
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -562,7 +623,7 @@ class MomentCard extends StatelessWidget {
               height: 66 * responsiveScale,
               child: Text(
                 "You won't receive new invitations or notifications from "
-                '${moment.userName}. You can unblock them in Privacy settings.',
+                '$displayName. You can unblock them in Privacy settings.',
                 style: TextStyle(
                   color: const Color(0xFFA2A5C2),
                   fontSize: 14 * responsiveScale,
@@ -573,10 +634,44 @@ class MomentCard extends StatelessWidget {
             ),
             SizedBox(height: 24 * responsiveScale),
             _MomentActionButton(
-              label: 'Block ${moment.userName}',
+              label: 'Block $displayName',
               scale: responsiveScale,
               isDestructive: true,
-              onTap: () => Navigator.of(sheetContext).pop(),
+              onTap: () async {
+                Navigator.of(sheetContext).pop();
+                final targetUserId = widget.moment.creatorId;
+                if (targetUserId == null || targetUserId.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Cannot block this user.'),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                  return;
+                }
+                try {
+                  final accountRepo = AccountRepositoryImpl(AccountRemoteDataSource(client));
+                  await accountRepo.blockUser(targetUserId);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('$displayName has been blocked.'),
+                        backgroundColor: const Color(0xFF6B42FF),
+                      ),
+                    );
+                    widget.onMomentBlocked?.call(widget.moment);
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Failed to block user: $e'),
+                        backgroundColor: Colors.redAccent,
+                      ),
+                    );
+                  }
+                }
+              },
             ),
           ],
         ),
@@ -587,6 +682,9 @@ class MomentCard extends StatelessWidget {
   void _showReportReasons(BuildContext context) {
     final responsiveScale =
         (MediaQuery.sizeOf(context).width / 393).clamp(.82, 1.12);
+    final client = ApiClientScope.of(context);
+    final momentsRepo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -656,22 +754,239 @@ class MomentCard extends StatelessWidget {
               ),
             ),
             SizedBox(height: 24 * responsiveScale),
-            for (final reason in const [
-              'Spam',
-              'Inappropriate content',
-              'Harassment',
-              'Something else',
+            for (final entry in const [
+              MapEntry('Spam', 'SPAM'),
+              MapEntry('Inappropriate content', 'INAPPROPRIATE_CONTENT'),
+              MapEntry('Harassment', 'HARASSMENT'),
+              MapEntry('Something else', 'OTHER'),
             ]) ...[
               _MomentActionButton(
-                label: reason,
+                label: entry.key,
                 scale: responsiveScale,
-                onTap: () => Navigator.of(sheetContext).pop(),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  String? details;
+                  if (entry.value == 'OTHER') {
+                    if (context.mounted) {
+                      details = await _promptReportDetails(context, responsiveScale);
+                      if (details == null || details.trim().isEmpty) {
+                        return;
+                      }
+                    }
+                  }
+                  try {
+                    await momentsRepo.reportMoment(
+                      momentId: widget.moment.id,
+                      reason: entry.value,
+                      details: details,
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Report submitted. Thank you for keeping Vera safe.'),
+                          backgroundColor: Color(0xFF6B42FF),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Report submission failed: $e'),
+                          backgroundColor: Colors.redAccent,
+                        ),
+                      );
+                    }
+                  }
+                },
               ),
-              if (reason != 'Something else')
+              if (entry.key != 'Something else')
                 SizedBox(height: 16 * responsiveScale),
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  void _showReportUserReasons(BuildContext context) {
+    final responsiveScale =
+        (MediaQuery.sizeOf(context).width / 393).clamp(.82, 1.12);
+    final client = ApiClientScope.of(context);
+    final accountRepo = AccountRepositoryImpl(AccountRemoteDataSource(client));
+    final targetUserId = widget.moment.creatorId;
+
+    if (targetUserId == null || targetUserId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot identify user to report.')),
+      );
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0xB3090A17),
+      builder: (sheetContext) => Container(
+        padding: EdgeInsets.fromLTRB(
+          24 * responsiveScale,
+          12 * responsiveScale,
+          24 * responsiveScale,
+          40 * responsiveScale,
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0x59090A17),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(24 * responsiveScale),
+            bottom: Radius.circular(24 * responsiveScale),
+          ),
+          border: Border.all(
+            color: const Color(0x454B3B70),
+            width: 1 * responsiveScale,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x77000000),
+              blurRadius: 30,
+              offset: Offset(0, -8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 36 * responsiveScale,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Report $_displayName',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16 * responsiveScale,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 36 * responsiveScale,
+                    height: 36 * responsiveScale,
+                    child: IconButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: Icon(
+                        Icons.close_rounded,
+                        color: Colors.white,
+                        size: 18 * responsiveScale,
+                      ),
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0x4410101D),
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 24 * responsiveScale),
+            for (final entry in const [
+              MapEntry('Harassment or bullying', 'HARASSMENT'),
+              MapEntry('Spam or scam', 'SPAM'),
+              MapEntry('Hate speech', 'HATE_SPEECH'),
+              MapEntry('Explicit or inappropriate content', 'EXPLICIT_CONTENT'),
+              MapEntry('Something else', 'OTHER'),
+            ]) ...[
+              _MomentActionButton(
+                label: entry.key,
+                scale: responsiveScale,
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  String? details;
+                  if (entry.value == 'OTHER') {
+                    if (context.mounted) {
+                      details = await _promptReportDetails(context, responsiveScale);
+                      if (details == null || details.trim().isEmpty) {
+                        return;
+                      }
+                    }
+                  }
+                  try {
+                    await accountRepo.reportUser(
+                      userId: targetUserId,
+                      reason: entry.value,
+                      details: details,
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Report against $_displayName submitted. Thank you.'),
+                          backgroundColor: const Color(0xFF6B42FF),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Report submission failed: $e'),
+                          backgroundColor: Colors.redAccent,
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+              if (entry.key != 'Something else')
+                SizedBox(height: 16 * responsiveScale),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<String?> _promptReportDetails(BuildContext context, double scale) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF17182D),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20 * scale)),
+        title: Text(
+          'Report details',
+          style: TextStyle(color: Colors.white, fontSize: 18 * scale),
+        ),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          style: TextStyle(color: Colors.white, fontSize: 14 * scale),
+          decoration: InputDecoration(
+            hintText: 'Please describe the issue...',
+            hintStyle: TextStyle(color: const Color(0xFFA2A5C2), fontSize: 14 * scale),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12 * scale),
+              borderSide: const BorderSide(color: Color(0xFF373657)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12 * scale),
+              borderSide: const BorderSide(color: Color(0xFF9044FB)),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: Text('Cancel', style: TextStyle(color: const Color(0xFFA2A5C2), fontSize: 14 * scale)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF9044FB)),
+            onPressed: () => Navigator.of(dialogCtx).pop(controller.text.trim()),
+            child: Text('Submit', style: TextStyle(color: Colors.white, fontSize: 14 * scale)),
+          ),
+        ],
       ),
     );
   }

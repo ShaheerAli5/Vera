@@ -14,6 +14,7 @@ import '../../data/datasources/account_remote_data_source.dart';
 import '../../data/repositories/account_repository_impl.dart';
 import 'create_account_screen.dart';
 import 'forgot_password_screen.dart';
+import 'verify_email_screen.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -110,6 +111,22 @@ class _SignInScreenState extends State<SignInScreen> {
       );
     } on ApiException catch (error) {
       if (!mounted) return;
+      if (error.message.toLowerCase().contains('not verified') ||
+          error.message.toLowerCase().contains('unverified')) {
+        VeraPopup.show(
+          context,
+          title: 'Email not verified',
+          message: 'Please enter your verification code to complete sign in.',
+          icon: Icons.mark_email_unread_rounded,
+          accent: VeraTheme.warning,
+        );
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => VerifyEmailScreen(email: _email.trim()),
+          ),
+        );
+        return;
+      }
       VeraPopup.show(
         context,
         title: _errorTitle(error.statusCode),

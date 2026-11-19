@@ -33,6 +33,20 @@ class ApiClient {
   String? get authToken => _authToken;
   bool get isAuthenticated => _authToken != null && _authToken!.isNotEmpty;
 
+  String? get currentUserId {
+    if (_authToken == null || !_authToken!.contains('.')) return null;
+    try {
+      final parts = _authToken!.split('.');
+      if (parts.length != 3) return null;
+      var normalized = base64Url.normalize(parts[1]);
+      final payload = utf8.decode(base64Url.decode(normalized));
+      final map = jsonDecode(payload) as Map<String, dynamic>;
+      return map['sub']?.toString();
+    } catch (_) {
+      return null;
+    }
+  }
+
   String? _refreshToken;
   String? get refreshToken => _refreshToken;
 

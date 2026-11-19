@@ -28,6 +28,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
   XFile? _pickedMediaFile;
   Uint8List? _mediaBytes;
   bool _isVideo = false;
+  bool _isPlaying = true;
   bool _showTitleError = false;
 
   final List<Map<String, dynamic>> _categories = const [
@@ -55,7 +56,19 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
       _pickedMediaFile = null;
       _mediaBytes = null;
       _isVideo = false;
+      _isPlaying = true;
     });
+  }
+
+  void _togglePlayPause() {
+    if (_videoController == null || !_videoController!.value.isInitialized) return;
+    if (_videoController!.value.isPlaying) {
+      _videoController!.pause();
+      setState(() => _isPlaying = false);
+    } else {
+      _videoController!.play();
+      setState(() => _isPlaying = true);
+    }
   }
 
   Future<void> _pickMedia(ImageSource source, {bool isVideo = false}) async {
@@ -86,15 +99,28 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
         _mediaBytes = bytes;
         _isVideo = isVideo;
         _hasUploadedMedia = true;
+        _isPlaying = true;
       });
 
       if (isVideo) {
         _videoController?.dispose();
         _videoController = VideoPlayerController.file(File(file.path))
           ..initialize().then((_) {
-            if (mounted) setState(() {});
+            if (mounted) {
+              setState(() {
+                _isPlaying = true;
+              });
+            }
             _videoController?.setLooping(true);
             _videoController?.play();
+            _videoController?.addListener(() {
+              if (mounted) {
+                final playing = _videoController?.value.isPlaying ?? false;
+                if (playing != _isPlaying) {
+                  setState(() => _isPlaying = playing);
+                }
+              }
+            });
           });
       }
     } catch (e) {
@@ -729,20 +755,32 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
                                   ),
                                 ),
 
-                                // Center Indicator for Video
+                                // Video Tap & Play/Pause Overlay
                                 if (_isVideo)
-                                  Center(
-                                    child: Container(
-                                      width: 52 * scale,
-                                      height: 52 * scale,
-                                      decoration: const BoxDecoration(
-                                        color: Color(0x99000000),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Icon(
-                                        Icons.play_arrow_rounded,
-                                        color: Colors.white,
-                                        size: 30 * scale,
+                                  Positioned.fill(
+                                    child: GestureDetector(
+                                      behavior: HitTestBehavior.translucent,
+                                      onTap: _togglePlayPause,
+                                      child: Center(
+                                        child: AnimatedOpacity(
+                                          opacity: !_isPlaying ? 1.0 : 0.0,
+                                          duration: const Duration(milliseconds: 200),
+                                          child: Container(
+                                            width: 52 * scale,
+                                            height: 52 * scale,
+                                            decoration: const BoxDecoration(
+                                              color: Color(0x99000000),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Icon(
+                                              !_isPlaying
+                                                  ? Icons.play_arrow_rounded
+                                                  : Icons.pause_rounded,
+                                              color: Colors.white,
+                                              size: 30 * scale,
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),

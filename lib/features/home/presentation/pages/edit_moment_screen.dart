@@ -283,6 +283,7 @@ class _EditMomentScreenState extends State<EditMomentScreen> {
     if (_currentMoment.id.isEmpty) {
       final updated = Moment(
         id: '',
+        creatorId: _currentMoment.creatorId,
         userName: _currentMoment.userName,
         userAvatarUrl: _currentMoment.userAvatarUrl,
         timeAgo: _currentMoment.timeAgo,

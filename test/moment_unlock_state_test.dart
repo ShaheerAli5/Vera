@@ -112,5 +112,26 @@ void main() {
 
       expect(model.toEntity().isReadyToOpen, isFalse);
     });
+
+    test('location rule coordinates and radius are parsed for creator editing', () {
+      final moment = MomentModel.fromJson({
+        'id': 'location-moment',
+        'title': 'Location',
+        'status': 'DRAFT',
+        'unlockRule': {
+          'type': 'LOCATION',
+          'latitude': 24.860735,
+          'longitude': 67.001137,
+          'radiusM': 150,
+          'placeName': 'Test building',
+        },
+      }).toEntity();
+
+      expect(moment.unlockLatitude, 24.860735);
+      expect(moment.unlockLongitude, 67.001137);
+      expect(moment.unlockRadiusM, 150);
+      expect(moment.unlockPlaceName, 'Test building');
+      expect(moment.isReadyToOpen, isFalse);
+    });
   });
 }

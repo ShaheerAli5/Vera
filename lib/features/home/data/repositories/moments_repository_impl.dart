@@ -123,15 +123,34 @@ class MomentsRepositoryImpl implements MomentsRepository {
   }
 
   @override
+  Future<void> reportMoment({
+    required String momentId,
+    required String reason,
+    String? details,
+  }) {
+    return _remoteDataSource.reportMoment(
+      momentId: momentId,
+      reason: reason,
+      details: details,
+    );
+  }
+
+  @override
   Future<MomentModel> unlockMoment({
     required String momentId,
     double? latitude,
     double? longitude,
+    double? accuracyM,
+    DateTime? capturedAt,
+    bool? isMocked,
   }) {
     return _remoteDataSource.unlockMoment(
       momentId: momentId,
       latitude: latitude,
       longitude: longitude,
+      accuracyM: accuracyM,
+      capturedAt: capturedAt,
+      isMocked: isMocked,
     );
   }
 

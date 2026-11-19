@@ -18,6 +18,49 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   debugPrint('Handling background FCM message: ${message.messageId}');
+
+  try {
+    final notification = message.notification;
+    final title = notification?.title ?? message.data['title']?.toString();
+    final body = notification?.body ?? message.data['body']?.toString();
+
+    if (title != null || body != null || message.data.isNotEmpty) {
+      final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const iosSettings = DarwinInitializationSettings();
+      const initSettings = InitializationSettings(android: androidSettings, iOS: iosSettings);
+      await flutterLocalNotificationsPlugin.initialize(initSettings);
+
+      final momentId = message.data['momentId']?.toString() ??
+          message.data['moment_id']?.toString() ??
+          message.data['id']?.toString() ??
+          message.data['moment']?.toString();
+
+      const androidDetails = AndroidNotificationDetails(
+        'vera_moments_channel',
+        'VERA Moments',
+        channelDescription: 'Notifications for private moments, invitations, and approvals',
+        importance: Importance.high,
+        priority: Priority.high,
+      );
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+      const details = NotificationDetails(android: androidDetails, iOS: iosDetails);
+
+      await flutterLocalNotificationsPlugin.show(
+        DateTime.now().millisecond,
+        title ?? message.data['title']?.toString() ?? 'VERA Notification',
+        body ?? message.data['body']?.toString() ?? 'You have a new notification',
+        details,
+        payload: momentId,
+      );
+    }
+  } catch (e) {
+    debugPrint('Error handling background push notification: $e');
+  }
 }
 
 class PushNotificationService {
@@ -185,7 +228,10 @@ class PushNotificationService {
       final notification = message.notification;
       final title = notification?.title ?? message.data['title']?.toString() ?? 'VERA Notification';
       final body = notification?.body ?? message.data['body']?.toString() ?? 'You have a new notification';
-      final momentId = message.data['momentId']?.toString();
+      final momentId = message.data['momentId']?.toString() ??
+          message.data['moment_id']?.toString() ??
+          message.data['id']?.toString() ??
+          message.data['moment']?.toString();
 
       const androidDetails = AndroidNotificationDetails(
         'vera_moments_channel',
@@ -266,7 +312,10 @@ class PushNotificationService {
 
   Future<void> handleNotificationTap(RemoteMessage message) async {
     final data = message.data;
-    final momentId = data['momentId'] as String?;
+    final momentId = data['momentId']?.toString() ??
+        data['moment_id']?.toString() ??
+        data['id']?.toString() ??
+        data['moment']?.toString();
     if (momentId != null && momentId.isNotEmpty) {
       await handlePayloadTap(momentId);
     } else {

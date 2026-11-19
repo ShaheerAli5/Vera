@@ -108,6 +108,8 @@ class MomentModel {
     this.timezone,
     this.locationName,
     this.locationRadius,
+    this.locationLatitude,
+    this.locationLongitude,
     this.creatorId,
     this.creatorName,
     this.creatorAvatarUrl,
@@ -139,6 +141,8 @@ class MomentModel {
   final String? timezone;
   final String? locationName;
   final String? locationRadius;
+  final double? locationLatitude;
+  final double? locationLongitude;
   final String? creatorId;
   final String? creatorName;
   final String? creatorAvatarUrl;
@@ -178,6 +182,9 @@ class MomentModel {
         : (json['user'] is Map<String, dynamic>
             ? json['user'] as Map<String, dynamic>
             : null);
+
+    final creatorStr = json['creator'] is String ? json['creator']?.toString() : null;
+    final userStr = json['user'] is String ? json['user']?.toString() : null;
 
     final unlockAtStr = unlockRule?['unlockAt']?.toString() ??
         unlockRule?['unlock_at']?.toString() ??
@@ -352,10 +359,22 @@ class MomentModel {
           json['locationName']?.toString(),
       locationRadius: unlockRule?['radius']?.toString() ??
           unlockRule?['locationRadius']?.toString() ??
+          unlockRule?['radiusM']?.toString() ??
           json['radius']?.toString(),
+      locationLatitude: (unlockRule?['latitude'] as num?)?.toDouble(),
+      locationLongitude: (unlockRule?['longitude'] as num?)?.toDouble(),
       creatorId: creator?['id']?.toString() ??
           creator?['_id']?.toString() ??
-          json['creatorId']?.toString(),
+          creatorStr ??
+          userStr ??
+          json['creatorId']?.toString() ??
+          json['creator_id']?.toString() ??
+          json['userId']?.toString() ??
+          json['user_id']?.toString() ??
+          json['ownerId']?.toString() ??
+          json['owner_id']?.toString() ??
+          json['authorId']?.toString() ??
+          json['author_id']?.toString(),
       creatorName: creator?['displayName']?.toString() ??
           creator?['name']?.toString() ??
           creator?['username']?.toString() ??
@@ -468,6 +487,7 @@ class MomentModel {
 
     return Moment(
       id: id,
+      creatorId: creatorId,
       userName: creatorName ?? 'You',
       userAvatarUrl: avatar,
       timeAgo: timeAgoText,
@@ -501,6 +521,10 @@ class MomentModel {
       unlockedAt: unlockedAt,
       openedAt: openedAt,
       unlockAt: unlockAt,
+      unlockLatitude: locationLatitude,
+      unlockLongitude: locationLongitude,
+      unlockRadiusM: int.tryParse(locationRadius ?? ''),
+      unlockPlaceName: locationName,
       isVideo: isVideo,
       contentType: contentType,
       hasMedia: hasMedia,

@@ -1,5 +1,6 @@
 import '../../../home/data/models/moment_model.dart';
 import '../../data/models/admin_audit_log_model.dart';
+import '../../data/models/admin_report_model.dart';
 import '../../data/models/admin_user_model.dart';
 
 abstract class AdminRepository {
@@ -50,4 +51,17 @@ abstract class AdminRepository {
   });
 
   Future<Map<String, int>> getModerationStats();
+
+  Future<AdminReportsResponse> getReports({
+    int page = 1,
+    int limit = 20,
+    String? status,
+    String? type,
+  });
+
+  Future<AdminReportModel> resolveReport({
+    required String reportId,
+    required String resolution,
+    String? note,
+  });
 }

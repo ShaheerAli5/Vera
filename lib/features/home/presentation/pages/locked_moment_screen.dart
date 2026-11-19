@@ -1,8 +1,10 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../../../core/layout/responsive.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/utils/server_time_manager.dart';
 import '../../../../core/widgets/vera_popup.dart';
@@ -12,6 +14,25 @@ import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
 import 'edit_moment_screen.dart';
 import 'unlocked_moment_screen.dart';
+import '../utils/moment_permission_utils.dart';
+import '../../../account/data/datasources/account_remote_data_source.dart';
+import '../../../account/data/repositories/account_repository_impl.dart';
+
+class _LocationProof {
+  const _LocationProof({
+    required this.latitude,
+    required this.longitude,
+    required this.accuracyM,
+    required this.capturedAt,
+    required this.isMocked,
+  });
+
+  final double latitude;
+  final double longitude;
+  final double accuracyM;
+  final DateTime capturedAt;
+  final bool isMocked;
+}
 
 class LockedMomentScreen extends StatefulWidget {
   const LockedMomentScreen({super.key, required this.moment});
@@ -26,6 +47,7 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
   late Moment _currentMoment;
   bool _isChecking = false;
   int _ticksCount = 0;
+  bool _isOwner = false;
 
   @override
   void initState() {
@@ -33,6 +55,212 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
     _currentMoment = widget.moment;
     ServerTimeManager.instance.ticker.addListener(_onTick);
     ServerTimeManager.instance.addResumedListener(_onResumed);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadPermissions();
+    });
+  }
+
+  Future<void> _loadPermissions() async {
+    final result = await MomentPermissionUtils.resolve(context: context, moment: _currentMoment);
+    if (!mounted) return;
+    setState(() {
+      _isOwner = result['isOwner'] == true;
+    });
+  }
+
+  void _showSafetyMenu(BuildContext context, double scale) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0xB3090A17),
+      builder: (sheetContext) => Container(
+        padding: EdgeInsets.fromLTRB(24 * scale, 16 * scale, 24 * scale, 32 * scale),
+        decoration: BoxDecoration(
+          color: const Color(0xFF17182D),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24 * scale)),
+          border: Border.all(color: const Color(0xFF373657)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36 * scale,
+              height: 4 * scale,
+              margin: EdgeInsets.only(bottom: 20 * scale),
+              decoration: BoxDecoration(
+                color: const Color(0xFF454B70),
+                borderRadius: BorderRadius.circular(2 * scale),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.flag_outlined, color: Colors.white),
+              title: const Text('Report moment', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _showReportSheet(context, scale);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.block, color: Color(0xFFFF4D4F)),
+              title: Text('Block ${_currentMoment.userName}',
+                  style: const TextStyle(color: Color(0xFFFF4D4F))),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _showBlockConfirmation(context, scale);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showBlockConfirmation(BuildContext context, double scale) {
+    final client = ApiClientScope.of(context);
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF17182D),
+        title: Text('Block ${_currentMoment.userName}?',
+            style: const TextStyle(color: Colors.white)),
+        content: Text(
+          "You won't receive new invitations or notifications from ${_currentMoment.userName}. You can unblock them in Privacy settings.",
+          style: const TextStyle(color: Color(0xFFA2A5C2)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFFA2A5C2))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF4D4F)),
+            onPressed: () async {
+              Navigator.of(dialogCtx).pop();
+              final targetId = _currentMoment.creatorId;
+              if (targetId == null || targetId.isEmpty) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Cannot block this user.')),
+                );
+                return;
+              }
+              final messenger = ScaffoldMessenger.of(context);
+              final nav = Navigator.of(context);
+              try {
+                final repo = AccountRepositoryImpl(AccountRemoteDataSource(client));
+                await repo.blockUser(targetId);
+                if (!mounted) return;
+                messenger.showSnackBar(
+                  SnackBar(content: Text('${_currentMoment.userName} has been blocked.')),
+                );
+                nav.pop(_currentMoment.copyWith(
+                  id: '__DELETED__:${_currentMoment.id}',
+                ));
+              } catch (e) {
+                if (!mounted) return;
+                messenger.showSnackBar(
+                  SnackBar(content: Text('Failed to block user: $e')),
+                );
+              }
+            },
+            child: const Text('Block', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showReportSheet(BuildContext context, double scale) {
+    final client = ApiClientScope.of(context);
+    final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0xB3090A17),
+      builder: (sheetCtx) => Container(
+        padding: EdgeInsets.fromLTRB(24 * scale, 16 * scale, 24 * scale, 32 * scale),
+        decoration: BoxDecoration(
+          color: const Color(0xFF17182D),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24 * scale)),
+          border: Border.all(color: const Color(0xFF373657)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Why are you reporting this?',
+                style: TextStyle(color: Colors.white, fontSize: 18 * scale, fontWeight: FontWeight.bold)),
+            SizedBox(height: 16 * scale),
+            for (final entry in const [
+              MapEntry('Spam', 'SPAM'),
+              MapEntry('Inappropriate content', 'INAPPROPRIATE_CONTENT'),
+              MapEntry('Harassment', 'HARASSMENT'),
+              MapEntry('Something else', 'OTHER'),
+            ])
+              ListTile(
+                title: Text(entry.key, style: const TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.of(sheetCtx).pop();
+                  final messenger = ScaffoldMessenger.of(context);
+                  String? details;
+                  if (entry.value == 'OTHER') {
+                    details = await _promptReportDetails(context, scale);
+                    if (!mounted) return;
+                    if (details == null || details.trim().isEmpty) return;
+                  }
+                  try {
+                    await repo.reportMoment(
+                      momentId: _currentMoment.id,
+                      reason: entry.value,
+                      details: details,
+                    );
+                    if (!mounted) return;
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Report submitted. Thank you for keeping Vera safe.')),
+                    );
+                  } catch (e) {
+                    if (!mounted) return;
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('Failed to submit report: $e')),
+                    );
+                  }
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<String?> _promptReportDetails(BuildContext context, double scale) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF17182D),
+        title: const Text('Report details', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Please describe the issue...',
+            hintStyle: TextStyle(color: Color(0xFFA2A5C2)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFFA2A5C2))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF9044FB)),
+            onPressed: () => Navigator.of(dialogCtx).pop(controller.text.trim()),
+            child: const Text('Submit', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -130,21 +358,116 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
     } catch (_) {}
   }
 
+  Future<_LocationProof> _captureLocationProof() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      throw Exception('Enable Location Services to unlock this Moment.');
+    }
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.deniedForever) {
+      throw Exception(
+        'Location permission is permanently denied. Enable it in device settings.',
+      );
+    }
+    if (permission == LocationPermission.denied) {
+      throw Exception('Location permission is required to unlock this Moment.');
+    }
+    final position = await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        timeLimit: Duration(seconds: 15),
+      ),
+    );
+    if (position.accuracy > 100) {
+      throw Exception(
+        'Location accuracy is ${position.accuracy.round()}m. '
+        'Move near a window or outdoors and try again.',
+      );
+    }
+    return _LocationProof(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      accuracyM: position.accuracy,
+      capturedAt: position.timestamp,
+      isMocked: position.isMocked,
+    );
+  }
+
   Future<void> _checkIfReady() async {
     if (_isChecking) return;
     setState(() => _isChecking = true);
+
+    _LocationProof? locationProof;
+    if (_currentMoment.unlockType == MomentUnlockType.location) {
+      try {
+        locationProof = await _captureLocationProof();
+      } catch (error) {
+        if (!mounted) return;
+        setState(() => _isChecking = false);
+        VeraPopup.show(
+          context,
+          title: 'Location unavailable',
+          message: error.toString().replaceFirst('Exception: ', ''),
+          icon: Icons.location_off_outlined,
+          accent: VeraTheme.warning,
+        );
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          backgroundColor: const Color(0xFF161626),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 16),
+              const CircularProgressIndicator(color: VeraTheme.purple),
+              const SizedBox(height: 24),
+              const Text(
+                'Please wait, your moment is being checked...',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
 
     try {
       final client = ApiClientScope.of(context);
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
 
-      // Attempt to unlock on the server
+      Moment? readyMoment;
+      bool isNotReady = false;
+      String? notReadyReason;
+      bool isLocationMismatch = false;
+
       try {
         final unlockedModel = await repo.unlockMoment(
           momentId: _currentMoment.id,
+          latitude: locationProof?.latitude,
+          longitude: locationProof?.longitude,
+          accuracyM: locationProof?.accuracyM,
+          capturedAt: locationProof?.capturedAt,
+          isMocked: locationProof?.isMocked,
         );
         final base = unlockedModel.toEntity();
-        final unlockedEntity = base.copyWith(
+        readyMoment = base.copyWith(
           isReadyToOpen: true,
           userName: (base.userName.isNotEmpty && base.userName != 'You')
               ? base.userName
@@ -164,70 +487,169 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
           hasMedia: base.hasMedia || _currentMoment.hasMedia,
           isVideo: base.isVideo || _currentMoment.isVideo,
         );
+      } catch (unlockErr) {
+        String errMsg = '';
+        if (unlockErr is ApiException) {
+          errMsg = unlockErr.message;
+        } else {
+          errMsg = unlockErr.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
+        }
+
+        final lowerMsg = errMsg.toLowerCase();
+        if (lowerMsg.contains('location') ||
+            lowerMsg.contains('distance') ||
+            lowerMsg.contains('radius') ||
+            lowerMsg.contains('far') ||
+            lowerMsg.contains('not at') ||
+            _currentMoment.unlockType == MomentUnlockType.location) {
+          isLocationMismatch = true;
+        }
+
+        final model = await repo.getMomentById(_currentMoment.id);
+        final updated = model.toEntity();
+        if (updated.isReadyToOpen || updated.status == 'OPENED' || updated.unlockedAt != null) {
+          readyMoment = updated;
+        } else {
+          isNotReady = true;
+          notReadyReason = errMsg.isNotEmpty && !errMsg.startsWith('Exception')
+              ? errMsg
+              : updated.unlockCondition;
+        }
+      }
+
+      if (!mounted) return;
+      try {
+        Navigator.of(context, rootNavigator: true).pop(); // close waiting dialog
+      } catch (_) {}
+
+      if (readyMoment != null) {
         if (!mounted) return;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF161626),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 16),
+                const Icon(Icons.check_circle_rounded, color: Color(0xFF7DF0B0), size: 48),
+                const SizedBox(height: 16),
+                const Text(
+                  'Your moment is ready! Unlocking now...',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        );
+
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+        if (!mounted) return;
+        try {
+          Navigator.of(context, rootNavigator: true).pop(); // close success dialog
+        } catch (_) {}
+
         setState(() {
-          _currentMoment = unlockedEntity;
+          _currentMoment = readyMoment!;
           _isChecking = false;
         });
 
         Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(
-            builder: (_) => UnlockedMomentScreen(moment: unlockedEntity),
+            builder: (_) => UnlockedMomentScreen(moment: readyMoment!),
           ),
         );
-        return;
-      } catch (unlockErr) {
-        // If unlock API returned an error, fetch latest moment status to update details
-        final model = await repo.getMomentById(_currentMoment.id);
-        final updated = model.toEntity();
-
-        if (!mounted) return;
-        setState(() {
-          _currentMoment = updated;
-          _isChecking = false;
-        });
-
-        if (updated.status == 'PENDING_REVIEW') {
-          VeraPopup.show(
-            context,
-            title: 'Pending Admin Approval',
-            message:
-                'This moment has been submitted to admin and is awaiting approval. Once approved, it will be published.',
-            icon: Icons.hourglass_top_rounded,
-            accent: const Color(0xFFFFB74D),
-          );
-        } else if (updated.isReadyToOpen) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute<void>(
-              builder: (_) => UnlockedMomentScreen(moment: updated),
-            ),
-          );
-        } else {
-          final errorMsg = unlockErr
-              .toString()
-              .replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
-          VeraPopup.show(
-            context,
-            title: 'Still locked',
-            message: errorMsg.isNotEmpty && !errorMsg.contains('HTTP')
-                ? errorMsg
-                : 'This moment isn’t ready to open yet.\n${updated.unlockCondition}',
-            icon: Icons.lock_outline_rounded,
-            accent: const Color(0xFF8CB8FF),
-          );
-        }
+      } else if (isLocationMismatch) {
+        setState(() => _isChecking = false);
+        _showLocationMismatchDialog(notReadyReason);
+      } else if (isNotReady) {
+        setState(() => _isChecking = false);
+        VeraPopup.show(
+          context,
+          title: 'Not ready yet',
+          message: notReadyReason != null && notReadyReason.isNotEmpty
+              ? notReadyReason
+              : 'Your moment is not ready yet. Please wait.',
+          icon: Icons.hourglass_empty_rounded,
+          accent: const Color(0xFF8CB8FF),
+        );
+      } else {
+        setState(() => _isChecking = false);
       }
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
+      try {
+        Navigator.of(context, rootNavigator: true).pop(); // ensure waiting dialog is closed
+      } catch (_) {}
       setState(() => _isChecking = false);
+
+      String errorMsg = '';
+      if (e is ApiException) {
+        errorMsg = e.message;
+      } else {
+        errorMsg = e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
+      }
+
       VeraPopup.show(
         context,
         title: 'Check failed',
-        message: 'Could not refresh moment status from server.',
+        message: errorMsg.isNotEmpty && !errorMsg.startsWith('Exception')
+            ? errorMsg
+            : 'Could not refresh moment status from server. Please check your connection and try again.',
         icon: Icons.error_outline_rounded,
         accent: VeraTheme.warning,
       );
     }
+  }
+
+  void _showLocationMismatchDialog(String? reason) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF161626),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.location_off_rounded, color: VeraTheme.warning, size: 24),
+            const SizedBox(width: 12),
+            const Text(
+              'Location Mismatch',
+              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        content: const Text(
+          'You are not at the moment location.',
+          style: TextStyle(color: Color(0xFFD4D4E8), fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF8A8EB3))),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              _checkIfReady();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: VeraTheme.purple,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
   }
 
   bool _isResendingInvite = false;
@@ -392,39 +814,57 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: IconButton(
-                                onPressed: () async {
-                                  final nav = Navigator.of(context);
-                                  final result = await nav.push<Moment>(
-                                    MaterialPageRoute<Moment>(
-                                      builder: (_) => EditMomentScreen(moment: _currentMoment),
+                            _isOwner
+                                ? Align(
+                                    alignment: Alignment.centerRight,
+                                    child: IconButton(
+                                      onPressed: () async {
+                                        final nav = Navigator.of(context);
+                                        final result = await nav.push<Moment>(
+                                          MaterialPageRoute<Moment>(
+                                            builder: (_) => EditMomentScreen(moment: _currentMoment),
+                                          ),
+                                        );
+                                        if (!mounted) return;
+                                        if (result != null) {
+                                          if (result.id.startsWith('__DELETED__:')) {
+                                            nav.pop(result);
+                                          } else {
+                                            setState(() {
+                                              _currentMoment = result;
+                                            });
+                                            _loadPermissions();
+                                          }
+                                        }
+                                      },
+                                      icon: Icon(
+                                        Icons.edit_outlined,
+                                        color: Colors.white,
+                                        size: 20 * scale,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      constraints: BoxConstraints.tightFor(
+                                        width: 40 * scale,
+                                        height: 40 * scale,
+                                      ),
                                     ),
-                                  );
-                                  if (!mounted) return;
-                                  if (result != null) {
-                                    if (result.id.startsWith('__DELETED__:')) {
-                                      nav.pop(result);
-                                    } else {
-                                      setState(() {
-                                        _currentMoment = result;
-                                      });
-                                    }
-                                  }
-                                },
-                                icon: Icon(
-                                  Icons.edit_outlined,
-                                  color: Colors.white,
-                                  size: 20 * scale,
-                                ),
-                                padding: EdgeInsets.zero,
-                                constraints: BoxConstraints.tightFor(
-                                  width: 40 * scale,
-                                  height: 40 * scale,
-                                ),
-                              ),
-                            ),
+                                  )
+                                : Align(
+                                    alignment: Alignment.centerRight,
+                                    child: IconButton(
+                                      onPressed: () => _showSafetyMenu(context, scale),
+                                      icon: Icon(
+                                        Icons.more_horiz_rounded,
+                                        color: Colors.white,
+                                        size: 22 * scale,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      constraints: BoxConstraints.tightFor(
+                                        width: 40 * scale,
+                                        height: 40 * scale,
+                                      ),
+                                    ),
+                                  ),
                           ],
                         ),
                       ),

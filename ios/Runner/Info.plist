@@ -30,6 +30,8 @@
 	<string>Allow Vera to take photos for your moments and profile picture.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Allow Vera to select photos and videos for your moments and profile picture.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>VERA uses your location only when you select or unlock a location-based Moment.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
