@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/theme/theme.dart';
+import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../data/datasources/moments_remote_data_source.dart';
 import '../../data/models/notification_model.dart';
 import '../../data/repositories/moments_repository_impl.dart';
+import 'locked_moment_screen.dart';
+import 'unlocked_moment_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -27,6 +30,84 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchNotifications();
     });
+  }
+
+  Future<void> _openNotificationItem(NotificationModel n, int index) async {
+    if (!n.isRead) {
+      if (mounted) {
+        setState(() {
+          _notifications[index] = n.copyWith(isRead: true);
+        });
+      }
+      try {
+        final client = ApiClientScope.of(context);
+        final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+        await repo.markNotificationAsRead(n.id);
+        if (mounted) {
+          PushNotificationService.instance.refreshUnreadCount(client);
+        }
+      } catch (_) {}
+    }
+
+    final momentId = n.data['momentId']?.toString() ??
+        (n.type == 'MOMENT_INVITATION' || n.type == 'PRIVATE_MOMENT' || n.type == 'ADMIN_APPROVAL' || n.type == 'ADMIN_REJECTION' ? n.id : null);
+
+    if (momentId != null && momentId.isNotEmpty && !momentId.startsWith('fallback-')) {
+      try {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => const Center(
+            child: CircularProgressIndicator(color: VeraTheme.purple),
+          ),
+        );
+
+        final client = ApiClientScope.of(context);
+        final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+        final momentModel = await repo.getMomentById(momentId);
+        final moment = momentModel.toEntity();
+
+        if (!mounted) return;
+        Navigator.of(context, rootNavigator: true).pop();
+
+        if (!mounted) return;
+        if (moment.isReadyToOpen || moment.status == 'OPENED' || moment.unlockedAt != null) {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => UnlockedMomentScreen(moment: moment),
+            ),
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => LockedMomentScreen(moment: moment),
+            ),
+          );
+        }
+      } catch (_) {
+        if (mounted) {
+          Navigator.of(context, rootNavigator: true).pop();
+          VeraPopup.show(
+            context,
+            title: n.title,
+            message: n.body,
+            icon: Icons.notifications_rounded,
+            accent: VeraTheme.purple,
+          );
+        }
+      }
+    } else {
+      if (mounted) {
+        VeraPopup.show(
+          context,
+          title: n.title,
+          message: n.body,
+          icon: Icons.notifications_rounded,
+          accent: VeraTheme.purple,
+        );
+      }
+    }
   }
 
   Future<void> _fetchNotifications() async {
@@ -220,18 +301,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             : 'Recently';
 
         return GestureDetector(
-          onTap: () async {
-            if (!n.isRead) {
-              setState(() {
-                _notifications[index] = n.copyWith(isRead: true);
-              });
-              final client = ApiClientScope.of(context);
-              final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
-              await repo.markNotificationAsRead(n.id);
-              if (!mounted) return;
-              PushNotificationService.instance.refreshUnreadCount(client);
-            }
-          },
+          onTap: () => _openNotificationItem(n, index),
           behavior: HitTestBehavior.opaque,
           child: Container(
             margin: EdgeInsets.only(bottom: 12 * scale),
@@ -277,13 +347,30 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        n.title,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14 * scale,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              n.title,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14 * scale,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          if (!n.isRead) ...[
+                            SizedBox(width: 8 * scale),
+                            Container(
+                              width: 8 * scale,
+                              height: 8 * scale,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF38BDF8),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       SizedBox(height: 8 * scale),
                       Text(

@@ -383,6 +383,9 @@ class MomentsRemoteDataSource {
     int page = 1,
     int limit = 20,
   }) async {
+    List<NotificationModel> items = [];
+
+    // 1. Try primary /notifications endpoint
     try {
       final response = await _apiClient.get(
         '/notifications',
@@ -391,8 +394,11 @@ class MomentsRemoteDataSource {
           'limit': limit.toString(),
         },
       );
-      return NotificationsListResponse.fromJson(response);
-    } catch (_) {
+      items = NotificationsListResponse.fromJson(response).items;
+    } catch (_) {}
+
+    // 2. If empty, try /user/notifications
+    if (items.isEmpty) {
       try {
         final response = await _apiClient.get(
           '/user/notifications',
@@ -401,11 +407,49 @@ class MomentsRemoteDataSource {
             'limit': limit.toString(),
           },
         );
-        return NotificationsListResponse.fromJson(response);
-      } catch (_) {
-        return const NotificationsListResponse(items: []);
-      }
+        items = NotificationsListResponse.fromJson(response).items;
+      } catch (_) {}
     }
+
+    // 3. If empty, fetch backend inbox moments to derive moment notifications (Admin approval, rejection, incoming private moments)
+    if (items.isEmpty) {
+      try {
+        final inboxResponse = await getInboxMoments(page: page, limit: limit);
+        items = inboxResponse.moments.map((moment) {
+          String title = 'New Moment';
+          String body = moment.teaser ?? 'You received a new moment.';
+          String type = 'PRIVATE_MOMENT';
+
+          final statusUpper = (moment.status ?? '').toUpperCase();
+          if (statusUpper == 'APPROVED') {
+            title = 'Moment Approved';
+            body = 'Your moment "${moment.title}" has been approved and is now live.';
+            type = 'ADMIN_APPROVAL';
+          } else if (statusUpper == 'REJECTED') {
+            title = 'Moment Rejected';
+            body = 'Your moment "${moment.title}" was not approved.';
+            type = 'ADMIN_REJECTION';
+          } else if (statusUpper == 'PENDING' || statusUpper == 'LOCKED') {
+            title = 'Incoming Private Moment';
+            body = '${moment.creatorName ?? 'Someone'} shared a private moment with you.';
+            type = 'PRIVATE_MOMENT';
+          }
+
+          return NotificationModel(
+            id: moment.id,
+            title: title,
+            body: body,
+            isRead: statusUpper == 'OPENED' || moment.unlockedAt != null,
+            type: type,
+            data: {'momentId': moment.id},
+            imageUrl: moment.mediaUrl ?? moment.creatorAvatarUrl,
+            createdAt: moment.createdAt,
+          );
+        }).toList();
+      } catch (_) {}
+    }
+
+    return NotificationsListResponse(items: items);
   }
 
   Future<void> markNotificationAsRead(String notificationId) async {
@@ -447,6 +491,10 @@ class MomentsRemoteDataSource {
         itemsRaw = response['items'] as List;
       } else if (response['data'] is List) {
         itemsRaw = response['data'] as List;
+      } else if (response['users'] is List) {
+        itemsRaw = response['users'] as List;
+      } else if (response['results'] is List) {
+        itemsRaw = response['results'] as List;
       }
     } else if (response is List) {
       itemsRaw = response;

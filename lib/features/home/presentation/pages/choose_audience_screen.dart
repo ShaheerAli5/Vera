@@ -780,10 +780,9 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                         ),
                       ),
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
 
             // Bottom Navigation Action Container
             Container(
