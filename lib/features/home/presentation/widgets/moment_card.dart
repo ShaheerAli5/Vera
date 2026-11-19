@@ -494,14 +494,27 @@ class _MomentCardState extends State<MomentCard> {
                         }
                       },
                     ),
-                  ] else ...[
+                    SizedBox(height: 16 * responsiveScale),
+                  ],
+                  _MomentActionButton(
+                    label: 'Report moment',
+                    scale: responsiveScale,
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      Future<void>.delayed(const Duration(milliseconds: 250), () {
+                        if (context.mounted) _showReportReasons(context);
+                      });
+                    },
+                  ),
+                  if (!_isOwner) ...[
+                    SizedBox(height: 16 * responsiveScale),
                     _MomentActionButton(
-                      label: 'Report moment',
+                      label: 'Report $_displayName',
                       scale: responsiveScale,
                       onTap: () {
                         Navigator.of(sheetContext).pop();
                         Future<void>.delayed(const Duration(milliseconds: 250), () {
-                          if (context.mounted) _showReportReasons(context);
+                          if (context.mounted) _showReportUserReasons(context);
                         });
                       },
                     ),
@@ -772,6 +785,145 @@ class _MomentCardState extends State<MomentCard> {
                         const SnackBar(
                           content: Text('Report submitted. Thank you for keeping Vera safe.'),
                           backgroundColor: Color(0xFF6B42FF),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Report submission failed: $e'),
+                          backgroundColor: Colors.redAccent,
+                        ),
+                      );
+                    }
+                  }
+                },
+              ),
+              if (entry.key != 'Something else')
+                SizedBox(height: 16 * responsiveScale),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showReportUserReasons(BuildContext context) {
+    final responsiveScale =
+        (MediaQuery.sizeOf(context).width / 393).clamp(.82, 1.12);
+    final client = ApiClientScope.of(context);
+    final accountRepo = AccountRepositoryImpl(AccountRemoteDataSource(client));
+    final targetUserId = widget.moment.creatorId;
+
+    if (targetUserId == null || targetUserId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot identify user to report.')),
+      );
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0xB3090A17),
+      builder: (sheetContext) => Container(
+        padding: EdgeInsets.fromLTRB(
+          24 * responsiveScale,
+          12 * responsiveScale,
+          24 * responsiveScale,
+          40 * responsiveScale,
+        ),
+        decoration: BoxDecoration(
+          color: const Color(0x59090A17),
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(24 * responsiveScale),
+            bottom: Radius.circular(24 * responsiveScale),
+          ),
+          border: Border.all(
+            color: const Color(0x454B3B70),
+            width: 1 * responsiveScale,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x77000000),
+              blurRadius: 30,
+              offset: Offset(0, -8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 36 * responsiveScale,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Report $_displayName',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16 * responsiveScale,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 36 * responsiveScale,
+                    height: 36 * responsiveScale,
+                    child: IconButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: Icon(
+                        Icons.close_rounded,
+                        color: Colors.white,
+                        size: 18 * responsiveScale,
+                      ),
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0x4410101D),
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 24 * responsiveScale),
+            for (final entry in const [
+              MapEntry('Harassment or bullying', 'HARASSMENT'),
+              MapEntry('Spam or scam', 'SPAM'),
+              MapEntry('Hate speech', 'HATE_SPEECH'),
+              MapEntry('Explicit or inappropriate content', 'EXPLICIT_CONTENT'),
+              MapEntry('Something else', 'OTHER'),
+            ]) ...[
+              _MomentActionButton(
+                label: entry.key,
+                scale: responsiveScale,
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  String? details;
+                  if (entry.value == 'OTHER') {
+                    if (context.mounted) {
+                      details = await _promptReportDetails(context, responsiveScale);
+                      if (details == null || details.trim().isEmpty) {
+                        return;
+                      }
+                    }
+                  }
+                  try {
+                    await accountRepo.reportUser(
+                      userId: targetUserId,
+                      reason: entry.value,
+                      details: details,
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Report against $_displayName submitted. Thank you.'),
+                          backgroundColor: const Color(0xFF6B42FF),
                         ),
                       );
                     }

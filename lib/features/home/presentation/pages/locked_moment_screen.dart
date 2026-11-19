@@ -7,6 +7,8 @@ import '../../../../core/theme/theme.dart';
 import '../../../../core/utils/server_time_manager.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
+import '../../../account/data/datasources/account_remote_data_source.dart';
+import '../../../account/data/repositories/account_repository_impl.dart';
 import '../../data/datasources/moments_remote_data_source.dart';
 import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
@@ -405,42 +407,22 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                            _isOwner
-                                ? Align(
-                                    alignment: Alignment.centerRight,
-                                    child: IconButton(
-                                      onPressed: () async {
-                                        final nav = Navigator.of(context);
-                                        final result = await nav.push<Moment>(
-                                          MaterialPageRoute<Moment>(
-                                            builder: (_) => EditMomentScreen(moment: _currentMoment),
-                                          ),
-                                        );
-                                        if (!mounted) return;
-                                        if (result != null) {
-                                          if (result.id.startsWith('__DELETED__:')) {
-                                            nav.pop(result);
-                                          } else {
-                                            setState(() {
-                                              _currentMoment = result;
-                                            });
-                                            _loadPermissions();
-                                          }
-                                        }
-                                      },
-                                      icon: Icon(
-                                        Icons.edit_outlined,
-                                        color: Colors.white,
-                                        size: 20 * scale,
-                                      ),
-                                      padding: EdgeInsets.zero,
-                                      constraints: BoxConstraints.tightFor(
-                                        width: 40 * scale,
-                                        height: 40 * scale,
-                                      ),
-                                    ),
-                                  )
-                                : SizedBox(width: 40 * scale, height: 40 * scale),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: IconButton(
+                                onPressed: () => _showSafetyMenu(context, scale),
+                                icon: Icon(
+                                  Icons.more_horiz_rounded,
+                                  color: Colors.white,
+                                  size: 22 * scale,
+                                ),
+                                padding: EdgeInsets.zero,
+                                constraints: BoxConstraints.tightFor(
+                                  width: 40 * scale,
+                                  height: 40 * scale,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -1195,6 +1177,319 @@ class _DeclinedInvitationBanner extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSafetyMenu(BuildContext context, double scale) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0xB3090A17),
+      builder: (sheetContext) => Container(
+        padding: EdgeInsets.fromLTRB(24 * scale, 16 * scale, 24 * scale, 32 * scale),
+        decoration: BoxDecoration(
+          color: const Color(0xFF17182D),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24 * scale)),
+          border: Border.all(color: const Color(0xFF373657)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36 * scale,
+              height: 4 * scale,
+              margin: EdgeInsets.only(bottom: 20 * scale),
+              decoration: BoxDecoration(
+                color: const Color(0xFF454B70),
+                borderRadius: BorderRadius.circular(2 * scale),
+              ),
+            ),
+            if (_isOwner) ...[
+              ListTile(
+                leading: const Icon(Icons.edit_outlined, color: Colors.white),
+                title: const Text('Edit moment', style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  final nav = Navigator.of(context);
+                  final result = await nav.push<Moment>(
+                    MaterialPageRoute<Moment>(
+                      builder: (_) => EditMomentScreen(moment: _currentMoment),
+                    ),
+                  );
+                  if (!mounted) return;
+                  if (result != null) {
+                    if (result.id.startsWith('__DELETED__:')) {
+                      nav.pop(result);
+                    } else {
+                      setState(() {
+                        _currentMoment = result;
+                      });
+                      _loadPermissions();
+                    }
+                  }
+                },
+              ),
+            ],
+            ListTile(
+              leading: const Icon(Icons.flag_outlined, color: Colors.white),
+              title: const Text('Report moment', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _showReportSheet(context, scale);
+              },
+            ),
+            if (!_isOwner) ...[
+              ListTile(
+                leading: const Icon(Icons.person_off_outlined, color: Color(0xFFFFA05C)),
+                title: Text('Report ${_currentMoment.userName}',
+                    style: const TextStyle(color: Color(0xFFFFA05C))),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _showReportUserSheet(context, scale);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.block, color: Color(0xFFFF4D4F)),
+                title: Text('Block ${_currentMoment.userName}',
+                    style: const TextStyle(color: Color(0xFFFF4D4F))),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _showBlockConfirmation(context, scale);
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showReportSheet(BuildContext context, double scale) {
+    final client = ApiClientScope.of(context);
+    final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0xB3090A17),
+      builder: (sheetCtx) => Container(
+        padding: EdgeInsets.fromLTRB(24 * scale, 16 * scale, 24 * scale, 32 * scale),
+        decoration: BoxDecoration(
+          color: const Color(0xFF17182D),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24 * scale)),
+          border: Border.all(color: const Color(0xFF373657)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Why are you reporting this?',
+                style: TextStyle(color: Colors.white, fontSize: 18 * scale, fontWeight: FontWeight.bold)),
+            SizedBox(height: 16 * scale),
+            for (final entry in const [
+              MapEntry('Spam', 'SPAM'),
+              MapEntry('Inappropriate content', 'INAPPROPRIATE_CONTENT'),
+              MapEntry('Harassment', 'HARASSMENT'),
+              MapEntry('Something else', 'OTHER'),
+            ])
+              ListTile(
+                title: Text(entry.key, style: const TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.of(sheetCtx).pop();
+                  String? details;
+                  if (entry.value == 'OTHER') {
+                    details = await _promptReportDetails(context, scale);
+                    if (details == null || details.trim().isEmpty) return;
+                  }
+                  try {
+                    await repo.reportMoment(
+                      momentId: _currentMoment.id,
+                      reason: entry.value,
+                      details: details,
+                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Report submitted. Thank you for keeping Vera safe.')),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to submit report: $e')),
+                      );
+                    }
+                  }
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showReportUserSheet(BuildContext context, double scale) {
+    final client = ApiClientScope.of(context);
+    final accountRepo = AccountRepositoryImpl(AccountRemoteDataSource(client));
+    final targetUserId = _currentMoment.creatorId;
+
+    if (targetUserId == null || targetUserId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot identify user to report.')),
+      );
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0xB3090A17),
+      builder: (sheetCtx) => Container(
+        padding: EdgeInsets.fromLTRB(24 * scale, 16 * scale, 24 * scale, 32 * scale),
+        decoration: BoxDecoration(
+          color: const Color(0xFF17182D),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24 * scale)),
+          border: Border.all(color: const Color(0xFF373657)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Report ${_currentMoment.userName}',
+                style: TextStyle(color: Colors.white, fontSize: 18 * scale, fontWeight: FontWeight.bold)),
+            SizedBox(height: 16 * scale),
+            for (final entry in const [
+              MapEntry('Harassment or bullying', 'HARASSMENT'),
+              MapEntry('Spam or scam', 'SPAM'),
+              MapEntry('Hate speech', 'HATE_SPEECH'),
+              MapEntry('Explicit or inappropriate content', 'EXPLICIT_CONTENT'),
+              MapEntry('Something else', 'OTHER'),
+            ])
+              ListTile(
+                title: Text(entry.key, style: const TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.of(sheetCtx).pop();
+                  String? details;
+                  if (entry.value == 'OTHER') {
+                    details = await _promptReportDetails(context, scale);
+                    if (details == null || details.trim().isEmpty) return;
+                  }
+                  try {
+                    await accountRepo.reportUser(
+                      userId: targetUserId,
+                      reason: entry.value,
+                      details: details,
+                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Report against ${_currentMoment.userName} submitted. Thank you.'),
+                          backgroundColor: const Color(0xFF6B42FF),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to submit report: $e')),
+                      );
+                    }
+                  }
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showBlockConfirmation(BuildContext context, double scale) {
+    final client = ApiClientScope.of(context);
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF17182D),
+        title: Text('Block ${_currentMoment.userName}?',
+            style: const TextStyle(color: Colors.white)),
+        content: Text(
+          "You won't receive new invitations or notifications from ${_currentMoment.userName}. You can unblock them in Privacy settings.",
+          style: const TextStyle(color: Color(0xFFD4D4E8)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(dialogCtx).pop();
+              final targetUserId = _currentMoment.creatorId;
+              if (targetUserId == null || targetUserId.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Cannot identify user to block.')),
+                );
+                return;
+              }
+              try {
+                final accountRepo = AccountRepositoryImpl(AccountRemoteDataSource(client));
+                await accountRepo.blockUser(targetUserId);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Blocked ${_currentMoment.userName}')),
+                  );
+                  Navigator.of(context).maybePop();
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to block user: $e')),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF4D4F)),
+            child: const Text('Block', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<String?> _promptReportDetails(BuildContext context, double scale) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF17182D),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20 * scale)),
+        title: Text('Report details', style: TextStyle(color: Colors.white, fontSize: 18 * scale)),
+        content: TextField(
+          controller: controller,
+          maxLines: 3,
+          style: TextStyle(color: Colors.white, fontSize: 14 * scale),
+          decoration: InputDecoration(
+            hintText: 'Please describe the issue...',
+            hintStyle: TextStyle(color: const Color(0xFFA2A5C2), fontSize: 14 * scale),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12 * scale),
+              borderSide: const BorderSide(color: Color(0xFF373657)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12 * scale),
+              borderSide: const BorderSide(color: Color(0xFF9044FB)),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: Text('Cancel', style: TextStyle(color: const Color(0xFFA2A5C2), fontSize: 14 * scale)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(controller.text.trim()),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF9044FB)),
+            child: Text('Submit', style: TextStyle(color: Colors.white, fontSize: 14 * scale)),
           ),
         ],
       ),
