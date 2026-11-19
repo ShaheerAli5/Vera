@@ -16,14 +16,10 @@ class MomentPermissionUtils {
       final profile = await repo.getProfile();
 
       bool isOwner = false;
-      if (moment.userName == 'You' || moment.userName.isEmpty) {
-        isOwner = true;
+      if (moment.creatorId != null && moment.creatorId!.isNotEmpty && profile.id.isNotEmpty) {
+        isOwner = (moment.creatorId == profile.id);
       } else if (moment.userName == 'New Moment') {
         isOwner = false;
-      } else if (moment.creatorId != null && moment.creatorId!.isNotEmpty && profile.id.isNotEmpty) {
-        if (moment.creatorId == profile.id) {
-          isOwner = true;
-        }
       } else if (profile.displayName.isNotEmpty && moment.userName.toLowerCase() == profile.displayName.toLowerCase()) {
         isOwner = true;
       } else if (profile.username != null && profile.username!.isNotEmpty) {
@@ -32,6 +28,8 @@ class MomentPermissionUtils {
         if (cleanU == cleanM) {
           isOwner = true;
         }
+      } else if (moment.userName == 'You') {
+        isOwner = true;
       }
 
       String displayName = moment.userName;

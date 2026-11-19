@@ -15,6 +15,7 @@ import '../../data/datasources/moments_remote_data_source.dart';
 import '../../data/models/chat_message_model.dart';
 import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
+import 'edit_moment_screen.dart';
 import '../utils/moment_permission_utils.dart';
 
 class UnlockedMomentScreen extends StatefulWidget {
@@ -250,26 +251,16 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    Builder(
-                      builder: (topCtx) {
-                        final client = ApiClientScope.of(topCtx);
-                        final isAuthor = (_currentMoment.creatorId != null &&
-                                client.currentUserId != null &&
-                                _currentMoment.creatorId == client.currentUserId) ||
-                            _currentMoment.userName.trim().toLowerCase() == 'you';
-                        if (isAuthor) return const SizedBox.shrink();
-                        return Align(
-                          alignment: Alignment.centerRight,
-                          child: IconButton(
-                            onPressed: () => _showSafetyMenu(context, scale),
-                            icon: Icon(Icons.more_horiz_rounded,
-                                color: Colors.white, size: 22 * scale),
-                            padding: EdgeInsets.zero,
-                            constraints: BoxConstraints.tightFor(
-                                width: 40 * scale, height: 40 * scale),
-                          ),
-                        );
-                      },
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: IconButton(
+                        onPressed: () => _showSafetyMenu(context, scale),
+                        icon: Icon(Icons.more_horiz_rounded,
+                            color: Colors.white, size: 22 * scale),
+                        padding: EdgeInsets.zero,
+                        constraints: BoxConstraints.tightFor(
+                            width: 40 * scale, height: 40 * scale),
+                      ),
                     ),
                   ],
                 ),
@@ -521,6 +512,12 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
   }
 
   void _showSafetyMenu(BuildContext context, double scale) {
+    final client = ApiClientScope.of(context);
+    final isAuthor = (_currentMoment.creatorId != null &&
+            client.currentUserId != null &&
+            _currentMoment.creatorId == client.currentUserId) ||
+        _currentMoment.userName.trim().toLowerCase() == 'you';
+
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -544,6 +541,23 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                 borderRadius: BorderRadius.circular(2 * scale),
               ),
             ),
+            if (isAuthor) ...[
+              ListTile(
+                leading: const Icon(Icons.edit_outlined, color: Colors.white),
+                title: const Text('Edit moment', style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  final updated = await Navigator.of(context).push<Moment>(
+                    MaterialPageRoute<Moment>(
+                      builder: (_) => EditMomentScreen(moment: _currentMoment),
+                    ),
+                  );
+                  if (updated != null && mounted) {
+                    setState(() => _currentMoment = updated);
+                  }
+                },
+              ),
+            ],
             ListTile(
               leading: const Icon(Icons.flag_outlined, color: Colors.white),
               title: const Text('Report moment', style: TextStyle(color: Colors.white)),
@@ -552,15 +566,101 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> {
                 _showReportSheet(context, scale);
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.block, color: Color(0xFFFF4D4F)),
-              title: Text('Block ${_currentMoment.userName}',
-                  style: const TextStyle(color: Color(0xFFFF4D4F))),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                _showBlockConfirmation(context, scale);
-              },
-            ),
+            if (!isAuthor) ...[
+              ListTile(
+                leading: const Icon(Icons.person_off_outlined, color: Color(0xFFFFA05C)),
+                title: Text('Report ${_currentMoment.userName}',
+                    style: const TextStyle(color: Color(0xFFFFA05C))),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _showReportUserSheet(context, scale);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.block, color: Color(0xFFFF4D4F)),
+                title: Text('Block ${_currentMoment.userName}',
+                    style: const TextStyle(color: Color(0xFFFF4D4F))),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _showBlockConfirmation(context, scale);
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showReportUserSheet(BuildContext context, double scale) {
+    final client = ApiClientScope.of(context);
+    final accountRepo = AccountRepositoryImpl(AccountRemoteDataSource(client));
+    final targetUserId = _currentMoment.creatorId;
+
+    if (targetUserId == null || targetUserId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot identify user to report.')),
+      );
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: const Color(0xB3090A17),
+      builder: (sheetCtx) => Container(
+        padding: EdgeInsets.fromLTRB(24 * scale, 16 * scale, 24 * scale, 32 * scale),
+        decoration: BoxDecoration(
+          color: const Color(0xFF17182D),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24 * scale)),
+          border: Border.all(color: const Color(0xFF373657)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Report ${_currentMoment.userName}',
+                style: TextStyle(color: Colors.white, fontSize: 18 * scale, fontWeight: FontWeight.bold)),
+            SizedBox(height: 16 * scale),
+            for (final entry in const [
+              MapEntry('Harassment or bullying', 'HARASSMENT'),
+              MapEntry('Spam or scam', 'SPAM'),
+              MapEntry('Hate speech', 'HATE_SPEECH'),
+              MapEntry('Explicit or inappropriate content', 'EXPLICIT_CONTENT'),
+              MapEntry('Something else', 'OTHER'),
+            ])
+              ListTile(
+                title: Text(entry.key, style: const TextStyle(color: Colors.white)),
+                onTap: () async {
+                  Navigator.of(sheetCtx).pop();
+                  String? details;
+                  if (entry.value == 'OTHER') {
+                    details = await _promptReportDetails(context, scale);
+                    if (details == null || details.trim().isEmpty) return;
+                  }
+                  try {
+                    await accountRepo.reportUser(
+                      userId: targetUserId,
+                      reason: entry.value,
+                      details: details,
+                    );
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Report against ${_currentMoment.userName} submitted. Thank you.'),
+                          backgroundColor: const Color(0xFF6B42FF),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to submit report: $e')),
+                      );
+                    }
+                  }
+                },
+              ),
           ],
         ),
       ),
