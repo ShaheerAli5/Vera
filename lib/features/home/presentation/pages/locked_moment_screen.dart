@@ -12,6 +12,7 @@ import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
 import 'edit_moment_screen.dart';
 import 'unlocked_moment_screen.dart';
+import '../utils/moment_permission_utils.dart';
 
 class LockedMomentScreen extends StatefulWidget {
   const LockedMomentScreen({super.key, required this.moment});
@@ -26,6 +27,7 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
   late Moment _currentMoment;
   bool _isChecking = false;
   int _ticksCount = 0;
+  bool _isOwner = false;
 
   @override
   void initState() {
@@ -33,6 +35,17 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
     _currentMoment = widget.moment;
     ServerTimeManager.instance.ticker.addListener(_onTick);
     ServerTimeManager.instance.addResumedListener(_onResumed);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadPermissions();
+    });
+  }
+
+  Future<void> _loadPermissions() async {
+    final result = await MomentPermissionUtils.resolve(context: context, moment: _currentMoment);
+    if (!mounted) return;
+    setState(() {
+      _isOwner = result['isOwner'] == true;
+    });
   }
 
   @override
@@ -392,39 +405,42 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: IconButton(
-                                onPressed: () async {
-                                  final nav = Navigator.of(context);
-                                  final result = await nav.push<Moment>(
-                                    MaterialPageRoute<Moment>(
-                                      builder: (_) => EditMomentScreen(moment: _currentMoment),
+                            _isOwner
+                                ? Align(
+                                    alignment: Alignment.centerRight,
+                                    child: IconButton(
+                                      onPressed: () async {
+                                        final nav = Navigator.of(context);
+                                        final result = await nav.push<Moment>(
+                                          MaterialPageRoute<Moment>(
+                                            builder: (_) => EditMomentScreen(moment: _currentMoment),
+                                          ),
+                                        );
+                                        if (!mounted) return;
+                                        if (result != null) {
+                                          if (result.id.startsWith('__DELETED__:')) {
+                                            nav.pop(result);
+                                          } else {
+                                            setState(() {
+                                              _currentMoment = result;
+                                            });
+                                            _loadPermissions();
+                                          }
+                                        }
+                                      },
+                                      icon: Icon(
+                                        Icons.edit_outlined,
+                                        color: Colors.white,
+                                        size: 20 * scale,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      constraints: BoxConstraints.tightFor(
+                                        width: 40 * scale,
+                                        height: 40 * scale,
+                                      ),
                                     ),
-                                  );
-                                  if (!mounted) return;
-                                  if (result != null) {
-                                    if (result.id.startsWith('__DELETED__:')) {
-                                      nav.pop(result);
-                                    } else {
-                                      setState(() {
-                                        _currentMoment = result;
-                                      });
-                                    }
-                                  }
-                                },
-                                icon: Icon(
-                                  Icons.edit_outlined,
-                                  color: Colors.white,
-                                  size: 20 * scale,
-                                ),
-                                padding: EdgeInsets.zero,
-                                constraints: BoxConstraints.tightFor(
-                                  width: 40 * scale,
-                                  height: 40 * scale,
-                                ),
-                              ),
-                            ),
+                                  )
+                                : SizedBox(width: 40 * scale, height: 40 * scale),
                           ],
                         ),
                       ),
