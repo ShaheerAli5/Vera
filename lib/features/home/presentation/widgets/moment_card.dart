@@ -4,8 +4,9 @@ import '../../../../core/utils/server_time_manager.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../domain/entities/moment.dart';
 import '../pages/edit_moment_screen.dart';
+import '../utils/moment_permission_utils.dart';
 
-class MomentCard extends StatelessWidget {
+class MomentCard extends StatefulWidget {
   const MomentCard({
     super.key,
     required this.moment,
@@ -22,7 +23,38 @@ class MomentCard extends StatelessWidget {
   final ValueChanged<Moment>? onMomentUpdated;
 
   @override
+  State<MomentCard> createState() => _MomentCardState();
+}
+
+class _MomentCardState extends State<MomentCard> {
+  bool _isOwner = false;
+  String _displayName = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _displayName = widget.moment.userName;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadPermissions();
+    });
+  }
+
+  Future<void> _loadPermissions() async {
+    final result = await MomentPermissionUtils.resolve(context: context, moment: widget.moment);
+    if (!mounted) return;
+    setState(() {
+      _isOwner = result['isOwner'] == true;
+      _displayName = result['displayName']?.toString() ?? widget.moment.userName;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final moment = widget.moment;
+    final scale = widget.scale;
+    final showDiscoverActions = widget.showDiscoverActions;
+    final onTap = widget.onTap;
+
     const cardHeight = 194.0;
     const cardRadius = 20.0;
     final bool isUnlocked = moment.isReadyToOpen ||
@@ -215,7 +247,10 @@ class MomentCard extends StatelessWidget {
     );
   }
 
-  Widget _buildAuthorBadge(double scale) {
+  Widget _buildAuthorBadge(double inputScale) {
+    final moment = widget.moment;
+    final scale = widget.scale;
+    final displayName = _displayName;
     return ClipRRect(
       borderRadius: BorderRadius.circular(999 * scale),
       child: BackdropFilter(
@@ -270,7 +305,7 @@ class MomentCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(moment.sentBadgeTitle ?? moment.userName, style: TextStyle(
+                  Text(moment.sentBadgeTitle ?? displayName, style: TextStyle(
                     color: Colors.white,
                     fontSize: 13 * scale,
                     fontWeight: FontWeight.w600,
@@ -291,7 +326,9 @@ class MomentCard extends StatelessWidget {
       ),
     );
   }
-  Widget _buildTopLock(double scale) {
+  Widget _buildTopLock(double inputScale) {
+    final moment = widget.moment;
+    final scale = widget.scale;
     final bool isUnlocked = moment.isReadyToOpen ||
         moment.unlockedAt != null ||
         (moment.unlockAt != null &&
@@ -390,7 +427,7 @@ class MomentCard extends StatelessWidget {
                       children: [
                       ClipOval(
                         child: Image.network(
-                          moment.userAvatarUrl,
+                          widget.moment.userAvatarUrl,
                           width: 36 * responsiveScale,
                           height: 36 * responsiveScale,
                           fit: BoxFit.cover,
@@ -408,7 +445,7 @@ class MomentCard extends StatelessWidget {
                       SizedBox(width: 8 * responsiveScale),
                       Expanded(
                         child: Text(
-                          'Moment from ${moment.userName}',
+                          'Moment from $_displayName',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 16 * responsiveScale,
@@ -435,22 +472,24 @@ class MomentCard extends StatelessWidget {
                     ),
                   ),
                   SizedBox(height: 24 * responsiveScale),
-                  _MomentActionButton(
-                    label: 'Edit moment',
-                    scale: responsiveScale,
-                    onTap: () async {
-                      Navigator.of(sheetContext).pop();
-                      final updated = await Navigator.of(context).push<Moment>(
-                        MaterialPageRoute<Moment>(
-                          builder: (_) => EditMomentScreen(moment: moment),
-                        ),
-                      );
-                      if (updated != null && onMomentUpdated != null) {
-                        onMomentUpdated!(updated);
-                      }
-                    },
-                  ),
-                  SizedBox(height: 16 * responsiveScale),
+                  if (_isOwner) ...[
+                    _MomentActionButton(
+                      label: 'Edit moment',
+                      scale: responsiveScale,
+                      onTap: () async {
+                        Navigator.of(sheetContext).pop();
+                        final updated = await Navigator.of(context).push<Moment>(
+                          MaterialPageRoute<Moment>(
+                            builder: (_) => EditMomentScreen(moment: widget.moment),
+                          ),
+                        );
+                        if (updated != null && widget.onMomentUpdated != null) {
+                          widget.onMomentUpdated!(updated);
+                        }
+                      },
+                    ),
+                    SizedBox(height: 16 * responsiveScale),
+                  ],
                   _MomentActionButton(
                     label: 'Report moment',
                     scale: responsiveScale,
@@ -463,7 +502,7 @@ class MomentCard extends StatelessWidget {
                   ),
                   SizedBox(height: 16 * responsiveScale),
                   _MomentActionButton(
-                    label: 'Block ${moment.userName}',
+                    label: 'Block $_displayName',
                     scale: responsiveScale,
                     isDestructive: true,
                     onTap: () {
@@ -483,9 +522,10 @@ class MomentCard extends StatelessWidget {
   }
 
   void _showBlockConfirmation(BuildContext context) {
+    final displayName = _displayName;
     final responsiveScale =
         (MediaQuery.sizeOf(context).width / 393).clamp(.82, 1.12);
-    final firstName = moment.userName.split(' ').first;
+    final firstName = displayName.split(' ').first;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -562,7 +602,7 @@ class MomentCard extends StatelessWidget {
               height: 66 * responsiveScale,
               child: Text(
                 "You won't receive new invitations or notifications from "
-                '${moment.userName}. You can unblock them in Privacy settings.',
+                '$displayName. You can unblock them in Privacy settings.',
                 style: TextStyle(
                   color: const Color(0xFFA2A5C2),
                   fontSize: 14 * responsiveScale,
@@ -573,7 +613,7 @@ class MomentCard extends StatelessWidget {
             ),
             SizedBox(height: 24 * responsiveScale),
             _MomentActionButton(
-              label: 'Block ${moment.userName}',
+              label: 'Block $displayName',
               scale: responsiveScale,
               isDestructive: true,
               onTap: () => Navigator.of(sheetContext).pop(),

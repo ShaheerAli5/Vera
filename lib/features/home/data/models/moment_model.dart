@@ -504,6 +504,7 @@ class MomentModel {
       isVideo: isVideo,
       contentType: contentType,
       hasMedia: hasMedia,
+      creatorId: creatorId,
     );
   }
 }

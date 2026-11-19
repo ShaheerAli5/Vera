@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/theme/theme.dart';
-import '../../../../core/widgets/vera_popup.dart';
+import '../../../../core/utils/server_time_manager.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../data/datasources/moments_remote_data_source.dart';
+import '../../data/models/moment_model.dart';
 import '../../data/models/notification_model.dart';
 import '../../data/repositories/moments_repository_impl.dart';
+import '../../domain/entities/moment.dart';
 import 'locked_moment_screen.dart';
 import 'unlocked_moment_screen.dart';
 
@@ -50,63 +52,104 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     final momentId = n.data['momentId']?.toString() ??
-        (n.type == 'MOMENT_INVITATION' || n.type == 'PRIVATE_MOMENT' || n.type == 'ADMIN_APPROVAL' || n.type == 'ADMIN_REJECTION' ? n.id : null);
+        n.data['moment_id']?.toString() ??
+        n.data['id']?.toString();
 
+    final candidateIds = <String>[];
     if (momentId != null && momentId.isNotEmpty && !momentId.startsWith('fallback-')) {
+      candidateIds.add(momentId);
+    }
+    if (n.id.isNotEmpty && !n.id.startsWith('fallback-') && !candidateIds.contains(n.id)) {
+      candidateIds.add(n.id);
+    }
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: VeraTheme.purple),
+      ),
+    );
+
+    final client = ApiClientScope.of(context);
+    final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+
+    MomentModel? momentModel;
+    for (final candidateId in candidateIds) {
       try {
-        if (!mounted) return;
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => const Center(
-            child: CircularProgressIndicator(color: VeraTheme.purple),
-          ),
-        );
+        momentModel = await repo.getMomentById(candidateId);
+        break;
+      } catch (_) {}
+    }
 
-        final client = ApiClientScope.of(context);
-        final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
-        final momentModel = await repo.getMomentById(momentId);
-        final moment = momentModel.toEntity();
+    if (!mounted) return;
+    try {
+      Navigator.of(context, rootNavigator: true).pop();
+    } catch (_) {}
 
-        if (!mounted) return;
-        Navigator.of(context, rootNavigator: true).pop();
-
-        if (!mounted) return;
-        if (moment.isReadyToOpen || moment.status == 'OPENED' || moment.unlockedAt != null) {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => UnlockedMomentScreen(moment: moment),
-            ),
-          );
-        } else {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => LockedMomentScreen(moment: moment),
-            ),
-          );
-        }
-      } catch (_) {
-        if (mounted) {
-          Navigator.of(context, rootNavigator: true).pop();
-          VeraPopup.show(
-            context,
-            title: n.title,
-            message: n.body,
-            icon: Icons.notifications_rounded,
-            accent: VeraTheme.purple,
-          );
-        }
-      }
+    Moment moment;
+    if (momentModel != null) {
+      moment = momentModel.toEntity();
     } else {
-      if (mounted) {
-        VeraPopup.show(
-          context,
-          title: n.title,
-          message: n.body,
-          icon: Icons.notifications_rounded,
-          accent: VeraTheme.purple,
-        );
+      String resolvedUserName = n.data['userName']?.toString() ??
+          n.data['creatorName']?.toString() ??
+          n.data['senderName']?.toString() ??
+          n.data['creator']?.toString() ??
+          'User';
+      if (resolvedUserName == 'New Moment' || resolvedUserName.isEmpty) {
+        resolvedUserName = 'User';
       }
+
+      String timeAgoText = 'Just now';
+      if (n.createdAt != null) {
+        final now = ServerTimeManager.instance.now;
+        final diff = now.difference(n.createdAt!);
+        if (diff.inDays > 365) {
+          timeAgoText = '${(diff.inDays / 365).floor()}y ago';
+        } else if (diff.inDays > 30) {
+          timeAgoText = '${(diff.inDays / 30).floor()}mo ago';
+        } else if (diff.inDays > 0) {
+          timeAgoText = '${diff.inDays}d ago';
+        } else if (diff.inHours > 0) {
+          timeAgoText = '${diff.inHours}h ago';
+        } else if (diff.inMinutes > 0) {
+          timeAgoText = '${diff.inMinutes}m ago';
+        } else {
+          timeAgoText = 'Just now';
+        }
+      }
+
+      moment = Moment(
+        id: momentId ?? n.id,
+        userName: resolvedUserName,
+        userAvatarUrl: n.imageUrl ?? '',
+        timeAgo: timeAgoText,
+        backgroundImageUrl: n.imageUrl ?? '',
+        unlockCondition: n.body,
+        unlockType: MomentUnlockType.time,
+        isReadyToOpen: true,
+        message: n.body,
+        title: n.title,
+        teaser: n.body,
+        status: 'PUBLISHED',
+        hasMedia: n.imageUrl != null && n.imageUrl!.isNotEmpty,
+      );
+    }
+
+    if (!mounted) return;
+    if (moment.isReadyToOpen || moment.status == 'OPENED' || moment.unlockedAt != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => UnlockedMomentScreen(moment: moment),
+        ),
+      );
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => LockedMomentScreen(moment: moment),
+        ),
+      );
     }
   }
 

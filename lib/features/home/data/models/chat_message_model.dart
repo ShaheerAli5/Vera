@@ -22,25 +22,46 @@ class ChatMessageModel {
             ? rawJson['message'] as Map<String, dynamic>
             : rawJson);
 
-    final rawCreated = json['createdAt'] ?? json['created_at'];
+    final rawCreated = json['createdAt'] ??
+        json['created_at'] ??
+        rawJson['createdAt'] ??
+        rawJson['created_at'] ??
+        json['timestamp'] ??
+        rawJson['timestamp'];
+
+    final content = json['content']?.toString() ??
+        json['text']?.toString() ??
+        (json['message'] is String ? json['message'].toString() : null) ??
+        json['body']?.toString() ??
+        json['msg']?.toString() ??
+        json['value']?.toString() ??
+        rawJson['content']?.toString() ??
+        rawJson['text']?.toString() ??
+        (rawJson['message'] is String ? rawJson['message'].toString() : null) ??
+        rawJson['body']?.toString() ??
+        rawJson['msg']?.toString() ??
+        '';
 
     return ChatMessageModel(
       id: json['id']?.toString() ??
           json['_id']?.toString() ??
           rawJson['id']?.toString() ??
+          rawJson['_id']?.toString() ??
           '',
       threadId: json['threadId']?.toString() ??
           json['thread_id']?.toString() ??
-          rawJson['threadId']?.toString(),
+          rawJson['threadId']?.toString() ??
+          rawJson['thread_id']?.toString(),
       senderId: json['senderId']?.toString() ??
           json['sender_id']?.toString() ??
           json['userId']?.toString() ??
-          json['user_id']?.toString(),
-      content: json['content']?.toString() ??
-          json['text']?.toString() ??
-          json['message']?.toString() ??
-          '',
-      createdAt: rawCreated is String ? DateTime.tryParse(rawCreated) : null,
+          json['user_id']?.toString() ??
+          rawJson['senderId']?.toString() ??
+          rawJson['sender_id']?.toString(),
+      content: content,
+      createdAt: rawCreated is String
+          ? DateTime.tryParse(rawCreated)
+          : (rawCreated is DateTime ? rawCreated : null),
       raw: rawJson,
     );
   }
@@ -69,15 +90,29 @@ class ThreadMessagesResponse {
   final bool hasMore;
 
   factory ThreadMessagesResponse.fromJson(dynamic json) {
+    if (json is List) {
+      final items = json
+          .whereType<Map<String, dynamic>>()
+          .map(ChatMessageModel.fromJson)
+          .toList();
+      return ThreadMessagesResponse(items: items);
+    }
+
     if (json is! Map<String, dynamic>) {
       return const ThreadMessagesResponse(items: []);
     }
 
-    final rawItems = json['items'] is List
+    final rawList = json['items'] is List
         ? json['items'] as List
-        : (json['messages'] is List ? json['messages'] as List : <dynamic>[]);
+        : (json['messages'] is List
+            ? json['messages'] as List
+            : (json['data'] is List
+                ? json['data'] as List
+                : (json['data'] is Map && (json['data']['items'] is List || json['data']['messages'] is List)
+                    ? (json['data']['items'] ?? json['data']['messages']) as List
+                    : [])));
 
-    final items = rawItems
+    final items = rawList
         .whereType<Map<String, dynamic>>()
         .map(ChatMessageModel.fromJson)
         .toList();

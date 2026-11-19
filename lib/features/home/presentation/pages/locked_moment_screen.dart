@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../../../../core/layout/responsive.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/utils/server_time_manager.dart';
 import '../../../../core/widgets/vera_popup.dart';
@@ -10,6 +11,7 @@ import '../../../../main.dart' show ApiClientScope;
 import '../../data/datasources/moments_remote_data_source.dart';
 import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
+import '../utils/moment_permission_utils.dart';
 import 'edit_moment_screen.dart';
 import 'unlocked_moment_screen.dart';
 
@@ -26,13 +28,28 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
   late Moment _currentMoment;
   bool _isChecking = false;
   int _ticksCount = 0;
+  bool _isOwner = false;
+  String _displayName = '';
 
   @override
   void initState() {
     super.initState();
     _currentMoment = widget.moment;
+    _displayName = widget.moment.userName;
     ServerTimeManager.instance.ticker.addListener(_onTick);
     ServerTimeManager.instance.addResumedListener(_onResumed);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadPermissions();
+    });
+  }
+
+  Future<void> _loadPermissions() async {
+    final result = await MomentPermissionUtils.resolve(context: context, moment: _currentMoment);
+    if (!mounted) return;
+    setState(() {
+      _isOwner = result['isOwner'] == true;
+      _displayName = result['displayName']?.toString() ?? _currentMoment.userName;
+    });
   }
 
   @override
@@ -134,17 +151,51 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
     if (_isChecking) return;
     setState(() => _isChecking = true);
 
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          backgroundColor: const Color(0xFF161626),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 16),
+              const CircularProgressIndicator(color: VeraTheme.purple),
+              const SizedBox(height: 24),
+              const Text(
+                'Please wait, your moment is being checked...',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+
     try {
       final client = ApiClientScope.of(context);
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
 
-      // Attempt to unlock on the server
+      Moment? readyMoment;
+      bool isNotReady = false;
+      String? notReadyReason;
+
       try {
         final unlockedModel = await repo.unlockMoment(
           momentId: _currentMoment.id,
         );
         final base = unlockedModel.toEntity();
-        final unlockedEntity = base.copyWith(
+        readyMoment = base.copyWith(
           isReadyToOpen: true,
           userName: (base.userName.isNotEmpty && base.userName != 'You')
               ? base.userName
@@ -164,66 +215,110 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
           hasMedia: base.hasMedia || _currentMoment.hasMedia,
           isVideo: base.isVideo || _currentMoment.isVideo,
         );
+      } catch (unlockErr) {
+        String errMsg = '';
+        if (unlockErr is ApiException) {
+          errMsg = unlockErr.message;
+        } else {
+          errMsg = unlockErr.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
+        }
+
+        final model = await repo.getMomentById(_currentMoment.id);
+        final updated = model.toEntity();
+        if (updated.isReadyToOpen || updated.status == 'OPENED' || updated.unlockedAt != null) {
+          readyMoment = updated;
+        } else {
+          isNotReady = true;
+          notReadyReason = errMsg.isNotEmpty && !errMsg.startsWith('Exception')
+              ? errMsg
+              : updated.unlockCondition;
+        }
+      }
+
+      if (!mounted) return;
+      try {
+        Navigator.of(context, rootNavigator: true).pop(); // close waiting dialog
+      } catch (_) {}
+
+      if (readyMoment != null) {
         if (!mounted) return;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF161626),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 16),
+                const Icon(Icons.check_circle_rounded, color: Color(0xFF7DF0B0), size: 48),
+                const SizedBox(height: 16),
+                const Text(
+                  'Your moment is ready! Unlocking now...',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        );
+
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+        if (!mounted) return;
+        try {
+          Navigator.of(context, rootNavigator: true).pop(); // close success dialog
+        } catch (_) {}
+
         setState(() {
-          _currentMoment = unlockedEntity;
+          _currentMoment = readyMoment!;
           _isChecking = false;
         });
 
         Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(
-            builder: (_) => UnlockedMomentScreen(moment: unlockedEntity),
+            builder: (_) => UnlockedMomentScreen(moment: readyMoment!),
           ),
         );
-        return;
-      } catch (unlockErr) {
-        // If unlock API returned an error, fetch latest moment status to update details
-        final model = await repo.getMomentById(_currentMoment.id);
-        final updated = model.toEntity();
-
-        if (!mounted) return;
-        setState(() {
-          _currentMoment = updated;
-          _isChecking = false;
-        });
-
-        if (updated.status == 'PENDING_REVIEW') {
-          VeraPopup.show(
-            context,
-            title: 'Pending Admin Approval',
-            message:
-                'This moment has been submitted to admin and is awaiting approval. Once approved, it will be published.',
-            icon: Icons.hourglass_top_rounded,
-            accent: const Color(0xFFFFB74D),
-          );
-        } else if (updated.isReadyToOpen) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute<void>(
-              builder: (_) => UnlockedMomentScreen(moment: updated),
-            ),
-          );
-        } else {
-          final errorMsg = unlockErr
-              .toString()
-              .replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
-          VeraPopup.show(
-            context,
-            title: 'Still locked',
-            message: errorMsg.isNotEmpty && !errorMsg.contains('HTTP')
-                ? errorMsg
-                : 'This moment isn’t ready to open yet.\n${updated.unlockCondition}',
-            icon: Icons.lock_outline_rounded,
-            accent: const Color(0xFF8CB8FF),
-          );
-        }
+      } else if (isNotReady) {
+        setState(() => _isChecking = false);
+        VeraPopup.show(
+          context,
+          title: 'Not ready yet',
+          message: notReadyReason != null && notReadyReason.isNotEmpty
+              ? notReadyReason
+              : 'Your moment is not ready yet. Please wait.',
+          icon: Icons.hourglass_empty_rounded,
+          accent: const Color(0xFF8CB8FF),
+        );
+      } else {
+        setState(() => _isChecking = false);
       }
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
+      try {
+        Navigator.of(context, rootNavigator: true).pop(); // ensure waiting dialog is closed
+      } catch (_) {}
       setState(() => _isChecking = false);
+
+      String errorMsg = '';
+      if (e is ApiException) {
+        errorMsg = e.message;
+      } else {
+        errorMsg = e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
+      }
+
       VeraPopup.show(
         context,
         title: 'Check failed',
-        message: 'Could not refresh moment status from server.',
+        message: errorMsg.isNotEmpty && !errorMsg.startsWith('Exception')
+            ? errorMsg
+            : 'Could not refresh moment status from server. Please check your connection and try again.',
         icon: Icons.error_outline_rounded,
         accent: VeraTheme.warning,
       );
@@ -392,39 +487,42 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: IconButton(
-                                onPressed: () async {
-                                  final nav = Navigator.of(context);
-                                  final result = await nav.push<Moment>(
-                                    MaterialPageRoute<Moment>(
-                                      builder: (_) => EditMomentScreen(moment: _currentMoment),
+                            _isOwner
+                                ? Align(
+                                    alignment: Alignment.centerRight,
+                                    child: IconButton(
+                                      onPressed: () async {
+                                        final nav = Navigator.of(context);
+                                        final result = await nav.push<Moment>(
+                                          MaterialPageRoute<Moment>(
+                                            builder: (_) => EditMomentScreen(moment: _currentMoment),
+                                          ),
+                                        );
+                                        if (!mounted) return;
+                                        if (result != null) {
+                                          if (result.id.startsWith('__DELETED__:')) {
+                                            nav.pop(result);
+                                          } else {
+                                            setState(() {
+                                              _currentMoment = result;
+                                            });
+                                            _loadPermissions();
+                                          }
+                                        }
+                                      },
+                                      icon: Icon(
+                                        Icons.edit_outlined,
+                                        color: Colors.white,
+                                        size: 20 * scale,
+                                      ),
+                                      padding: EdgeInsets.zero,
+                                      constraints: BoxConstraints.tightFor(
+                                        width: 40 * scale,
+                                        height: 40 * scale,
+                                      ),
                                     ),
-                                  );
-                                  if (!mounted) return;
-                                  if (result != null) {
-                                    if (result.id.startsWith('__DELETED__:')) {
-                                      nav.pop(result);
-                                    } else {
-                                      setState(() {
-                                        _currentMoment = result;
-                                      });
-                                    }
-                                  }
-                                },
-                                icon: Icon(
-                                  Icons.edit_outlined,
-                                  color: Colors.white,
-                                  size: 20 * scale,
-                                ),
-                                padding: EdgeInsets.zero,
-                                constraints: BoxConstraints.tightFor(
-                                  width: 40 * scale,
-                                  height: 40 * scale,
-                                ),
-                              ),
-                            ),
+                                  )
+                                : SizedBox(width: 40 * scale, height: 40 * scale),
                           ],
                         ),
                       ),
@@ -435,9 +533,9 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> {
                             24 * scale, 20 * scale, 24 * scale, (104 * scale) + bottomPad),
                         child: Column(
                           children: [
-                            _LockedPreview(moment: moment, scale: scale),
+                            _LockedPreview(moment: _currentMoment, scale: scale),
                             SizedBox(height: 16 * scale),
-                            _FromBadge(moment: moment, scale: scale),
+                            _FromBadge(moment: _currentMoment, scale: scale, displayName: _displayName),
                             if (moment.status == 'PENDING_REVIEW') ...[
                               SizedBox(height: 16 * scale),
                               _PendingReviewBanner(scale: scale),
@@ -618,10 +716,11 @@ class _LockedPreview extends StatelessWidget {
 }
 
 class _FromBadge extends StatelessWidget {
-  const _FromBadge({required this.moment, required this.scale});
+  const _FromBadge({required this.moment, required this.scale, required this.displayName});
 
   final Moment moment;
   final double scale;
+  final String displayName;
 
   @override
   Widget build(BuildContext context) {
@@ -661,7 +760,7 @@ class _FromBadge extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('From ${moment.userName}',
+              Text('From $displayName',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 13 * scale,
