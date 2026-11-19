@@ -1,7 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vera/core/utils/server_time_manager.dart';
 import 'package:vera/features/home/data/models/moment_model.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  tearDownAll(() => ServerTimeManager.instance.dispose());
+
   group('Moment unlock contract', () {
     test('early-approved creator response remains locked', () {
       final response = MomentsListResponse.fromJson({

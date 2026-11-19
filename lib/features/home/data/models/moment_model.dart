@@ -354,7 +354,8 @@ class MomentModel {
           unlockRule?['timezone_id']?.toString() ??
           json['timezone']?.toString() ??
           'UTC',
-      locationName: unlockRule?['locationName']?.toString() ??
+      locationName: unlockRule?['placeName']?.toString() ??
+          unlockRule?['locationName']?.toString() ??
           unlockRule?['location_name']?.toString() ??
           json['locationName']?.toString(),
       locationRadius: unlockRule?['radius']?.toString() ??
