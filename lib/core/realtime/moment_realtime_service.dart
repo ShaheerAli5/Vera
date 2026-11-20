@@ -392,7 +392,11 @@ class MomentRealtimeService {
       socket.on(event, (error) {
         if (!identical(socket, _socket)) return;
         _moderationConfirmed = false;
-        if (kDebugMode) debugPrint('[MOMENT_REALTIME] $event');
+        if (kDebugMode) {
+          debugPrint('[MOMENT_REALTIME] $event '
+              'category=${_connectionErrorCategory(error)} '
+              'hasAccessToken=${_token?.isNotEmpty == true}');
+        }
         if (_adminSubscribers > 0) {
           logAdminModeration(event, {
             'feedConfirmed': false,
@@ -481,17 +485,24 @@ class MomentRealtimeService {
     // Classify in memory; never print raw errors, which may contain credentials.
     final description = error.toString().toLowerCase();
     if (description.contains('invalid namespace')) return 'invalid_namespace';
+    if (description.contains('429') || description.contains('too many requests') ||
+        description.contains('rate limit')) return 'rate_limit';
     if (description.contains('unauthorized') ||
-        description.contains('forbidden')) {
+        description.contains('forbidden') || description.contains('unauthenticated') ||
+        description.contains('token expired') || description.contains('jwt expired') ||
+        description.contains('invalid token')) {
       return 'authorization';
     }
     if (description.contains('timeout') || description.contains('timed out')) {
       return 'timeout';
     }
     if (description.contains('websocket') ||
-        description.contains('socketexception')) {
+        description.contains('socketexception') || description.contains('handshake') ||
+        description.contains('failed host lookup') || description.contains('connection refused') ||
+        description.contains('transport close') || description.contains('certificate')) {
       return 'transport';
     }
+    if (description.contains('io server disconnect')) return 'server_disconnect';
     return 'unknown';
   }
 
