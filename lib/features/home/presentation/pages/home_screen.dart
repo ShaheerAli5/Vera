@@ -207,6 +207,17 @@ class _HomeScreenState extends State<HomeScreen> with ForYouLiveRefresh<HomeScre
 
   void _validateRoleGuard() {
     final client = ApiClientScope.of(context);
+    if (!client.isAuthenticated) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(builder: (_) => const SplashScreen()),
+          (route) => false,
+        );
+      });
+      return;
+    }
+
     final parsedRole = UserRole.parse(client.userRole);
     logAuthFlow('role_guard', {
       'destination': 'home', 'savedRole': diagnosticRole(client.userRole),
@@ -221,23 +232,6 @@ class _HomeScreenState extends State<HomeScreen> with ForYouLiveRefresh<HomeScre
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute<void>(builder: (_) => const AdminMainScreen()),
           (route) => false,
-        );
-      });
-    } else if (parsedRole != UserRole.user) {
-      // Invalid or unauthenticated session
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        client.clearTokens();
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute<void>(builder: (_) => const SplashScreen()),
-          (route) => false,
-        );
-        VeraPopup.show(
-          context,
-          title: 'Access Denied',
-          message: 'Invalid role session. Please sign in again.',
-          icon: Icons.error_outline_rounded,
-          accent: VeraTheme.warning,
         );
       });
     }

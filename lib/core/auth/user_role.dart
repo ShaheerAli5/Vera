@@ -2,16 +2,13 @@ enum UserRole {
   owner, // Admin / Owner
   user;  // Normal User
 
-  static UserRole? parse(String? roleStr) {
-    if (roleStr == null) return null;
+  static UserRole parse(String? roleStr) {
+    if (roleStr == null || roleStr.trim().isEmpty) return UserRole.user;
     final normalized = roleStr.trim().toLowerCase();
     if (normalized == 'owner' || normalized == 'admin') {
       return UserRole.owner;
     }
-    if (normalized == 'user') {
-      return UserRole.user;
-    }
-    return null;
+    return UserRole.user;
   }
 
   bool get isOwner => this == UserRole.owner;

@@ -9,6 +9,7 @@ import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
+import '../../../admin/presentation/pages/admin_login_screen.dart';
 import '../../../admin/presentation/pages/admin_main_screen.dart';
 import '../../../home/presentation/pages/home_screen.dart';
 import '../../data/datasources/account_remote_data_source.dart';
@@ -18,17 +19,36 @@ import 'forgot_password_screen.dart';
 import 'verify_email_screen.dart';
 
 class SignInScreen extends StatefulWidget {
-  const SignInScreen({super.key});
+  const SignInScreen({super.key, this.initialEmail});
+
+  final String? initialEmail;
 
   @override
   State<SignInScreen> createState() => _SignInScreenState();
 }
 
 class _SignInScreenState extends State<SignInScreen> {
+  late final TextEditingController _emailController;
+  late final TextEditingController _passwordController;
   String _email = '';
   String _password = '';
   bool _obscurePassword = true;
   bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _email = widget.initialEmail ?? '';
+    _emailController = TextEditingController(text: _email);
+    _passwordController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   Future<void> _signIn() async {
     if (_isSubmitting) return;
@@ -81,15 +101,30 @@ class _SignInScreenState extends State<SignInScreen> {
       await apiClient.setTokens(
         authToken: result.accessToken,
         refreshToken: result.refreshToken,
+        userRole: UserRole.user.value,
       );
 
       var parsedRole = UserRole.parse(result.user.role);
       if (parsedRole == null && (result.user.role?.trim().isEmpty ?? true)) {
         stage = 'profile_role';
         logAuthFlow('login_profile_role_requested', {'stage': stage});
-        final profile = await repository.getProfile();
-        parsedRole = UserRole.parse(profile.role);
+        try {
+          final profile = await repository.getProfile();
+          if (profile.role != null && profile.role!.isNotEmpty) {
+            parsedRole = UserRole.parse(profile.role);
+          }
+        } catch (_) {}
       }
+
+      if (parsedRole == UserRole.owner) {
+        logAuthFlow('login_role_denied', {'decision': 'deny_owner_role'});
+        await apiClient.clearTokens();
+        throw const ApiException(
+          statusCode: 403,
+          message: 'Access denied. Please use the Admin Login page.',
+        );
+      }
+
       if (parsedRole == null) {
         logAuthFlow('login_role_denied', {'decision': 'deny_invalid_role'});
         await apiClient.clearTokens();
@@ -313,6 +348,7 @@ class _SignInScreenState extends State<SignInScreen> {
                                 _InputField(
                                   label: 'Email',
                                   hint: 'name@example.com',
+                                  controller: _emailController,
                                   onChanged: (value) =>
                                       setState(() => _email = value),
                                   scale: scale,
@@ -323,6 +359,7 @@ class _SignInScreenState extends State<SignInScreen> {
                                 _InputField(
                                   label: 'Password',
                                   hint: 'Enter your password',
+                                  controller: _passwordController,
                                   onChanged: (value) =>
                                       setState(() => _password = value),
                                   scale: scale,
@@ -449,6 +486,30 @@ class _SignInScreenState extends State<SignInScreen> {
                               child: const Text('New here? Create account'),
                             ),
                           ),
+                          SizedBox(height: 16 * scale),
+                          SizedBox(
+                            width: contentWidth,
+                            height: 30 * scale,
+                            child: TextButton(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => const AdminLoginScreen(),
+                                  ),
+                                );
+                              },
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFFE53935),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                textStyle: TextStyle(
+                                  fontSize: 13 * scale,
+                                  height: 1,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              child: const Text('Admin Access'),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -469,6 +530,7 @@ class _InputField extends StatelessWidget {
     required this.hint,
     required this.onChanged,
     required this.scale,
+    this.controller,
     this.keyboardType,
     this.obscureText = false,
     this.enabled = true,
@@ -479,6 +541,7 @@ class _InputField extends StatelessWidget {
   final String hint;
   final ValueChanged<String> onChanged;
   final double scale;
+  final TextEditingController? controller;
   final TextInputType? keyboardType;
   final bool obscureText;
   final bool enabled;
@@ -502,6 +565,7 @@ class _InputField extends StatelessWidget {
         SizedBox(
           height: 48 * scale,
           child: TextField(
+            controller: controller,
             onChanged: onChanged,
             keyboardType: keyboardType,
             obscureText: obscureText,
