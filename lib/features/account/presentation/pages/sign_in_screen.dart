@@ -2,13 +2,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/auth/user_role.dart';
+import '../../../../core/auth/auth_diagnostics.dart';
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
-import '../../../admin/presentation/pages/admin_login_screen.dart';
+import '../../../admin/presentation/pages/admin_main_screen.dart';
 import '../../../home/presentation/pages/home_screen.dart';
 import '../../data/datasources/account_remote_data_source.dart';
 import '../../data/repositories/account_repository_impl.dart';
@@ -50,6 +51,9 @@ class _SignInScreenState extends State<SignInScreen> {
       return;
     }
 
+    var stage = 'login_request';
+    final timer = Stopwatch()..start();
+    logAuthFlow('login_started', {'stage': stage});
     setState(() => _isSubmitting = true);
     try {
       final apiClient = ApiClientScope.of(context);
@@ -62,25 +66,32 @@ class _SignInScreenState extends State<SignInScreen> {
         deviceName: defaultTargetPlatform.name,
       );
 
-      // Set initial auth tokens to allow backend profile request
+      logAuthFlow('login_response', {
+        'responseRole': diagnosticRole(result.user.role),
+        'hasAccessToken': result.accessToken.isNotEmpty,
+        'hasRefreshToken': result.refreshToken.isNotEmpty,
+        'hasUser': result.user.id.isNotEmpty,
+        'elapsedMs': timer.elapsedMilliseconds,
+      });
+      if (result.accessToken.trim().isEmpty) {
+        throw const FormatException('Login response is missing an access token.');
+      }
+
+      stage = 'save_tokens';
       await apiClient.setTokens(
         authToken: result.accessToken,
         refreshToken: result.refreshToken,
       );
 
-      // Fetch user's complete profile directly from backend API
-      final profile = await repository.getProfile();
-      final parsedRole = UserRole.parse(profile.role ?? result.user.role);
-
-      if (parsedRole == UserRole.owner) {
-        await apiClient.clearTokens();
-        throw const ApiException(
-          statusCode: 403,
-          message: 'Access denied. Please use the Admin Login page.',
-        );
+      var parsedRole = UserRole.parse(result.user.role);
+      if (parsedRole == null && (result.user.role?.trim().isEmpty ?? true)) {
+        stage = 'profile_role';
+        logAuthFlow('login_profile_role_requested', {'stage': stage});
+        final profile = await repository.getProfile();
+        parsedRole = UserRole.parse(profile.role);
       }
-
-      if (parsedRole != UserRole.user) {
+      if (parsedRole == null) {
+        logAuthFlow('login_role_denied', {'decision': 'deny_invalid_role'});
         await apiClient.clearTokens();
         throw const ApiException(
           statusCode: 403,
@@ -88,11 +99,13 @@ class _SignInScreenState extends State<SignInScreen> {
         );
       }
 
-      await apiClient.setTokens(
-        authToken: result.accessToken,
-        refreshToken: result.refreshToken,
-        userRole: UserRole.user.value,
-      );
+      stage = 'save_role';
+      await apiClient.setTokens(userRole: parsedRole.value);
+      logAuthFlow('login_session_saved', {
+        'savedRole': diagnosticRole(apiClient.userRole),
+        'hasAccessToken': apiClient.authToken?.isNotEmpty == true,
+        'hasRefreshToken': apiClient.refreshToken?.isNotEmpty == true,
+      });
       PushNotificationService.instance.initialize(apiClient).catchError((_) {});
 
       if (!mounted) return;
@@ -105,11 +118,21 @@ class _SignInScreenState extends State<SignInScreen> {
         accent: VeraTheme.success,
       );
 
+      stage = 'navigate_dashboard';
+      logAuthFlow('login_navigation', {
+        'destination': parsedRole.isOwner ? 'admin' : 'home',
+        'savedRole': parsedRole.value, 'elapsedMs': timer.elapsedMilliseconds,
+      });
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
+        MaterialPageRoute<void>(builder: (_) => parsedRole!.isOwner
+            ? const AdminMainScreen() : const HomeScreen()),
         (route) => false,
       );
     } on ApiException catch (error) {
+      logAuthFlow('login_failed', {
+        'stage': stage, 'httpStatus': error.statusCode, 'errorType': 'api',
+        'elapsedMs': timer.elapsedMilliseconds,
+      });
       if (!mounted) return;
       if (error.message.toLowerCase().contains('not verified') ||
           error.message.toLowerCase().contains('unverified')) {
@@ -135,6 +158,10 @@ class _SignInScreenState extends State<SignInScreen> {
         accent: VeraTheme.warning,
       );
     } on FormatException catch (error) {
+      logAuthFlow('login_failed', {
+        'stage': stage, 'errorType': 'response_format',
+        'elapsedMs': timer.elapsedMilliseconds,
+      });
       if (!mounted) return;
       VeraPopup.show(
         context,
@@ -143,7 +170,11 @@ class _SignInScreenState extends State<SignInScreen> {
         icon: Icons.error_outline_rounded,
         accent: VeraTheme.warning,
       );
-    } catch (_) {
+    } catch (error) {
+      logAuthFlow('login_failed', {
+        'stage': stage, 'errorType': error.runtimeType.toString(),
+        'elapsedMs': timer.elapsedMilliseconds,
+      });
       if (!mounted) return;
       VeraPopup.show(
         context,
@@ -160,7 +191,7 @@ class _SignInScreenState extends State<SignInScreen> {
   String _errorTitle(int statusCode) => switch (statusCode) {
         400 => 'Invalid details',
         401 => 'Invalid email or password',
-        403 => 'Email not verified',
+        403 => 'Access denied',
         404 => 'Account not found',
         429 => 'Please wait a moment',
         _ => 'Sign in failed',
@@ -416,30 +447,6 @@ class _SignInScreenState extends State<SignInScreen> {
                                 ),
                               ),
                               child: const Text('New here? Create account'),
-                            ),
-                          ),
-                          SizedBox(height: 16 * scale),
-                          SizedBox(
-                            width: contentWidth,
-                            height: 30 * scale,
-                            child: TextButton(
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => const AdminLoginScreen(),
-                                  ),
-                                );
-                              },
-                              style: TextButton.styleFrom(
-                                foregroundColor: const Color(0xFFE53935),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                textStyle: TextStyle(
-                                  fontSize: 13 * scale,
-                                  height: 1,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              child: const Text('Admin Access'),
                             ),
                           ),
                         ],

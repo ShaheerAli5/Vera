@@ -1548,6 +1548,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             padding: EdgeInsets.only(bottom: 16 * scale),
                             child: MomentCard(
                               moment: currentList[index],
+                              showModerationStatus: _selectedTab == 0,
                               scale: scale,
                               onTap: () {
                                 final moment = currentList[index];

@@ -1,8 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/realtime/moment_realtime_route.dart';
 import '../../../../core/realtime/moment_realtime_service.dart';
 import '../../../../main.dart' show ApiClientScope;
+import 'creator_avatar.dart';
+import 'moment_image_shimmer.dart';
 import '../../../account/data/datasources/account_remote_data_source.dart';
 import '../../../account/data/repositories/account_repository_impl.dart';
 import '../../data/datasources/moments_remote_data_source.dart';
@@ -17,6 +20,7 @@ class MomentCard extends StatefulWidget {
     required this.moment,
     required this.scale,
     this.showDiscoverActions = false,
+    this.showModerationStatus = false,
     this.onTap,
     this.onMomentUpdated,
     this.onMomentBlocked,
@@ -25,6 +29,7 @@ class MomentCard extends StatefulWidget {
   final Moment moment;
   final double scale;
   final bool showDiscoverActions;
+  final bool showModerationStatus;
   final VoidCallback? onTap;
   final ValueChanged<Moment>? onMomentUpdated;
   final ValueChanged<Moment>? onMomentBlocked;
@@ -72,7 +77,7 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
     final onTap = widget.onTap;
 
     const cardHeight = 194.0;
-    const cardRadius = 20.0;
+    const cardRadius = 22.0;
     final bool isUnlocked = moment.canAccessContent;
     final client = ApiClientScope.of(context);
     final protectedMediaUrl = moment.canAccessContent && moment.hasMedia
@@ -84,8 +89,12 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
     return GestureDetector(
       onTap: onTap,
       child: Container(
-      height: cardHeight * scale,
+      height: (cardHeight + 16) * scale,
       margin: EdgeInsets.only(bottom: 16 * scale),
+      foregroundDecoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(cardRadius * scale),
+        border: Border.all(color: const Color(0x30FFFFFF), width: 0.8),
+      ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(cardRadius * scale),
         boxShadow: const [
@@ -101,45 +110,24 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Background Image with Blur
-            ImageFiltered(
-              imageFilter: ImageFilter.blur(
-                sigmaX: isUnlocked ? 0 : 7,
-                sigmaY: isUnlocked ? 0 : 7,
-              ),
-              child: protectedMediaUrl.isNotEmpty
-                  ? Image.network(
-                      protectedMediaUrl,
-                      headers: headers,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Color(0xFF1E2B45),
-                              Color(0xFF0F172A),
-                              Color(0xFF2C1338),
-                            ],
-                          ),
-                        ),
-                      ),
-                    )
-                  : Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Color(0xFF1E2B45),
-                            Color(0xFF0F172A),
-                            Color(0xFF2C1338),
-                          ],
-                        ),
-                      ),
-                    ),
-            ),
+            // This already-blurred image fills only the locked card.
+            if (!isUnlocked)
+              Image.asset(
+                'assets/images/blur bg.png',
+                key: const ValueKey('moment-card-locked-cover'),
+                fit: BoxFit.cover,
+                excludeFromSemantics: true,
+              )
+            else if (protectedMediaUrl.isNotEmpty)
+              Image.network(
+                protectedMediaUrl,
+                headers: headers,
+                fit: BoxFit.cover,
+                frameBuilder: momentImageLoadingFrame,
+                errorBuilder: (context, error, stackTrace) => _buildCoverPlaceholder(),
+              )
+            else
+              _buildCoverPlaceholder(),
 
             // Dark gradient overlay
             const DecoratedBox(
@@ -158,10 +146,38 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
 
             // Top Floating User Badge (Frame 1618874368)
             Positioned(
-              top: 14 * scale,
+              top: 12 * scale,
               left: 12 * scale,
-              child: _buildAuthorBadge(scale),
+              right: (showDiscoverActions ? 132 : 76) * scale,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _buildAuthorBadge(scale),
+              ),
             ),
+            if (widget.showModerationStatus && moment.sentBadgeSubtitle != null)
+              Positioned(
+                top: 72 * scale,
+                left: 12 * scale,
+                right: 12 * scale,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 10 * scale, vertical: 5 * scale,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0x99090A17),
+                      borderRadius: BorderRadius.circular(20 * scale),
+                    ),
+                    child: Text(
+                      moment.sentBadgeSubtitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.white, fontSize: 11 * scale),
+                    ),
+                  ),
+                ),
+              ),
             // Both feeds show the lock at the upper-right; Discover adds menu.
             if (showDiscoverActions)
               Positioned(
@@ -205,14 +221,14 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
                         begin: Alignment.centerLeft,
                         end: Alignment.centerRight,
                         colors: [
-                          Color(0xCCDD4EFC),
-                          Color(0x8031367D),
+                          Color(0xE08B42E8),
+                          Color(0xB367B9D0),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(20 * scale),
                       border: Border.all(
-                        color: const Color(0x55FFFFFF),
-                        width: 2 * scale,
+                        color: const Color(0x22FFFFFF),
+                        width: 0.8,
                       ),
                     ),
                     child: Row(
@@ -220,7 +236,7 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
                         Icon(
                           moment.unlockType == MomentUnlockType.location
                               ? Icons.location_on_rounded
-                              : Icons.access_time_filled_rounded,
+                              : Icons.timer_rounded,
                           color: Colors.white,
                           size: 20 * scale,
                         ),
@@ -262,10 +278,23 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
     );
   }
 
+  Widget _buildCoverPlaceholder() {
+    return const DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1E2B45), Color(0xFF0F172A), Color(0xFF2C1338)],
+        ),
+      ),
+    );
+  }
+
   Widget _buildAuthorBadge(double inputScale) {
     final moment = applyRealtime(widget.moment);
     final scale = widget.scale;
-    final displayName = _displayName;
+    final creatorName = moment.userName == 'You' ? _displayName : moment.userName;
+    final displayName = creatorName.trim().isEmpty ? 'User' : creatorName;
     return ClipRRect(
       borderRadius: BorderRadius.circular(999 * scale),
       child: BackdropFilter(
@@ -273,7 +302,7 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
         child: Container(
           height: 52 * scale,
           padding: EdgeInsets.fromLTRB(
-            12 * scale, 6 * scale, 12 * scale, 6 * scale,
+            10 * scale, 6 * scale, 12 * scale, 6 * scale,
           ),
           decoration: BoxDecoration(
             color: const Color(0x38FFFFFF),
@@ -284,56 +313,35 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              if (moment.isPublicSentMoment)
-                SizedBox(
-                  width: 28 * scale,
-                  height: 28 * scale,
-                  child: Icon(Icons.groups_2_outlined,
-                      color: Colors.white, size: 24 * scale),
-                )
-              else
-                Container(
-                  width: 40 * scale,
-                  height: 40 * scale,
-                  decoration: const BoxDecoration(shape: BoxShape.circle),
-                  child: ClipOval(
-                    child: moment.userAvatarUrl.isNotEmpty
-                        ? Image.network(
-                            moment.userAvatarUrl,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              color: const Color(0xFF6B42FF),
-                              child: Icon(Icons.person, size: 20 * scale,
-                                  color: Colors.white),
-                            ),
-                          )
-                        : Container(
-                            color: const Color(0xFF6B42FF),
-                            child: Icon(Icons.person, size: 20 * scale,
-                                color: Colors.white),
-                          ),
-                  ),
-                ),
+              CreatorAvatar(
+                name: displayName,
+                avatarUrl: moment.userAvatarUrl,
+                size: 36 * scale,
+              ),
               SizedBox(width: 10 * scale),
-              Column(
+              Flexible(
+                child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(moment.sentBadgeTitle ?? displayName, style: TextStyle(
+                  Text(displayName,
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(
                     color: Colors.white,
                     fontSize: 13 * scale,
                     fontWeight: FontWeight.w600,
                     height: 1.1,
                   )),
                   SizedBox(height: 2 * scale),
-                  Text(moment.sentBadgeSubtitle ?? moment.timeAgo, style: TextStyle(
+                  Text(moment.timeAgo,
+                    maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(
                     color: const Color(0xFFE2E2F0),
                     fontSize: 11 * scale,
                     fontWeight: FontWeight.w400,
                     height: 1.1,
                   )),
                 ],
+              ),
               ),
             ],
           ),
@@ -356,14 +364,14 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
             shape: BoxShape.circle,
             border: Border.all(color: const Color(0x30FFFFFF)),
           ),
-          child: Icon(
-            isUnlocked
-                ? Icons.lock_open_rounded
-                : Icons.lock_outline_rounded,
-            color: isUnlocked
-                ? const Color(0xFF7DF0B0)
-                : Colors.white,
-            size: 22 * scale,
+          child: Center(
+            child: SvgPicture.asset(
+              isUnlocked ? 'assets/images/unlock.svg' : 'assets/images/lock.svg',
+              key: ValueKey(isUnlocked ? 'moment-card-unlocked' : 'moment-card-locked'),
+              width: 22 * scale,
+              height: 22 * scale,
+              semanticsLabel: isUnlocked ? 'Unlocked' : 'Locked',
+            ),
           ),
         ),
       ),
@@ -437,22 +445,10 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
                     height: 36 * responsiveScale,
                     child: Row(
                       children: [
-                      ClipOval(
-                        child: Image.network(
-                          widget.moment.userAvatarUrl,
-                          width: 36 * responsiveScale,
-                          height: 36 * responsiveScale,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Container(
-                            width: 36 * responsiveScale,
-                            height: 36 * responsiveScale,
-                            color: const Color(0xFF6B42FF),
-                            child: Icon(Icons.person,
-                                color: Colors.white,
-                                size: 18 * responsiveScale),
-                          ),
-                        ),
+                      CreatorAvatar(
+                        name: _displayName,
+                        avatarUrl: widget.moment.userAvatarUrl,
+                        size: 36 * responsiveScale,
                       ),
                       SizedBox(width: 8 * responsiveScale),
                       Expanded(

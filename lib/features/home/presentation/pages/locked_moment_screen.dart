@@ -12,6 +12,7 @@ import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/utils/server_time_manager.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
+import '../widgets/creator_avatar.dart';
 import '../../data/datasources/moments_remote_data_source.dart';
 import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
@@ -1175,26 +1176,10 @@ class _FromBadge extends StatelessWidget {
       ),
       child: Row(
         children: [
-          ClipOval(
-            child: moment.userAvatarUrl.isNotEmpty
-                ? Image.network(
-                    moment.userAvatarUrl,
-                    width: 36 * scale,
-                    height: 36 * scale,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      color: const Color(0xFF6B42FF),
-                      width: 36 * scale,
-                      height: 36 * scale,
-                      child: Icon(Icons.person, color: Colors.white, size: 18 * scale),
-                    ),
-                  )
-                : Container(
-                    color: const Color(0xFF6B42FF),
-                    width: 36 * scale,
-                    height: 36 * scale,
-                    child: Icon(Icons.person, color: Colors.white, size: 18 * scale),
-                  ),
+          CreatorAvatar(
+            name: moment.userName,
+            avatarUrl: moment.userAvatarUrl,
+            size: 36 * scale,
           ),
           SizedBox(width: 10 * scale),
           Column(

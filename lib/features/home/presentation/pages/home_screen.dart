@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../core/auth/user_role.dart';
+import '../../../../core/auth/auth_diagnostics.dart';
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/realtime/moment_realtime_service.dart';
 import '../../../../core/services/push_notification_service.dart';
@@ -17,6 +18,7 @@ import '../../data/models/moment_model.dart';
 import '../../data/models/moment_thread_model.dart';
 import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
+import '../utils/for_you_live_refresh.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/moment_card.dart';
 import 'create_moment_screen.dart';
@@ -46,7 +48,30 @@ class HomeScreen extends StatefulWidget {
   static final List<Moment> sentMoments = [];
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with ForYouLiveRefresh<HomeScreen> {
+  @override
+  bool get forYouRefreshActive => _selectedNavIndex == 0 && _selectedTabIndex == 0;
+
+  int _forYouRevision = 0;
+
+  @override
+  Future<void> loadForYouData({required bool showLoading}) async {
+    final revision = ++_forYouRevision;
+    final client = ApiClientScope.of(context);
+    final before = client.momentRealtime.snapshot;
+    try {
+      final response = await MomentsRemoteDataSource(client).getHomeFeed(tab: 'FOR_YOU');
+      if (!mounted || revision != _forYouRevision) return;
+      final moments = response.moments.map((model) {
+        final moment = model.toEntity();
+        return client.momentRealtime.reconcileRest(moment, before[moment.id]);
+      }).where((moment) => moment.status != 'DELETED').toList();
+      setState(() => _fetchedForYouMoments = moments);
+    } catch (_) {
+      // Retain the current feed on transient failure; retry on the next event/resume.
+    }
+  }
+
   late int _selectedTabIndex;
   int _selectedNavIndex = 0;
   int _selectedMessageTab = 0;
@@ -183,6 +208,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void _validateRoleGuard() {
     final client = ApiClientScope.of(context);
     final parsedRole = UserRole.parse(client.userRole);
+    logAuthFlow('role_guard', {
+      'destination': 'home', 'savedRole': diagnosticRole(client.userRole),
+      'parsedRole': parsedRole?.value ?? 'unknown',
+      'hasAccessToken': client.authToken?.isNotEmpty == true,
+      'decision': parsedRole == UserRole.owner ? 'redirect_admin' : parsedRole == UserRole.user ? 'allow' : 'deny_invalid_role',
+    });
     if (parsedRole == UserRole.owner) {
       // An owner/admin must never access the User Dashboard as an authenticated user
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -213,6 +244,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _fetchMoments({int page = 1, int limit = 20}) async {
+    final forYouRevision = _forYouRevision;
     setState(() {
       _isLoadingMoments = true;
       _momentsError = null;
@@ -228,7 +260,7 @@ class _HomeScreenState extends State<HomeScreen> {
           tab: 'FOR_YOU',
           page: page,
           limit: limit,
-        ).catchError((_) => repo.getMoments(page: page, limit: limit)),
+        ),
         repo.getDiscoverMoments(
           page: page,
           limit: limit,
@@ -270,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (!mounted) return;
       setState(() {
-        _fetchedForYouMoments = mappedForYou.where((m) => _realtime?.latest(m.id)?.deleted != true).map((m) => _realtime?.applyLatest(m) ?? m).toList();
+        if (forYouRevision == _forYouRevision) _fetchedForYouMoments = mappedForYou.where((m) => _realtime?.latest(m.id)?.deleted != true).map((m) => _realtime?.applyLatest(m) ?? m).toList();
         _fetchedDiscoverMoments = mappedDiscover.where((m) => _realtime?.latest(m.id)?.deleted != true).map((m) => _realtime?.applyLatest(m) ?? m).toList();
         _fetchedYourMoments = mappedYour.where((m) => _realtime?.latest(m.id)?.deleted != true).map((m) => _realtime?.applyLatest(m) ?? m).toList();
         _fetchedInboxMoments = mappedInbox.where((m) => _realtime?.latest(m.id)?.deleted != true).map((m) => _realtime?.applyLatest(m) ?? m).toList();
@@ -317,9 +349,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     switch (_selectedTabIndex) {
       case 0:
-        return _fetchedForYouMoments.isNotEmpty
-            ? _fetchedForYouMoments
-            : _fetchedYourMoments;
+        return _fetchedForYouMoments;
       case 1:
         return _fetchedDiscoverMoments.isNotEmpty
             ? _fetchedDiscoverMoments
@@ -464,22 +494,28 @@ class _HomeScreenState extends State<HomeScreen> {
                             _TabItem(
                               title: 'For You',
                               isSelected: _selectedTabIndex == 0,
-                              onTap: () =>
-                                  setState(() => _selectedTabIndex = 0),
+                              onTap: () {
+                                setState(() => _selectedTabIndex = 0);
+                                syncForYouActivity();
+                              },
                               scale: scale,
                             ),
                             _TabItem(
                               title: 'Discover',
                               isSelected: _selectedTabIndex == 1,
-                              onTap: () =>
-                                  setState(() => _selectedTabIndex = 1),
+                              onTap: () {
+                                setState(() => _selectedTabIndex = 1);
+                                syncForYouActivity();
+                              },
                               scale: scale,
                             ),
                             _TabItem(
                               title: 'Your Moments',
                               isSelected: _selectedTabIndex == 2,
-                              onTap: () =>
-                                  setState(() => _selectedTabIndex = 2),
+                              onTap: () {
+                                setState(() => _selectedTabIndex = 2);
+                                syncForYouActivity();
+                              },
                               scale: scale,
                             ),
                           ],
@@ -585,6 +621,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             itemBuilder: (context, index) {
                               return MomentCard(
                                 moment: currentList[index],
+                                showModerationStatus: (_selectedNavIndex == 0 && _selectedTabIndex == 2) ||
+                                    (_selectedNavIndex == 2 && _selectedMessageTab == 1),
                                 scale: scale,
                                 onTap: () async {
                                   final moment = currentList[index];
@@ -676,10 +714,13 @@ class _HomeScreenState extends State<HomeScreen> {
               bottom: 0,
               child: VeraBottomNavBar(
                 selectedIndex: _selectedNavIndex,
-                onTap: (index) => setState(() {
-                  _selectedNavIndex = index;
-                  if (index == 0) _selectedTabIndex = 0;
-                }),
+                onTap: (index) {
+                  setState(() {
+                    _selectedNavIndex = index;
+                    if (index == 0) _selectedTabIndex = 0;
+                  });
+                  syncForYouActivity();
+                },
                 onCreateMomentTap: _navigateToCreateMoment,
                 scale: scale,
               ),

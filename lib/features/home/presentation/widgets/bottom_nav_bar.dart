@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class VeraBottomNavBar extends StatelessWidget {
   const VeraBottomNavBar({
@@ -77,24 +78,26 @@ class VeraBottomNavBar extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _NavItem(
-                      icon: Image.asset(
-                        'assets/images/nav_home.png',
-                        fit: BoxFit.contain,
-                        color: selectedIndex == 0
-                            ? const Color(0xFFE291FF)
-                            : null,
-                        colorBlendMode: selectedIndex == 0
-                            ? BlendMode.srcIn
-                            : BlendMode.dst,
-                      ),
+                      icon: selectedIndex == 0
+                          ? SvgPicture.asset(
+                              'assets/images/home enabled.svg',
+                              fit: BoxFit.contain,
+                              semanticsLabel: 'Home selected',
+                            )
+                          : Image.asset(
+                              'assets/images/nav_home.png',
+                              fit: BoxFit.contain,
+                            ),
                       onTap: () => onTap(0),
                       scale: scale,
                     ),
                     SizedBox(width: 24 * scale),
                     _NavItem(
                       icon: selectedIndex == 1
-                          ? CustomPaint(
-                              painter: SearchIconPainter(isSelected: true),
+                          ? SvgPicture.asset(
+                              'assets/images/search enabled.svg',
+                              fit: BoxFit.contain,
+                              semanticsLabel: 'Search selected',
                             )
                           : Image.asset('assets/images/nav_search.png',
                               fit: BoxFit.contain),
@@ -104,8 +107,10 @@ class VeraBottomNavBar extends StatelessWidget {
                     SizedBox(width: 24 * scale),
                     _NavItem(
                       icon: selectedIndex == 2
-                          ? CustomPaint(
-                              painter: MessageIconPainter(isSelected: true),
+                          ? SvgPicture.asset(
+                              'assets/images/chat enabled.svg',
+                              fit: BoxFit.contain,
+                              semanticsLabel: 'Chat selected',
                             )
                           : Image.asset('assets/images/nav_messages.png',
                               fit: BoxFit.contain),
@@ -115,8 +120,11 @@ class VeraBottomNavBar extends StatelessWidget {
                     SizedBox(width: 24 * scale),
                     _NavItem(
                       icon: selectedIndex == 3
-                          ? Image.asset('assets/images/nav_profile.png',
-                              fit: BoxFit.contain)
+                          ? SvgPicture.asset(
+                              'assets/images/profile enabled.svg',
+                              fit: BoxFit.contain,
+                              semanticsLabel: 'Profile selected',
+                            )
                           : CustomPaint(
                               painter: ProfileIconPainter(isSelected: false),
                             ),

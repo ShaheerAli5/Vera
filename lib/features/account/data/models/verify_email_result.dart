@@ -16,27 +16,29 @@ class VerifyEmailResult {
   final Map<String, dynamic>? data;
 
   factory VerifyEmailResult.fromJson(Map<String, dynamic> json) {
-    final userJson = json['user'];
+    final dataObj = json['data'] is Map<String, dynamic>
+        ? json['data'] as Map<String, dynamic>
+        : null;
+    final userJson = json['user'] ?? dataObj?['user'];
     final user = userJson is Map<String, dynamic>
         ? RegisteredUser(
             id: userJson['id']?.toString() ?? '',
             email: userJson['email']?.toString() ?? '',
             displayName: userJson['displayName']?.toString() ?? '',
+            role: userJson['role']?.toString(),
           )
         : null;
 
-    final dataObj = json['data'] is Map<String, dynamic>
-        ? json['data'] as Map<String, dynamic>
-        : null;
-
-    final token = json['token']?.toString() ??
+    final token =
+        json['token']?.toString() ??
         json['accessToken']?.toString() ??
         json['access_token']?.toString() ??
         dataObj?['token']?.toString() ??
         dataObj?['accessToken']?.toString() ??
         dataObj?['access_token']?.toString();
 
-    final refreshToken = json['refreshToken']?.toString() ??
+    final refreshToken =
+        json['refreshToken']?.toString() ??
         json['refresh_token']?.toString() ??
         dataObj?['refreshToken']?.toString() ??
         dataObj?['refresh_token']?.toString();

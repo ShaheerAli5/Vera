@@ -114,9 +114,11 @@ class MomentModel {
     this.creatorName,
     this.creatorAvatarUrl,
     this.mediaUrl,
+    this.clueCoverImageUrl,
     this.recipientUserIds = const [],
     this.inviteEmails = const [],
     this.createdAt,
+    this.publishedAt,
     this.invitationStatus,
     this.unlockedAt,
     this.openedAt,
@@ -148,9 +150,11 @@ class MomentModel {
   final String? creatorName;
   final String? creatorAvatarUrl;
   final String? mediaUrl;
+  final String? clueCoverImageUrl;
   final List<String> recipientUserIds;
   final List<String> inviteEmails;
   final DateTime? createdAt;
+  final DateTime? publishedAt;
   final String? invitationStatus;
   final DateTime? unlockedAt;
   final DateTime? openedAt;
@@ -184,6 +188,14 @@ class MomentModel {
         : (json['user'] is Map<String, dynamic>
             ? json['user'] as Map<String, dynamic>
             : null);
+
+    String? firstNonEmpty(List<dynamic> values) {
+      for (final value in values) {
+        final text = value?.toString().trim();
+        if (text != null && text.isNotEmpty) return text;
+      }
+      return null;
+    }
 
     final creatorStr = json['creator'] is String ? json['creator']?.toString() : null;
     final userStr = json['user'] is String ? json['user']?.toString() : null;
@@ -357,13 +369,13 @@ class MomentModel {
           unlockRule?['timezone_id']?.toString() ??
           json['timezone']?.toString() ??
           'UTC',
-      locationName: unlockRule?['placeName']?.toString() ??
-          unlockRule?['locationName']?.toString() ??
-          unlockRule?['location_name']?.toString() ??
-          json['locationName']?.toString(),
-      locationRadius: unlockRule?['radius']?.toString() ??
+      locationName: firstNonEmpty([
+        unlockRule?['placeName'], unlockRule?['locationName'],
+        unlockRule?['location_name'], json['locationName'],
+      ]),
+      locationRadius: unlockRule?['radiusM']?.toString() ??
+          unlockRule?['radius']?.toString() ??
           unlockRule?['locationRadius']?.toString() ??
-          unlockRule?['radiusM']?.toString() ??
           json['radius']?.toString(),
       locationLatitude: (unlockRule?['latitude'] as num?)?.toDouble(),
       locationLongitude: (unlockRule?['longitude'] as num?)?.toDouble(),
@@ -379,16 +391,19 @@ class MomentModel {
           json['owner_id']?.toString() ??
           json['authorId']?.toString() ??
           json['author_id']?.toString(),
-      creatorName: creator?['displayName']?.toString() ??
-          creator?['name']?.toString() ??
-          creator?['username']?.toString() ??
-          json['creatorName']?.toString() ??
-          'You',
+      creatorName: firstNonEmpty([
+        creator?['displayName'], creator?['name'], creator?['username'],
+        json['creatorName'],
+      ]) ?? 'You',
       creatorAvatarUrl: fullAvatarUrl,
       mediaUrl: mediaUrl,
+      // Only dedicated clue fields may supply a locked preview, never mediaUrl.
+      clueCoverImageUrl: json['clueCoverImageUrl']?.toString() ??
+          json['coverImageUrl']?.toString(),
       recipientUserIds: recipients,
       inviteEmails: invites,
       createdAt: createdAtStr != null ? DateTime.tryParse(createdAtStr) : null,
+      publishedAt: DateTime.tryParse(json['publishedAt']?.toString() ?? ''),
       invitationStatus: invitationStatus,
       unlockedAt: unlockedAtStr != null ? DateTime.tryParse(unlockedAtStr) : null,
       openedAt: openedAtStr != null ? DateTime.tryParse(openedAtStr) : null,
@@ -436,10 +451,10 @@ class MomentModel {
     }
 
     String timeAgoText = 'Just now';
-    if (timeAgo != null && timeAgo!.trim().isNotEmpty) {
+    final refTime = createdAt ?? publishedAt ?? unlockedAt;
+    if (refTime == null && timeAgo != null && timeAgo!.trim().isNotEmpty) {
       timeAgoText = timeAgo!.trim();
     } else {
-      final refTime = createdAt ?? unlockedAt;
       if (refTime != null) {
         final diff = now.difference(refTime);
         if (diff.inDays > 365) {
@@ -489,7 +504,10 @@ class MomentModel {
       userName: creatorName ?? 'You',
       userAvatarUrl: avatar,
       timeAgo: timeAgoText,
+      createdAt: createdAt,
+      publishedAt: publishedAt,
       backgroundImageUrl: bgImage,
+      clueCoverImageUrl: clueCoverImageUrl ?? '',
       unlockCondition: conditionText,
       unlockType: isDateUnlock ? MomentUnlockType.time : MomentUnlockType.location,
       isReadyToOpen: isReadyToOpen,
@@ -511,7 +529,7 @@ class MomentModel {
       unlockAt: unlockAt,
       unlockLatitude: locationLatitude,
       unlockLongitude: locationLongitude,
-      unlockRadiusM: int.tryParse(locationRadius ?? ''),
+      unlockRadiusM: num.tryParse(locationRadius ?? '')?.round(),
       unlockPlaceName: locationName,
       isVideo: isVideo,
       contentType: contentType,

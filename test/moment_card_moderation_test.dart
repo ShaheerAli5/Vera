@@ -138,6 +138,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Pending review'), findsOneWidget);
+      expect(find.text('Author'), findsOneWidget);
+      expect(find.text('Just now'), findsOneWidget);
       final socket = sockets.last;
       socket.receive('connect');
       await tester.pumpAndSettle();
@@ -150,7 +152,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Published'), findsOneWidget);
       expect(find.text('Pending review'), findsNothing);
-      expect(find.byIcon(Icons.lock_outline_rounded), findsOneWidget);
+      expect(find.byKey(const ValueKey('moment-card-locked')), findsOneWidget);
       socket.receive('moment:rejected', {
         'momentId': 'post',
         'availability': {'isApproved': false, 'isUnlocked': false},

@@ -67,14 +67,14 @@ void main() {
       'availability': {'isUnlocked': false},
     });
     await tester.pump();
-    expect(find.byIcon(Icons.lock_outline_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.lock_open_rounded), findsNothing);
+    expect(find.byKey(const ValueKey('moment-card-locked')), findsOneWidget);
+    expect(find.byKey(const ValueKey('moment-card-unlocked')), findsNothing);
     firstSocket.receive('moment:unlocked', {
       'momentId': 'first',
       'availability': {'isUnlocked': true},
     });
     await tester.pump();
-    expect(find.byIcon(Icons.lock_open_rounded), findsOneWidget);
+    expect(find.byKey(const ValueKey('moment-card-unlocked')), findsOneWidget);
     changeCard(() => moment = moment.copyWith(id: 'second'));
     await tester.pump();
     expect(firstSocket.emissions.last.$1, 'moment:unwatch');

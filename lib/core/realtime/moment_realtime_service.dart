@@ -164,6 +164,29 @@ class MomentRealtimeService {
   MomentSocket? _socket;
   final Map<String, int> _watches = {};
   int _adminSubscribers = 0;
+  int _forYouSubscribers = 0;
+  final _forYouChanges = StreamController<String>.broadcast(sync: true);
+  Stream<String> get forYouChanges => _forYouChanges.stream;
+
+  void subscribeForYou() {
+    if (_disposed) return;
+    _forYouSubscribers++;
+    if (_socket == null) {
+      _connect();
+    } else if (_forYouSubscribers == 1 && _socket!.connected) {
+      _socket!.emit('home:for-you:subscribe');
+    }
+  }
+
+  void unsubscribeForYou() {
+    if (_forYouSubscribers == 0) return;
+    _forYouSubscribers--;
+    if (_forYouSubscribers == 0 && _socket?.connected == true) {
+      _socket!.emit('home:for-you:unsubscribe');
+    }
+    if (!_hasDemand) _disconnect();
+  }
+
   int _moderationRevision = 0;
   int get moderationRevision => _moderationRevision;
   bool _moderationConfirmed = false;
@@ -228,7 +251,7 @@ class MomentRealtimeService {
   DateTime? _moderationCountsTime;
   final Map<String, AdminModerationUpdate> _moderationMoments = {};
   AdminModerationUpdate? moderationState(String id) => _moderationMoments[id];
-  bool get _hasDemand => _watches.isNotEmpty || _adminSubscribers > 0;
+  bool get _hasDemand => _watches.isNotEmpty || _adminSubscribers > 0 || _forYouSubscribers > 0;
 
   void subscribeModeration() {
     if (_disposed) return;
@@ -350,6 +373,7 @@ class MomentRealtimeService {
         socket.emit('moment:watch', {'momentId': id});
       }
       if (_adminSubscribers > 0) _requestModerationSubscription();
+      if (_forYouSubscribers > 0) socket.emit('home:for-you:subscribe');
       _connections.add(null);
     });
     for (final event in ['connect_error', 'disconnect']) {
@@ -366,6 +390,12 @@ class MomentRealtimeService {
         }
       });
     }
+    socket.on('home:for-you:changed', (payload) {
+      if (!identical(socket, _socket) || _forYouSubscribers == 0 || payload is! Map) return;
+      final reason = payload['reason'];
+      if (reason != 'PUBLIC_MOMENT_PUBLISHED' && reason != 'PUBLIC_MOMENT_REMOVED') return;
+      _forYouChanges.add(reason as String);
+    });
     for (final event in events) {
       socket.on(event, (payload) {
         if (!identical(socket, _socket)) return;
@@ -466,6 +496,8 @@ class MomentRealtimeService {
     _disconnect();
     _watches.clear();
     _adminSubscribers = 0;
+    _forYouSubscribers = 0;
+    _forYouChanges.close();
     _moderationMoments.clear();
     _moderationCounts = null;
     _latest.clear();

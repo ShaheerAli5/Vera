@@ -82,8 +82,8 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
       expect(inboxReads, greaterThan(firstReads));
-      expect(find.byIcon(Icons.lock_outline_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.lock_open_rounded), findsNothing);
+      expect(find.byKey(const ValueKey('moment-card-locked')), findsOneWidget);
+      expect(find.byKey(const ValueKey('moment-card-unlocked')), findsNothing);
       final beforeReconnect = inboxReads;
       sockets.last.receive('connect');
       await tester.pumpAndSettle();
@@ -99,7 +99,7 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
       expect(inboxReads, greaterThan(beforePush));
-      expect(find.byIcon(Icons.lock_open_rounded), findsOneWidget);
+      expect(find.byKey(const ValueKey('moment-card-unlocked')), findsOneWidget);
       expect(methods.every((method) => method == 'GET'), isTrue);
       await tester.pumpWidget(const SizedBox.shrink());
       PushNotificationService.instance.latestForegroundMessage.value = null;

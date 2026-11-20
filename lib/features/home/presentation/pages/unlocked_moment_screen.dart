@@ -11,6 +11,8 @@ import '../../../../core/network/api_exception.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
+import '../widgets/creator_avatar.dart';
+import '../widgets/moment_image_shimmer.dart';
 import '../../../account/data/datasources/account_remote_data_source.dart';
 import '../../../account/data/repositories/account_repository_impl.dart';
 import '../../data/datasources/moments_remote_data_source.dart';
@@ -1028,28 +1030,10 @@ class _SenderBadge extends StatelessWidget {
       ),
       child: Row(
         children: [
-          ClipOval(
-            child: moment.userAvatarUrl.isNotEmpty
-                ? Image.network(
-                    moment.userAvatarUrl,
-                    width: 36 * scale,
-                    height: 36 * scale,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      width: 36 * scale,
-                      height: 36 * scale,
-                      color: const Color(0xFF6B42FF),
-                      child: Icon(Icons.person,
-                          color: Colors.white, size: 18 * scale),
-                    ),
-                  )
-                : Container(
-                    width: 36 * scale,
-                    height: 36 * scale,
-                    color: const Color(0xFF6B42FF),
-                    child: Icon(Icons.person,
-                        color: Colors.white, size: 18 * scale),
-                  ),
+          CreatorAvatar(
+            name: displayName,
+            avatarUrl: moment.userAvatarUrl,
+            size: 36 * scale,
           ),
           SizedBox(width: 10 * scale),
           Column(
@@ -1412,6 +1396,7 @@ class _VideoPreviewState extends State<_VideoPreview> {
                 Image.memory(
                   widget.mediaBytes!,
                   fit: BoxFit.cover,
+                  frameBuilder: momentImageLoadingFrame,
                   errorBuilder: (context, error, stackTrace) =>
                       _buildFallbackImage(),
                 )
@@ -1420,6 +1405,7 @@ class _VideoPreviewState extends State<_VideoPreview> {
                   widget.streamUrl,
                   headers: widget.streamHeaders,
                   fit: BoxFit.cover,
+                  frameBuilder: momentImageLoadingFrame,
                   errorBuilder: (context, error, stackTrace) =>
                       _buildFallbackImage(),
                 )
@@ -1477,6 +1463,7 @@ class _VideoPreviewState extends State<_VideoPreview> {
         bgUrl,
         headers: widget.streamHeaders,
         fit: BoxFit.cover,
+        frameBuilder: momentImageLoadingFrame,
         errorBuilder: (context, error, stackTrace) => const DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(

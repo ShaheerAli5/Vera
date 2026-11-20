@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/auth/user_role.dart';
+import '../../../../core/auth/auth_diagnostics.dart';
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/widgets/vera_popup.dart';
@@ -41,6 +42,12 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
   void _validateRoleGuard() {
     final client = ApiClientScope.of(context);
     final parsedRole = UserRole.parse(client.userRole);
+    logAuthFlow('role_guard', {
+      'destination': 'admin', 'savedRole': diagnosticRole(client.userRole),
+      'parsedRole': parsedRole?.value ?? 'unknown',
+      'hasAccessToken': client.authToken?.isNotEmpty == true,
+      'decision': parsedRole == UserRole.owner ? 'allow' : 'deny_non_admin',
+    });
     if (parsedRole != UserRole.owner) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;

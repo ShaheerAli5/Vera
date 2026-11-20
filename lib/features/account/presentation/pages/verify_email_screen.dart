@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/layout/responsive.dart';
+import '../../../../core/auth/auth_diagnostics.dart';
+import '../../../../core/auth/user_role.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../../../home/presentation/pages/home_screen.dart';
+import 'sign_in_screen.dart';
 import '../../data/datasources/account_remote_data_source.dart';
 import '../../data/repositories/account_repository_impl.dart';
 
@@ -31,6 +34,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
   int _resendCountdown = 60;
   Timer? _timer;
   bool _isSubmitting = false;
+  int _verificationAttempt = 0;
 
   @override
   void initState() {
@@ -139,6 +143,10 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     final otp = _controllers.map((c) => c.text.trim()).join();
     if (otp.length != _otpLength) return;
 
+    final attempt = ++_verificationAttempt;
+    var stage = 'verify_request';
+    final timer = Stopwatch()..start();
+    logAuthFlow('otp_started', {'attempt': attempt, 'stage': stage});
     setState(() => _isSubmitting = true);
     try {
       final repository = AccountRepositoryImpl(
@@ -148,16 +156,62 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         email: widget.email.trim(),
         code: otp,
       );
+      final raw = result.data;
+      final nested = raw?['data'];
+      final user = raw?['user'] ?? (nested is Map ? nested['user'] : null);
+      final responseRole = user is Map ? user['role']?.toString() : null;
+      logAuthFlow('otp_verified', {
+        'attempt': attempt, 'elapsedMs': timer.elapsedMilliseconds,
+        'hasAccessToken': result.token?.isNotEmpty == true,
+        'hasRefreshToken': result.refreshToken?.isNotEmpty == true,
+        'hasUser': user != null,
+        'responseRole': diagnosticRole(responseRole),
+      });
       if (!mounted) return;
       if (result.token != null && result.token!.isNotEmpty) {
         final apiClient = ApiClientScope.of(context);
+        var role = UserRole.parse(result.user?.role);
+        stage = 'save_session';
+        logAuthFlow('session_save_started', {'attempt': attempt});
         await apiClient.setTokens(
           authToken: result.token,
           refreshToken: result.refreshToken,
+          userRole: role?.value,
         );
+        if (role == null) {
+          stage = 'resolve_profile_role';
+          logAuthFlow('profile_role_requested', {'attempt': attempt});
+          final profile = await repository.getProfile();
+          role = UserRole.parse(profile.role);
+          if (role == null) {
+            await apiClient.clearTokens();
+            throw const ApiException(
+              statusCode: 403,
+              message: 'Your account role could not be verified. Please sign in again.',
+            );
+          }
+          await apiClient.setTokens(userRole: role.value);
+        }
+        logAuthFlow('session_saved', {
+          'attempt': attempt, 'savedRole': diagnosticRole(apiClient.userRole),
+          'hasAccessToken': apiClient.authToken?.isNotEmpty == true,
+          'hasRefreshToken': apiClient.refreshToken?.isNotEmpty == true,
+        });
+        stage = 'push_initialization';
+        logAuthFlow('push_initialization_started', {'attempt': attempt});
         await PushNotificationService.instance.initialize(apiClient);
+        logAuthFlow('push_initialization_completed', {'attempt': attempt});
         if (!mounted) return;
       }
+      final hasVerifiedSession = result.token?.isNotEmpty == true;
+      stage = hasVerifiedSession ? 'navigate_home' : 'navigate_sign_in';
+      final client = ApiClientScope.of(context);
+      logAuthFlow('otp_navigation', {
+        'attempt': attempt, 'destination': hasVerifiedSession ? 'home' : 'sign_in',
+        'savedRole': diagnosticRole(client.userRole),
+        'hasAccessToken': client.authToken?.isNotEmpty == true,
+        'elapsedMs': timer.elapsedMilliseconds,
+      });
       VeraPopup.show(
         context,
         title: 'Email verified',
@@ -168,10 +222,15 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         accent: VeraTheme.success,
       );
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
+        MaterialPageRoute<void>(builder: (_) => hasVerifiedSession
+            ? const HomeScreen() : const SignInScreen()),
         (route) => false,
       );
     } on ApiException catch (error) {
+      logAuthFlow('otp_failed', {
+        'attempt': attempt, 'stage': stage, 'httpStatus': error.statusCode,
+        'elapsedMs': timer.elapsedMilliseconds, 'errorType': 'api',
+      });
       if (!mounted) return;
       VeraPopup.show(
         context,
@@ -181,6 +240,10 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         accent: VeraTheme.warning,
       );
     } on FormatException catch (error) {
+      logAuthFlow('otp_failed', {
+        'attempt': attempt, 'stage': stage, 'errorType': 'response_format',
+        'elapsedMs': timer.elapsedMilliseconds,
+      });
       if (!mounted) return;
       VeraPopup.show(
         context,
@@ -189,7 +252,11 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         icon: Icons.error_outline_rounded,
         accent: VeraTheme.warning,
       );
-    } catch (_) {
+    } catch (error) {
+      logAuthFlow('otp_failed', {
+        'attempt': attempt, 'stage': stage, 'errorType': error.runtimeType.toString(),
+        'elapsedMs': timer.elapsedMilliseconds,
+      });
       if (!mounted) return;
       VeraPopup.show(
         context,

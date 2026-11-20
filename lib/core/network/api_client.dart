@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
+import '../auth/auth_diagnostics.dart';
 import '../realtime/moment_realtime_service.dart';
 import '../services/push_notification_service.dart';
 import 'api_exception.dart';
@@ -425,6 +426,16 @@ class ApiClient {
   }
 
   Future<Object?> _executeRequest(http.BaseRequest request) async {
+    final authDiagnostic = ['/auth/verify-email', '/auth/resend-otp', '/auth/login', '/auth/refresh', '/profile']
+        .any((path) => request.url.path == config.endpoint(path).path);
+    final authTimer = Stopwatch()..start();
+    if (authDiagnostic) {
+      logAuthFlow('http_request', {
+        'method': request.method, 'path': request.url.path,
+        'hasAccessToken': _authToken?.isNotEmpty == true,
+        'savedRole': diagnosticRole(_userRole),
+      });
+    }
     final isUnlockRequest = request.method == 'POST' &&
         RegExp(r'/moments/[^/]+/unlock$').hasMatch(request.url.path);
     final approvalMatch = request.method == 'POST'
@@ -454,6 +465,12 @@ class ApiClient {
       final response = await http.Response.fromStream(
         streamed,
       ).timeout(receiveTimeout);
+      if (authDiagnostic) {
+        logAuthFlow('http_response', {
+          'path': request.url.path, 'httpStatus': response.statusCode,
+          'elapsedMs': authTimer.elapsedMilliseconds,
+        });
+      }
       if (isDiagnosticRequest) {
         logDiagnostic('response', {'httpStatus': response.statusCode});
       }
@@ -483,6 +500,12 @@ class ApiClient {
       }
       rethrow;
     } on TimeoutException {
+      if (authDiagnostic) {
+        logAuthFlow('http_error', {
+          'path': request.url.path, 'errorType': 'timeout',
+          'elapsedMs': authTimer.elapsedMilliseconds,
+        });
+      }
       if (isDiagnosticRequest) {
         logDiagnostic('error', {'code': 'timeout'});
       }
@@ -492,6 +515,12 @@ class ApiClient {
         message: 'The request timed out.',
       );
     } on http.ClientException catch (error) {
+      if (authDiagnostic) {
+        logAuthFlow('http_error', {
+          'path': request.url.path, 'errorType': 'network',
+          'elapsedMs': authTimer.elapsedMilliseconds,
+        });
+      }
       if (isDiagnosticRequest) {
         logDiagnostic('error', {'code': 'network_error'});
       }

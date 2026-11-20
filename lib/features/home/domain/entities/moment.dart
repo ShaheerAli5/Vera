@@ -7,7 +7,10 @@ class Moment {
     required this.userName,
     required this.userAvatarUrl,
     required this.timeAgo,
+    this.createdAt,
+    this.publishedAt,
     required this.backgroundImageUrl,
+    this.clueCoverImageUrl = '',
     required this.unlockCondition,
     this.unlockType = MomentUnlockType.location,
     this.isReadyToOpen = false,
@@ -38,7 +41,11 @@ class Moment {
   final String userName;
   final String userAvatarUrl;
   final String timeAgo;
+  final DateTime? createdAt;
+  final DateTime? publishedAt;
   final String backgroundImageUrl;
+  /// Separate preview supplied by the backend, safe to display while locked.
+  final String clueCoverImageUrl;
   final String unlockCondition;
   final MomentUnlockType unlockType;
   final bool isReadyToOpen;
@@ -106,7 +113,10 @@ class Moment {
     String? userName,
     String? userAvatarUrl,
     String? timeAgo,
+    DateTime? createdAt,
+    DateTime? publishedAt,
     String? backgroundImageUrl,
+    String? clueCoverImageUrl,
     String? unlockCondition,
     MomentUnlockType? unlockType,
     bool? isReadyToOpen,
@@ -137,7 +147,10 @@ class Moment {
       userName: userName ?? this.userName,
       userAvatarUrl: userAvatarUrl ?? this.userAvatarUrl,
       timeAgo: timeAgo ?? this.timeAgo,
+      createdAt: createdAt ?? this.createdAt,
+      publishedAt: publishedAt ?? this.publishedAt,
       backgroundImageUrl: backgroundImageUrl ?? this.backgroundImageUrl,
+      clueCoverImageUrl: clueCoverImageUrl ?? this.clueCoverImageUrl,
       unlockCondition: unlockCondition ?? this.unlockCondition,
       unlockType: unlockType ?? this.unlockType,
       isReadyToOpen: isReadyToOpen ?? this.isReadyToOpen,
