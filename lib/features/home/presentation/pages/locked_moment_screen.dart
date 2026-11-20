@@ -278,25 +278,40 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
       context: context,
       builder: (dialogCtx) => AlertDialog(
         backgroundColor: const Color(0xFF17182D),
-        title: const Text('Report details', style: TextStyle(color: Colors.white)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20 * scale)),
+        title: Text(
+          'Report details',
+          style: TextStyle(color: Colors.white, fontSize: 18 * scale),
+        ),
         content: TextField(
           controller: controller,
           maxLines: 3,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
+          style: TextStyle(color: Colors.white, fontSize: 14 * scale),
+          decoration: InputDecoration(
             hintText: 'Please describe the issue...',
-            hintStyle: TextStyle(color: Color(0xFFA2A5C2)),
+            hintStyle: TextStyle(color: const Color(0xFFA2A5C2), fontSize: 14 * scale),
+            filled: true,
+            fillColor: const Color(0xFF0F1021),
+            contentPadding: EdgeInsets.all(16 * scale),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12 * scale),
+              borderSide: const BorderSide(color: Color(0x1AFFFFFF)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12 * scale),
+              borderSide: const BorderSide(color: Color(0xFF9044FB)),
+            ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFFA2A5C2))),
+            child: Text('Cancel', style: TextStyle(color: const Color(0xFFA2A5C2), fontSize: 14 * scale)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF9044FB)),
             onPressed: () => Navigator.of(dialogCtx).pop(controller.text.trim()),
-            child: const Text('Submit', style: TextStyle(color: Colors.white)),
+            child: Text('Submit', style: TextStyle(color: Colors.white, fontSize: 14 * scale)),
           ),
         ],
       ),

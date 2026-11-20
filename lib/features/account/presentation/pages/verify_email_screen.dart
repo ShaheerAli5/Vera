@@ -2,14 +2,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../core/auth/user_role.dart';
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/auth/auth_diagnostics.dart';
-import '../../../../core/auth/user_role.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
+import '../../../admin/presentation/pages/admin_main_screen.dart';
 import '../../../home/presentation/pages/home_screen.dart';
 import 'sign_in_screen.dart';
 import '../../data/datasources/account_remote_data_source.dart';
@@ -170,19 +171,21 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       if (!mounted) return;
       if (result.token != null && result.token!.isNotEmpty) {
         final apiClient = ApiClientScope.of(context);
-        var role = UserRole.parse(result.user?.role);
+        var role = UserRole.parse(result.user?.role ?? responseRole);
         stage = 'save_session';
         logAuthFlow('session_save_started', {'attempt': attempt});
         await apiClient.setTokens(
           authToken: result.token,
           refreshToken: result.refreshToken,
-          userRole: role?.value,
+          userRole: role?.value ?? UserRole.user.value,
         );
         if (role == null) {
           stage = 'resolve_profile_role';
           logAuthFlow('profile_role_requested', {'attempt': attempt});
-          final profile = await repository.getProfile();
-          role = UserRole.parse(profile.role);
+          try {
+            final profile = await repository.getProfile();
+            role = UserRole.parse(profile.role);
+          } catch (_) {}
           if (role == null) {
             await apiClient.clearTokens();
             throw const ApiException(
@@ -199,33 +202,43 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
         });
         stage = 'push_initialization';
         logAuthFlow('push_initialization_started', {'attempt': attempt});
-        await PushNotificationService.instance.initialize(apiClient);
+        await PushNotificationService.instance.initialize(apiClient).catchError((_) {});
         logAuthFlow('push_initialization_completed', {'attempt': attempt});
         if (!mounted) return;
+        VeraPopup.show(
+          context,
+          title: 'Email verified',
+          message: result.message.isNotEmpty
+              ? result.message
+              : 'Your account has been successfully created and verified.',
+          icon: Icons.check_circle_rounded,
+          accent: VeraTheme.success,
+        );
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(
+            builder: (_) => (role?.isOwner == true)
+                ? const AdminMainScreen()
+                : const HomeScreen(),
+          ),
+          (route) => false,
+        );
+      } else {
+        VeraPopup.show(
+          context,
+          title: 'Email verified',
+          message: result.message.isNotEmpty
+              ? result.message
+              : 'Your email has been verified. Please sign in to continue.',
+          icon: Icons.check_circle_rounded,
+          accent: VeraTheme.success,
+        );
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute<void>(
+            builder: (_) => SignInScreen(initialEmail: widget.email.trim()),
+          ),
+          (route) => false,
+        );
       }
-      final hasVerifiedSession = result.token?.isNotEmpty == true;
-      stage = hasVerifiedSession ? 'navigate_home' : 'navigate_sign_in';
-      final client = ApiClientScope.of(context);
-      logAuthFlow('otp_navigation', {
-        'attempt': attempt, 'destination': hasVerifiedSession ? 'home' : 'sign_in',
-        'savedRole': diagnosticRole(client.userRole),
-        'hasAccessToken': client.authToken?.isNotEmpty == true,
-        'elapsedMs': timer.elapsedMilliseconds,
-      });
-      VeraPopup.show(
-        context,
-        title: 'Email verified',
-        message: result.message.isNotEmpty
-            ? result.message
-            : 'Your account has been successfully created and verified.',
-        icon: Icons.check_circle_rounded,
-        accent: VeraTheme.success,
-      );
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(builder: (_) => hasVerifiedSession
-            ? const HomeScreen() : const SignInScreen()),
-        (route) => false,
-      );
     } on ApiException catch (error) {
       logAuthFlow('otp_failed', {
         'attempt': attempt, 'stage': stage, 'httpStatus': error.statusCode,

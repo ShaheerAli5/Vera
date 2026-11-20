@@ -65,7 +65,23 @@ class ApiClient {
   String? get refreshToken => _refreshToken;
 
   String? _userRole;
-  String? get userRole => _userRole;
+  String? get userRole {
+    if (_userRole != null && _userRole!.isNotEmpty) return _userRole;
+    if (_authToken == null || !_authToken!.contains('.')) return null;
+    try {
+      final parts = _authToken!.split('.');
+      if (parts.length != 3) return null;
+      var normalized = base64Url.normalize(parts[1]);
+      final payload = utf8.decode(base64Url.decode(normalized));
+      final map = jsonDecode(payload) as Map<String, dynamic>;
+      final role = (map['role'] ?? map['userRole'] ?? map['roleName'])?.toString();
+      if (role != null && role.isNotEmpty) {
+        _userRole = role;
+        return role;
+      }
+    } catch (_) {}
+    return 'user';
+  }
 
   Future<bool>? _ongoingRefresh;
   void Function()? onSessionExpired;
@@ -95,6 +111,9 @@ class ApiClient {
               savedRole != 'null')
           ? savedRole.trim()
           : null;
+      if (_userRole == null && _authToken != null) {
+        _userRole = userRole;
+      }
     } catch (_) {}
   }
 
@@ -120,11 +139,15 @@ class ApiClient {
       _momentRealtime?.updateToken(_authToken);
     }
     if (refreshToken != null) _refreshToken = refreshToken;
-    if (userRole != null) _userRole = userRole;
+    if (userRole != null) {
+      _userRole = userRole;
+    } else if (_userRole == null && _authToken != null && _authToken!.isNotEmpty) {
+      _userRole = this.userRole ?? 'user';
+    }
     await Future.wait([
       if (authToken != null) _saveToken(_authTokenKey, authToken),
       if (refreshToken != null) _saveToken(_refreshTokenKey, refreshToken),
-      if (userRole != null) _saveToken(_userRoleKey, userRole),
+      if (_userRole != null) _saveToken(_userRoleKey, _userRole),
     ]);
     if (authToken != null && authToken.isNotEmpty) {
       PushNotificationService.instance.onTokensUpdated(this).catchError((_) {});
