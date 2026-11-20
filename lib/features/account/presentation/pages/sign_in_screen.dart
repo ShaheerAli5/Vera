@@ -9,7 +9,6 @@ import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
-import '../../../admin/presentation/pages/admin_login_screen.dart';
 import '../../../admin/presentation/pages/admin_main_screen.dart';
 import '../../../home/presentation/pages/home_screen.dart';
 import '../../data/datasources/account_remote_data_source.dart';
@@ -116,14 +115,6 @@ class _SignInScreenState extends State<SignInScreen> {
         } catch (_) {}
       }
 
-      if (parsedRole == UserRole.owner) {
-        logAuthFlow('login_role_denied', {'decision': 'deny_owner_role'});
-        await apiClient.clearTokens();
-        throw const ApiException(
-          statusCode: 403,
-          message: 'Access denied. Please use the Admin Login page.',
-        );
-      }
 
       if (parsedRole == null) {
         logAuthFlow('login_role_denied', {'decision': 'deny_invalid_role'});
@@ -484,30 +475,6 @@ class _SignInScreenState extends State<SignInScreen> {
                                 ),
                               ),
                               child: const Text('New here? Create account'),
-                            ),
-                          ),
-                          SizedBox(height: 16 * scale),
-                          SizedBox(
-                            width: contentWidth,
-                            height: 30 * scale,
-                            child: TextButton(
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => const AdminLoginScreen(),
-                                  ),
-                                );
-                              },
-                              style: TextButton.styleFrom(
-                                foregroundColor: const Color(0xFFE53935),
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                textStyle: TextStyle(
-                                  fontSize: 13 * scale,
-                                  height: 1,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              child: const Text('Admin Access'),
                             ),
                           ),
                         ],
