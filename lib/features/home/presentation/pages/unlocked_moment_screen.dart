@@ -10,6 +10,7 @@ import '../../../../core/realtime/moment_realtime_service.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/widgets/vera_popup.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../widgets/creator_avatar.dart';
 import '../widgets/moment_image_shimmer.dart';
@@ -429,14 +430,29 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
                         SizedBox(height: 16 * scale),
                         Container(
                           width: contentWidth,
-                          constraints: BoxConstraints(minHeight: 82 * scale),
-                          padding: EdgeInsets.all(16 * scale),
-                          alignment: Alignment.centerLeft,
+                          constraints: BoxConstraints(minHeight: 88 * scale),
+                          padding: EdgeInsets.all(18 * scale),
                           decoration: BoxDecoration(
-                            color: const Color(0x3317182D),
-                            borderRadius: BorderRadius.circular(18 * scale),
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFF1E1A3A),
+                                Color(0xFF141526),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(20 * scale),
                             border: Border.all(
-                                color: const Color(0xFF373657), width: scale),
+                              color: const Color(0xFF9044FB).withValues(alpha: 0.35),
+                              width: 1.5 * scale,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF9044FB).withValues(alpha: 0.1),
+                                blurRadius: 16,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
                           child: _isLoading
                               ? Center(
@@ -449,17 +465,42 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
                                     ),
                                   ),
                                 )
-                              : Text(
-                                  (moment.message != null &&
-                                          moment.message!.isNotEmpty)
-                                      ? moment.message!
-                                      : 'No message provided for this moment.',
-                                  style: TextStyle(
-                                    color: const Color(0xFFF7F5FF),
-                                    fontSize: 16 * scale,
-                                    fontWeight: FontWeight.w400,
-                                    height: 24 / 16,
-                                  ),
+                              : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.format_quote_rounded,
+                                          color: const Color(0xFFC057FF),
+                                          size: 18 * scale,
+                                        ),
+                                        SizedBox(width: 8 * scale),
+                                        Text(
+                                          'Moment Message',
+                                          style: TextStyle(
+                                            color: const Color(0xFFC057FF),
+                                            fontSize: 12 * scale,
+                                            fontWeight: FontWeight.w600,
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(height: 10 * scale),
+                                    Text(
+                                      (moment.message != null &&
+                                              moment.message!.isNotEmpty)
+                                          ? moment.message!
+                                          : 'No message provided for this moment.',
+                                      style: TextStyle(
+                                        color: const Color(0xFFF7F5FF),
+                                        fontSize: 15.5 * scale,
+                                        fontWeight: FontWeight.w400,
+                                        height: 1.45,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                         ),
                         SizedBox(height: 16 * scale),
@@ -986,25 +1027,40 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
       context: context,
       builder: (dialogCtx) => AlertDialog(
         backgroundColor: const Color(0xFF17182D),
-        title: const Text('Report details', style: TextStyle(color: Colors.white)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20 * scale)),
+        title: Text(
+          'Report details',
+          style: TextStyle(color: Colors.white, fontSize: 18 * scale),
+        ),
         content: TextField(
           controller: controller,
           maxLines: 3,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
+          style: TextStyle(color: Colors.white, fontSize: 14 * scale),
+          decoration: InputDecoration(
             hintText: 'Please describe the issue...',
-            hintStyle: TextStyle(color: Color(0xFFA2A5C2)),
+            hintStyle: TextStyle(color: const Color(0xFFA2A5C2), fontSize: 14 * scale),
+            filled: true,
+            fillColor: const Color(0xFF0F1021),
+            contentPadding: EdgeInsets.all(16 * scale),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12 * scale),
+              borderSide: const BorderSide(color: Color(0x1AFFFFFF)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12 * scale),
+              borderSide: const BorderSide(color: Color(0xFF9044FB)),
+            ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFFA2A5C2))),
+            child: Text('Cancel', style: TextStyle(color: const Color(0xFFA2A5C2), fontSize: 14 * scale)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF9044FB)),
             onPressed: () => Navigator.of(dialogCtx).pop(controller.text.trim()),
-            child: const Text('Submit', style: TextStyle(color: Colors.white)),
+            child: Text('Submit', style: TextStyle(color: Colors.white, fontSize: 14 * scale)),
           ),
         ],
       ),
@@ -1096,10 +1152,19 @@ class _VideoPreviewState extends State<_VideoPreview> {
   String? _errorMessage;
   bool _isPlaying = false;
 
+  late ApiClient _client;
+  late MomentsRepositoryImpl _repo;
+  bool _didInitClient = false;
+
   @override
-  void initState() {
-    super.initState();
-    _checkAndInitVideo();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_didInitClient) {
+      _client = ApiClientScope.of(context);
+      _repo = MomentsRepositoryImpl(MomentsRemoteDataSource(_client));
+      _didInitClient = true;
+      _checkAndInitVideo();
+    }
   }
 
   @override
@@ -1157,11 +1222,8 @@ class _VideoPreviewState extends State<_VideoPreview> {
         controller = fileCtrl;
       } else {
         // 2. Try fetching the media directly via ApiClient (reliable file stream with auth)
-        final client = ApiClientScope.of(context);
-        final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
-
         try {
-          final stream = await repo.getMomentMedia(widget.moment.id).timeout(const Duration(seconds: 15));
+          final stream = await _repo.getMomentMedia(widget.moment.id).timeout(const Duration(seconds: 15));
           if (stream.bytes.isNotEmpty) {
             final tempFile = File('${Directory.systemTemp.path}/moment_${widget.moment.id}.mp4');
             await tempFile.writeAsBytes(stream.bytes, flush: true);
@@ -1174,7 +1236,7 @@ class _VideoPreviewState extends State<_VideoPreview> {
           if (widget.streamUrl.isNotEmpty) {
             final netController = VideoPlayerController.networkUrl(
               Uri.parse(widget.streamUrl),
-              httpHeaders: repo.getMomentMediaHeaders(),
+              httpHeaders: _repo.getMomentMediaHeaders(),
             );
             await netController.initialize().timeout(const Duration(seconds: 8));
             controller = netController;

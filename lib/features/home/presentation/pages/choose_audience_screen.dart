@@ -436,7 +436,7 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                           12 * scale,
                         ),
                         child: Text(
-                          'Public moments appear in Discover once approved. You can also optionally tag friends below to notify them directly.',
+                          'Public moments appear in Discover once approved.',
                           style: TextStyle(
                             color: const Color(0xFFA6A6C1),
                             fontSize: 13.5 * scale,
@@ -447,26 +447,27 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                       ),
                     ],
 
-                    // Section 2: Who should get it?
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        24 * scale,
-                        8 * scale,
-                        24 * scale,
-                        16 * scale,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _isPrivate ? 'Who should get it?' : 'Who should get it? (Optional)',
-                            style: TextStyle(
-                              color: const Color(0xFFF7F5FF),
-                              fontSize: 24 * scale,
-                              fontWeight: FontWeight.w500,
+                    if (_isPrivate) ...[
+                      // Section 2: Who should get it?
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          24 * scale,
+                          8 * scale,
+                          24 * scale,
+                          16 * scale,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Who should get it?',
+                              style: TextStyle(
+                                color: const Color(0xFFF7F5FF),
+                                fontSize: 24 * scale,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
-                          SizedBox(height: 16 * scale),
+                            SizedBox(height: 16 * scale),
 
                           // Dynamic Search Field
                             SizedBox(
@@ -780,9 +781,10 @@ class _ChooseAudienceScreenState extends State<ChooseAudienceScreen> {
                         ),
                       ),
                     ],
-                  ),
+                  ],
                 ),
               ),
+            ),
 
             // Bottom Navigation Action Container
             Container(
