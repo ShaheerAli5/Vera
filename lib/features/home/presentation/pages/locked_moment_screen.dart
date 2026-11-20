@@ -8,6 +8,7 @@ import '../../../../core/realtime/moment_realtime_route.dart';
 import '../../../../core/realtime/moment_realtime_service.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/theme.dart';
+import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/utils/server_time_manager.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
@@ -57,7 +58,7 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
     setState(() => _currentMoment = updated);
     if (update.deleted ||
         _realtimeNavigationScheduled ||
-        !(updated.isReadyToOpen && !_isChecking)) {
+        !(updated.canAccessContent && !_isChecking)) {
       return;
     }
     _realtimeNavigationScheduled = true;
@@ -69,7 +70,7 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
         return;
       }
       final latest = applyRealtime(_currentMoment);
-      if (!latest.isReadyToOpen || _isChecking) return;
+      if (!latest.canAccessContent || _isChecking) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
           builder: (_) => UnlockedMomentScreen(moment: latest),
@@ -83,12 +84,14 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
   DateTime? _nextStatusRefreshAt;
   DateTime? _retryAfter;
   int _ticksCount = 0;
+  String? _countdownRefreshKey;
   bool _isOwner = false;
 
   @override
   void initState() {
     super.initState();
     _currentMoment = widget.moment;
+    PushNotificationService.instance.latestForegroundMessage.addListener(_onPushStatus);
     ServerTimeManager.instance.ticker.addListener(_onTick);
     ServerTimeManager.instance.addResumedListener(_onResumed);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -301,13 +304,23 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
 
   @override
   void dispose() {
+    PushNotificationService.instance.latestForegroundMessage.removeListener(_onPushStatus);
     ServerTimeManager.instance.ticker.removeListener(_onTick);
     ServerTimeManager.instance.removeResumedListener(_onResumed);
     super.dispose();
   }
 
+  @override
+  void onMomentReconnected() {
+    _nextStatusRefreshAt = null;
+    _checkIfReadySilent();
+  }
+
+  void _onPushStatus() => onMomentReconnected();
+
   void _onResumed() {
     if (!mounted) return;
+    _nextStatusRefreshAt = null;
     _checkIfReadySilent();
   }
 
@@ -318,9 +331,12 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
 
     if (_currentMoment.unlockType == MomentUnlockType.time &&
         _currentMoment.unlockAt != null &&
-        _currentMoment.status == 'PUBLISHED') {
+        _currentMoment.status == 'PUBLISHED' &&
+        !_currentMoment.needsInvitationAcceptance) {
       final isTimeReached = !now.isBefore(_currentMoment.unlockAt!);
-      if (isTimeReached && !_isChecking && !_currentMoment.isReadyToOpen) {
+      final key = '${_currentMoment.id}:${_currentMoment.unlockAt}';
+      if (isTimeReached && !_isChecking && !_currentMoment.canAccessContent && _countdownRefreshKey != key) {
+        _countdownRefreshKey = key;
         _checkIfReadySilent();
         return;
       }
@@ -348,12 +364,15 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
     try {
       final client = ApiClientScope.of(context);
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
-      // Refreshing status must never attempt an unlock without user location proof.
-      final model = await repo.getMomentById(_currentMoment.id);
-      final updated = applyRealtime(model.toEntity());
+      final before = client.momentRealtime.latest(_currentMoment.id);
+      final model = _currentMoment.invitationStatus != null && !_isOwner
+          ? await MomentsRemoteDataSource(client).getInboxMomentById(_currentMoment.id)
+          : await repo.getMomentById(_currentMoment.id);
+      if (model == null) return;
+      final updated = client.momentRealtime.reconcileRest(model.toEntity(), before);
       if (!mounted) return;
       setState(() => _currentMoment = updated);
-      if (updated.isReadyToOpen && ModalRoute.of(context)?.isCurrent == true) {
+      if (updated.canAccessContent && ModalRoute.of(context)?.isCurrent == true) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(
             builder: (_) => UnlockedMomentScreen(moment: updated),
@@ -393,6 +412,10 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
         timeLimit: Duration(seconds: 15),
       ),
     );
+    final age = DateTime.now().toUtc().difference(position.timestamp.toUtc());
+    if (age >= const Duration(minutes: 2) || age < const Duration(seconds: -5)) {
+      throw Exception('Location is too old. Please try again for a fresh reading.');
+    }
     if (position.accuracy > 100) {
       throw Exception(
         'Location accuracy is ${position.accuracy.round()}m. '
@@ -409,6 +432,18 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
   }
 
   Future<void> _checkIfReady() async {
+    if (applyRealtime(_currentMoment).canAccessContent) {
+      Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
+        builder: (_) => UnlockedMomentScreen(moment: applyRealtime(_currentMoment)),
+      ));
+      return;
+    }
+    if (_currentMoment.needsInvitationAcceptance) return;
+    if (_currentMoment.unlockType == MomentUnlockType.time) {
+      _nextStatusRefreshAt = null;
+      await _checkIfReadySilent();
+      return;
+    }
     if (_isChecking || _isRefreshingStatus) return;
     if (_retryAfter != null && DateTime.now().isBefore(_retryAfter!)) {
       VeraPopup.show(
@@ -481,7 +516,8 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
       bool isLocationMismatch = false;
 
       try {
-        final unlockedModel = await repo.unlockMoment(
+        final before = client.momentRealtime.latest(_currentMoment.id);
+        var unlockedModel = await repo.unlockMoment(
           momentId: _currentMoment.id,
           latitude: locationProof?.latitude,
           longitude: locationProof?.longitude,
@@ -489,9 +525,16 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
           capturedAt: locationProof?.capturedAt,
           isMocked: locationProof?.isMocked,
         );
+        if (unlockedModel.serverIsUnlocked == null && unlockedModel.unlockedAt == null) {
+          unlockedModel = await MomentsRemoteDataSource(client)
+              .getInboxMomentById(_currentMoment.id) ?? unlockedModel;
+        }
         final base = unlockedModel.toEntity();
-        readyMoment = base.copyWith(
-          isReadyToOpen: unlockedModel.serverIsUnlocked ?? true,
+        readyMoment = client.momentRealtime.reconcileRest(base.copyWith(
+          id: _currentMoment.id,
+          invitationStatus: _currentMoment.invitationStatus,
+          isReadyToOpen: unlockedModel.serverIsUnlocked == true ||
+              (unlockedModel.serverIsUnlocked == null && unlockedModel.unlockedAt != null),
           userName: (base.userName.isNotEmpty && base.userName != 'You')
               ? base.userName
               : _currentMoment.userName,
@@ -509,7 +552,7 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
               : _currentMoment.backgroundImageUrl,
           hasMedia: base.hasMedia || _currentMoment.hasMedia,
           isVideo: base.isVideo || _currentMoment.isVideo,
-        );
+        ), before, mutation: true);
       } catch (unlockErr) {
         if (unlockErr is ApiException) {
           if (unlockErr.statusCode == 429) {
@@ -557,8 +600,12 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
 
       if (readyMoment != null) {
         readyMoment = applyRealtime(readyMoment);
-        if (realtimeDeleted || !readyMoment.isReadyToOpen) {
+        if (realtimeDeleted || !readyMoment.canAccessContent) {
           setState(() => _isChecking = false);
+          if (!realtimeDeleted) {
+            VeraPopup.show(context, title: 'Not ready yet',
+              message: 'The server has not unlocked this moment yet.', icon: Icons.lock_outline);
+          }
           return;
         }
         if (!mounted) return;
@@ -596,8 +643,12 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
         } catch (_) {}
 
         readyMoment = applyRealtime(readyMoment);
-        if (realtimeDeleted || !readyMoment.isReadyToOpen) {
+        if (realtimeDeleted || !readyMoment.canAccessContent) {
           setState(() => _isChecking = false);
+          if (!realtimeDeleted) {
+            VeraPopup.show(context, title: 'Not ready yet',
+              message: 'The server has not unlocked this moment yet.', icon: Icons.lock_outline);
+          }
           return;
         }
 
@@ -710,15 +761,26 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
     try {
       final client = ApiClientScope.of(context);
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+      final before = client.momentRealtime.latest(_currentMoment.id);
       final model = await repo.acceptInvitation(_currentMoment.id);
-      final updated = applyRealtime(model.toEntity());
-
+      final accepted = _currentMoment.copyWith(
+        invitationStatus: 'ACCEPTED',
+        isApproved: model.serverIsApproved,
+        isReadyToOpen: model.serverIsUnlocked ?? (model.unlockedAt != null),
+        unlockedAt: model.unlockedAt,
+      );
+      final updated = client.momentRealtime.reconcileRest(accepted, before, mutation: true);
       if (!mounted) return;
       setState(() {
-        _currentMoment = updated.copyWith(invitationStatus: 'ACCEPTED');
+        _currentMoment = updated;
         _isAcceptingInvite = false;
       });
-
+      if (updated.canAccessContent) {
+        Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
+          builder: (_) => UnlockedMomentScreen(moment: updated),
+        ));
+        return;
+      }
       VeraPopup.show(
         context,
         title: 'Invitation Accepted',
@@ -749,8 +811,11 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
     try {
       final client = ApiClientScope.of(context);
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
-      final model = await repo.declineInvitation(_currentMoment.id);
-      final updated = applyRealtime(model.toEntity());
+      final before = client.momentRealtime.latest(_currentMoment.id);
+      await repo.declineInvitation(_currentMoment.id);
+      final updated = client.momentRealtime.reconcileRest(
+        _currentMoment.copyWith(invitationStatus: 'DECLINED', isReadyToOpen: false), before, mutation: true,
+      );
 
       if (!mounted) return;
       setState(() {
@@ -1002,7 +1067,7 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
                           ],
                         ),
                         child: TextButton(
-                          onPressed: _isChecking ? null : _checkIfReady,
+                          onPressed: _isChecking || moment.needsInvitationAcceptance ? null : _checkIfReady,
                           style: TextButton.styleFrom(
                             foregroundColor: Colors.white,
                             shape: const StadiumBorder(),
@@ -1018,8 +1083,8 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
                                   ),
                                 )
                               : Text(
-                                  _currentMoment.isReadyToOpen
-                                      ? "Unlock moment"
+                                  moment.needsInvitationAcceptance
+                                      ? 'Accept the invitation first'
                                       : "Check if it's ready",
                                   style: TextStyle(
                                     fontSize: 14 * scale,
@@ -1058,21 +1123,7 @@ class _LockedPreview extends StatelessWidget {
           children: [
             ImageFiltered(
               imageFilter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-              child: moment.backgroundImageUrl.isNotEmpty
-                  ? Image.network(
-                      moment.backgroundImageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => const DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Color(0xFF124552), Color(0xFF51352F)],
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                          ),
-                        ),
-                      ),
-                    )
-                  : const DecoratedBox(
+              child: const DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [Color(0xFF124552), Color(0xFF51352F)],

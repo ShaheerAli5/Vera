@@ -387,12 +387,13 @@ class PushNotificationService with WidgetsBindingObserver {
     if (momentId.isNotEmpty && client != null && client.isAuthenticated) {
       try {
         final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
-        final momentModel = await repo.getMomentById(momentId);
+        final momentModel = await MomentsRemoteDataSource(client).getInboxMomentById(momentId)
+            .catchError((_) => null) ?? await repo.getMomentById(momentId);
         final moment = momentModel.toEntity();
         if (_navigatorKey?.currentState != null) {
           _navigatorKey!.currentState!.push(
             MaterialPageRoute<void>(
-              builder: (_) => moment.isReadyToOpen
+              builder: (_) => moment.canAccessContent
                   ? UnlockedMomentScreen(moment: moment)
                   : LockedMomentScreen(moment: moment),
             ),

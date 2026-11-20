@@ -25,7 +25,7 @@ new access token. Watched rooms are restored on connect. Logout clears cached
 socket state and disconnects. Debug logs use `[MOMENT_REALTIME]` and contain only
 event names, with no token, post content, or raw server errors.
 
-The full suite passes 44 tests. Realtime tests use a fake socket and cover transport configuration, room lifecycle,
+The full suite passes 58 tests. Realtime tests use a fake socket and cover transport configuration, room lifecycle,
 reconnects, API token refresh, malformed/unrelated events, authoritative false,
 all six events, screen transitions, and deletion. Run `flutter test`.
 Live delivery still needs verification against the deployed server: open a
@@ -56,3 +56,31 @@ the queue button beside search, and the dashboard refresh button remain availabl
 Dashboard pending count uses the stats total, falling back to the queue's total
 rather than just the first page length. Admin regression tests cover discovery,
 moderation events, tab switching, route return, resume, totals, and slow requests.
+
+## Private invitation access contract
+
+Received moments are loaded from `/moments/inbox?page=1&limit=20`. Invitation
+state gates access: pending and declined invitations cannot open content or
+call `/unlock`. Acceptance and decline POSTs have no body. An accepted response
+with `isUnlocked: true`, or an unlock timestamp when no explicit flag is supplied,
+can open content; an explicit false keeps it locked. `availability.isApproved`
+is independent of unlocking and can deny access.
+
+Device time only triggers a status refresh. It never grants access. Inbox reads
+run on application resume, socket connection/reconnection, countdown completion,
+and foreground Firebase messages. Opening a notification also checks inbox state;
+notification text and event names cannot grant access. Moment lookup in the inbox
+traverses pagination. A later REST result can replace older socket state, while
+socket updates arriving during that request retain priority.
+
+Location unlocking captures a fresh high-accuracy foreground position after
+acceptance. Readings two minutes old or more are rejected locally; the provider's
+accuracy and mocked flag are forwarded without inventing accuracy. Successful
+HTTP status alone does not grant access: responses without unlock state are
+confirmed through the inbox. Already-unlocked recipients do not recapture GPS.
+
+Protected content uses `/moments/{id}/content` and
+`/moments/{id}/content/media` with bearer authentication. Unconfirmed entry into
+the unlocked screen is redirected before protected requests. Locked previews
+use a placeholder rather than downloading and blurring the private original.
+Unlocked card previews also use the protected media endpoint.

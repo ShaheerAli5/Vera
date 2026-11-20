@@ -77,6 +77,7 @@ void main() {
           id: 'moment', creatorId: 'creator', userName: 'Author',
           userAvatarUrl: '', timeAgo: '', backgroundImageUrl: '',
           unlockCondition: '', hasMedia: false, contentType: 'TEXT',
+          isReadyToOpen: true, invitationStatus: 'ACCEPTED',
         )),
       ));
       await tester.pumpAndSettle();

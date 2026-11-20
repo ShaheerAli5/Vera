@@ -13,8 +13,10 @@ mixin MomentRealtimeRoute<T extends StatefulWidget> on State<T>
     implements RouteAware {
   String get realtimeMomentId;
   void onMomentRealtime(MomentRealtimeUpdate update);
+  void onMomentReconnected() {}
   MomentRealtimeService? _realtime;
   StreamSubscription<MomentRealtimeUpdate>? _subscription;
+  StreamSubscription<void>? _connections;
   PageRoute<dynamic>? _route;
   bool _watching = false;
   String? _watchedId;
@@ -31,6 +33,10 @@ mixin MomentRealtimeRoute<T extends StatefulWidget> on State<T>
     if (!identical(service, _realtime)) {
       _stopWatching();
       _subscription?.cancel();
+      _connections?.cancel();
+      _connections = service.connections.listen((_) {
+        if (mounted && _watching) onMomentReconnected();
+      });
       _realtime = service;
       _subscription = service.updates.listen((update) {
         if (mounted && _watching && update.momentId == realtimeMomentId) {
@@ -96,6 +102,7 @@ mixin MomentRealtimeRoute<T extends StatefulWidget> on State<T>
     momentRouteObserver.unsubscribe(this);
     _stopWatching();
     _subscription?.cancel();
+    _connections?.cancel();
     super.dispose();
   }
 }

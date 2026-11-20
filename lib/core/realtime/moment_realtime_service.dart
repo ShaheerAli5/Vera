@@ -40,11 +40,15 @@ class MomentRealtimeUpdate {
     required this.momentId,
     this.status,
     this.isUnlocked,
+    this.isApproved,
+    this.invitationStatus,
     this.deleted = false,
   });
   final String momentId;
   final String? status;
   final bool? isUnlocked;
+  final bool? isApproved;
+  final String? invitationStatus;
   final bool deleted;
 
   static MomentRealtimeUpdate? parse(String event, dynamic payload) {
@@ -72,6 +76,12 @@ class MomentRealtimeUpdate {
           ? (data['status'] as String).toUpperCase()
           : statuses[event],
       isUnlocked: unlocked is bool ? unlocked : null,
+      isApproved: availability is Map && availability['isApproved'] is bool
+          ? availability['isApproved'] as bool
+          : null,
+      invitationStatus: data['invitationStatus'] is String
+          ? (data['invitationStatus'] as String).toUpperCase()
+          : null,
       deleted: event == 'moment:deleted' || data['status'] == 'DELETED',
     );
   }
@@ -81,6 +91,8 @@ class MomentRealtimeUpdate {
         momentId: momentId,
         status: newer.status ?? status,
         isUnlocked: newer.isUnlocked ?? isUnlocked,
+        isApproved: newer.isApproved ?? isApproved,
+        invitationStatus: newer.invitationStatus ?? invitationStatus,
         deleted: deleted || newer.deleted,
       );
 
@@ -93,22 +105,35 @@ class MomentRealtimeUpdate {
     return {
       ...data,
       'id': momentId,
+      if (invitationStatus != null) 'invitationStatus': invitationStatus,
       if (status != null) 'status': deleted ? 'DELETED' : status,
-      if (isUnlocked != null || deleted)
+      if (isUnlocked != null || isApproved != null || deleted)
         'availability': {
           if (data['availability'] is Map)
             ...Map<String, dynamic>.from(data['availability'] as Map),
-          'isUnlocked': deleted ? false : isUnlocked,
+          if (isUnlocked != null || deleted)
+            'isUnlocked': deleted ? false : isUnlocked,
+          if (isApproved != null) 'isApproved': isApproved,
         },
     };
   }
 
-  Moment apply(Moment moment) => moment.id != momentId
-      ? moment
-      : moment.copyWith(
-          status: deleted ? 'DELETED' : status,
-          isReadyToOpen: deleted ? false : isUnlocked,
-        );
+  Moment apply(Moment moment) {
+    if (moment.id != momentId) return moment;
+    final invite = invitationStatus ?? moment.invitationStatus;
+    final approved = isApproved ?? moment.isApproved;
+    return moment.copyWith(
+      status: deleted ? 'DELETED' : status,
+      invitationStatus: invite,
+      isApproved: approved,
+      isReadyToOpen:
+          !deleted &&
+          approved != false &&
+          invite != 'PENDING' &&
+          invite != 'DECLINED' &&
+          (isUnlocked ?? moment.isReadyToOpen),
+    );
+  }
 }
 
 /// One connection per API session; multiple views share room subscriptions.
@@ -137,18 +162,55 @@ class MomentRealtimeService {
   MomentSocket? _socket;
   final Map<String, int> _watches = {};
   final Map<String, MomentRealtimeUpdate> _latest = {};
+  final Map<String, int> _socketVersions = {};
+  final Expando<int> _stateSocketVersions = Expando<int>();
+  final _connections = StreamController<void>.broadcast(sync: true);
+  Stream<void> get connections => _connections.stream;
+  Map<String, MomentRealtimeUpdate> get snapshot => Map.unmodifiable(_latest);
   final _updates = StreamController<MomentRealtimeUpdate>.broadcast(sync: true);
   Stream<MomentRealtimeUpdate> get updates => _updates.stream;
   MomentRealtimeUpdate? latest(String id) => _latest[id];
   Moment applyLatest(Moment moment) =>
       _latest[moment.id]?.apply(moment) ?? moment;
+
+  /// A completed REST read supersedes older socket state, unless an event
+  /// arrived while that read was in flight.
+  Moment reconcileRest(
+    Moment moment,
+    MomentRealtimeUpdate? before, {
+    bool mutation = false,
+  }) {
+    final beforeVersion = before == null
+        ? 0
+        : (_stateSocketVersions[before] ?? 0);
+    final socketChanged = beforeVersion != (_socketVersions[moment.id] ?? 0);
+    if (!identical(_latest[moment.id], before) &&
+        (!mutation || socketChanged)) {
+      return applyLatest(moment);
+    }
+    final state = MomentRealtimeUpdate(
+      momentId: moment.id,
+      status: moment.status,
+      invitationStatus: moment.invitationStatus,
+      isUnlocked: moment.canAccessContent,
+      isApproved: moment.isApproved,
+      deleted: moment.status == 'DELETED' || before?.deleted == true,
+    );
+    _stateSocketVersions[state] = _socketVersions[moment.id] ?? 0;
+    _latest[moment.id] = state;
+    return state.apply(moment);
+  }
+
   bool _disposed = false;
 
   void updateToken(String? token) {
     if (_disposed || token == _token) return;
     _token = token;
     _disconnect();
-    if (token == null || token.isEmpty) _latest.clear();
+    if (token == null || token.isEmpty) {
+      _latest.clear();
+      _socketVersions.clear();
+    }
     if (_watches.isNotEmpty) _connect();
   }
 
@@ -194,6 +256,7 @@ class MomentRealtimeService {
       for (final id in _watches.keys) {
         socket.emit('moment:watch', {'momentId': id});
       }
+      _connections.add(null);
     });
     for (final event in ['connect_error', 'disconnect']) {
       socket.on(event, (_) {
@@ -209,6 +272,9 @@ class MomentRealtimeService {
         final update = MomentRealtimeUpdate.parse(event, payload);
         if (update == null || !_watches.containsKey(update.momentId)) return;
         final combined = _latest[update.momentId]?.merge(update) ?? update;
+        final version = (_socketVersions[update.momentId] ?? 0) + 1;
+        _socketVersions[update.momentId] = version;
+        _stateSocketVersions[combined] = version;
         _latest[update.momentId] = combined;
         if (kDebugMode) debugPrint('[MOMENT_REALTIME] $event');
         _updates.add(combined);
@@ -229,6 +295,8 @@ class MomentRealtimeService {
     _disconnect();
     _watches.clear();
     _latest.clear();
+    _socketVersions.clear();
     _updates.close();
+    _connections.close();
   }
 }

@@ -1553,7 +1553,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 final moment = currentList[index];
                                 Navigator.of(context).push(
                                   MaterialPageRoute<void>(
-                                    builder: (_) => moment.isReadyToOpen
+                                    builder: (_) => moment.canAccessContent
                                         ? UnlockedMomentScreen(moment: moment)
                                         : LockedMomentScreen(moment: moment),
                                   ),

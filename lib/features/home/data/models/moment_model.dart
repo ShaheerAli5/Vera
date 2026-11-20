@@ -121,6 +121,7 @@ class MomentModel {
     this.unlockedAt,
     this.openedAt,
     this.serverIsUnlocked,
+    this.serverIsApproved,
     this.isVideo = false,
     this.timeAgo,
     this.contentType,
@@ -156,6 +157,7 @@ class MomentModel {
   /// Server-authoritative unlock state when an endpoint provides it.
   /// Null means the endpoint did not provide availability information.
   final bool? serverIsUnlocked;
+  final bool? serverIsApproved;
   final bool isVideo;
   final String? timeAgo;
   final String? contentType;
@@ -279,8 +281,9 @@ class MomentModel {
     final openedAtStr = viewer?['openedAt']?.toString() ??
         json['openedAt']?.toString() ??
         json['opened_at']?.toString();
-    final invitationStatus = viewer?['inviteStatus']?.toString() ??
-        json['invitationStatus']?.toString() ??
+    final invitationStatus = json['invitationStatus']?.toString().toUpperCase() ??
+        viewer?['invitationStatus']?.toString().toUpperCase() ??
+        viewer?['inviteStatus']?.toString().toUpperCase() ??
         json['invitation_status']?.toString();
 
     final avatarPath = creator?['avatarUrl']?.toString() ??
@@ -390,6 +393,7 @@ class MomentModel {
       unlockedAt: unlockedAtStr != null ? DateTime.tryParse(unlockedAtStr) : null,
       openedAt: openedAtStr != null ? DateTime.tryParse(openedAtStr) : null,
       serverIsUnlocked: serverIsUnlocked,
+      serverIsApproved: availability?['isApproved'] as bool?,
       isVideo: isVideo,
       contentType: contentType,
       hasMedia: hasMedia,
@@ -401,15 +405,11 @@ class MomentModel {
   Moment toEntity({String? currentUserName}) {
     final isDateUnlock = (unlockRuleType ?? 'DATE').toUpperCase() == 'DATE';
     final now = ServerTimeManager.instance.now;
-
-    final isApprovedAndPublished = status?.toUpperCase() == 'PUBLISHED';
-    final locallyDue = isDateUnlock &&
-        unlockAt != null &&
-        !now.isBefore(unlockAt!);
-    // An explicit server false overrides timestamps and the local clock.
-    // Legacy endpoints without availability retain the published-date fallback.
-    final isReadyToOpen = isApprovedAndPublished &&
-        (serverIsUnlocked ?? (unlockedAt != null || locallyDue));
+    final invitationAllowed = invitationStatus != 'PENDING' && invitationStatus != 'DECLINED';
+    // Time on the phone controls display/refresh only, never final access.
+    final approved = serverIsApproved ?? (status == null ? null : status?.toUpperCase() == 'PUBLISHED');
+    final isReadyToOpen = invitationAllowed && approved != false &&
+        (serverIsUnlocked ?? (unlockedAt != null));
 
     String conditionText;
     if (isDateUnlock && unlockAt != null) {
@@ -475,11 +475,9 @@ class MomentModel {
       badgeTitle = 'To Everyone (public)';
     }
 
-    final bgImage = (mediaUrl != null && mediaUrl!.isNotEmpty)
-        ? mediaUrl!
-        : (id.isNotEmpty
-            ? 'https://vera.aptechmedia.com/api/v1/moments/$id/media'
-            : '');
+    final bgImage = isReadyToOpen && hasMedia && id.isNotEmpty
+        ? 'https://vera.aptechmedia.com/api/v1/moments/$id/content/media'
+        : '';
 
     final avatar = (creatorAvatarUrl != null && creatorAvatarUrl!.isNotEmpty)
         ? creatorAvatarUrl!
@@ -495,6 +493,7 @@ class MomentModel {
       unlockCondition: conditionText,
       unlockType: isDateUnlock ? MomentUnlockType.time : MomentUnlockType.location,
       isReadyToOpen: isReadyToOpen,
+      isApproved: approved,
       sentBadgeTitle: badgeTitle,
       sentBadgeSubtitle: invitationStatus == 'PENDING'
           ? 'Pending invitation'

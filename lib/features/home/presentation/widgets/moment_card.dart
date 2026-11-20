@@ -73,8 +73,10 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
 
     const cardHeight = 194.0;
     const cardRadius = 20.0;
-    final bool isUnlocked = moment.isReadyToOpen;
+    final bool isUnlocked = moment.canAccessContent;
     final client = ApiClientScope.of(context);
+    final protectedMediaUrl = moment.canAccessContent && moment.hasMedia
+        ? MomentsRemoteDataSource(client).getMomentMediaStreamUrl(moment.id) : '';
     final token = client.authToken;
     final headers = <String, String>{
       if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
@@ -105,9 +107,9 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
                 sigmaX: isUnlocked ? 0 : 7,
                 sigmaY: isUnlocked ? 0 : 7,
               ),
-              child: moment.backgroundImageUrl.isNotEmpty
+              child: protectedMediaUrl.isNotEmpty
                   ? Image.network(
-                      moment.backgroundImageUrl,
+                      protectedMediaUrl,
                       headers: headers,
                       fit: BoxFit.cover,
                       errorBuilder: (context, error, stackTrace) => Container(
@@ -342,7 +344,7 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
   Widget _buildTopLock(double inputScale) {
     final moment = applyRealtime(widget.moment);
     final scale = widget.scale;
-    final bool isUnlocked = moment.isReadyToOpen;
+    final bool isUnlocked = moment.canAccessContent;
     return ClipOval(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),

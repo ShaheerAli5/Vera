@@ -1,7 +1,4 @@
-enum MomentUnlockType {
-  location,
-  time,
-}
+enum MomentUnlockType { location, time }
 
 class Moment {
   const Moment({
@@ -14,6 +11,7 @@ class Moment {
     required this.unlockCondition,
     this.unlockType = MomentUnlockType.location,
     this.isReadyToOpen = false,
+    this.isApproved,
     this.sentBadgeTitle,
     this.sentBadgeSubtitle,
     this.isPublicSentMoment = false,
@@ -44,6 +42,11 @@ class Moment {
   final String unlockCondition;
   final MomentUnlockType unlockType;
   final bool isReadyToOpen;
+  final bool? isApproved;
+  bool get needsInvitationAcceptance =>
+      invitationStatus == 'PENDING' || invitationStatus == 'DECLINED';
+  bool get canAccessContent =>
+      isReadyToOpen && !needsInvitationAcceptance && isApproved != false;
   final String? sentBadgeTitle;
   final String? sentBadgeSubtitle;
   final bool isPublicSentMoment;
@@ -74,6 +77,7 @@ class Moment {
     String? unlockCondition,
     MomentUnlockType? unlockType,
     bool? isReadyToOpen,
+    bool? isApproved,
     String? sentBadgeTitle,
     String? sentBadgeSubtitle,
     bool? isPublicSentMoment,
@@ -104,6 +108,7 @@ class Moment {
       unlockCondition: unlockCondition ?? this.unlockCondition,
       unlockType: unlockType ?? this.unlockType,
       isReadyToOpen: isReadyToOpen ?? this.isReadyToOpen,
+      isApproved: isApproved ?? this.isApproved,
       sentBadgeTitle: sentBadgeTitle ?? this.sentBadgeTitle,
       sentBadgeSubtitle: sentBadgeSubtitle ?? this.sentBadgeSubtitle,
       isPublicSentMoment: isPublicSentMoment ?? this.isPublicSentMoment,

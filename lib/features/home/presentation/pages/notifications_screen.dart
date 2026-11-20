@@ -78,7 +78,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     MomentModel? momentModel;
     for (final candidateId in candidateIds) {
       try {
-        momentModel = await repo.getMomentById(candidateId);
+        momentModel = await MomentsRemoteDataSource(client).getInboxMomentById(candidateId)
+            .catchError((_) => null) ?? await repo.getMomentById(candidateId);
         break;
       } catch (_) {}
     }
@@ -128,7 +129,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         backgroundImageUrl: n.imageUrl ?? '',
         unlockCondition: n.body,
         unlockType: MomentUnlockType.time,
-        isReadyToOpen: true,
+        isReadyToOpen: false,
         message: n.body,
         title: n.title,
         teaser: n.body,
@@ -138,7 +139,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     if (!mounted) return;
-    if (moment.isReadyToOpen || moment.status == 'OPENED' || moment.unlockedAt != null) {
+    if (moment.canAccessContent) {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => UnlockedMomentScreen(moment: moment),

@@ -11,14 +11,14 @@ import 'package:vera/features/home/data/datasources/moments_remote_data_source.d
 
 void main() {
   test('GPS proof is serialized as bounded-precision numbers, preserving metadata', () async {
-    final capturedAt = DateTime.utc(2026, 11, 19, 10, 28);
+    final capturedAt = DateTime.now().toUtc();
     final client = ApiClient(
       config: const AppConfig(apiBaseUrl: 'https://example.com'),
       httpClient: MockClient((request) async {
         final body = jsonDecode(request.body) as Map<String, dynamic>;
         expect(body['latitude'], 24.860735);
         expect(body['longitude'], 67.001137);
-        expect(body['accuracyM'], 12.35);
+        expect(body['accuracyM'], 12.345678901);
         expect(body['latitude'], isA<num>());
         expect(body['longitude'], isA<num>());
         expect(body['accuracyM'], isA<num>());
@@ -119,7 +119,7 @@ void main() {
         latitude: 24.860735,
         longitude: 67.001137,
         accuracyM: 12.4,
-        capturedAt: DateTime.utc(2026, 11, 19),
+        capturedAt: DateTime.now().toUtc(),
         isMocked: false,
       ),
       throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 422)),

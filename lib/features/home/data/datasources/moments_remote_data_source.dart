@@ -113,6 +113,18 @@ class MomentsRemoteDataSource {
     return MomentsListResponse.fromJson(response);
   }
 
+  Future<MomentModel?> getInboxMomentById(String momentId) async {
+    var page = 1;
+    while (true) {
+      final response = await getInboxMoments(page: page, limit: 20);
+      for (final moment in response.moments) {
+        if (moment.id == momentId) return moment;
+      }
+      if (!response.hasMore || response.moments.isEmpty) return null;
+      page++;
+    }
+  }
+
   Future<MomentModel> getMomentById(String momentId) async {
     final response = await _apiClient.get('/moments/$momentId');
     if (response is! Map<String, dynamic>) {
@@ -216,6 +228,12 @@ class MomentsRemoteDataSource {
     bool? isMocked,
   }) async {
     final Map<String, dynamic> body = {};
+    if (capturedAt != null &&
+        (DateTime.now().toUtc().difference(capturedAt.toUtc()) >= const Duration(minutes: 2) ||
+         capturedAt.toUtc().isAfter(DateTime.now().toUtc().add(const Duration(seconds: 5))))) {
+      throw const ApiException(statusCode: 0, code: 'stale_location_proof',
+        message: 'Location is too old. Please obtain a fresh location.');
+    }
     if ((latitude != null && (!latitude.isFinite || latitude < -90 || latitude > 90)) ||
         (longitude != null && (!longitude.isFinite || longitude < -180 || longitude > 180)) ||
         (accuracyM != null && (!accuracyM.isFinite || accuracyM < 0))) {
@@ -228,10 +246,7 @@ class MomentsRemoteDataSource {
     // Match creation's coordinate precision and keep JSON values numeric.
     if (latitude != null) body['latitude'] = double.parse(latitude.toStringAsFixed(6));
     if (longitude != null) body['longitude'] = double.parse(longitude.toStringAsFixed(6));
-    if (accuracyM != null) {
-      // Round uncertainty upwards so the payload never overstates GPS accuracy.
-      body['accuracyM'] = double.parse(((accuracyM * 100).ceil() / 100).toStringAsFixed(2));
-    }
+    if (accuracyM != null) body['accuracyM'] = accuracyM;
     if (capturedAt != null) body['capturedAt'] = capturedAt.toUtc().toIso8601String();
     if (isMocked != null) body['isMocked'] = isMocked;
 
@@ -242,7 +257,7 @@ class MomentsRemoteDataSource {
       'hasCaptureTime': capturedAt != null,
       'isMocked': isMocked,
       'coordinateDecimalPlaces': 6,
-      'accuracyDecimalPlaces': 2,
+      'accuracyDecimalPlaces': accuracyM?.toString().split('.').last.length,
     });
 
     final response = await _apiClient.post(
@@ -297,7 +312,7 @@ class MomentsRemoteDataSource {
   }
 
   Future<MomentMediaStream> getMomentMedia(String momentId) async {
-    final response = await _apiClient.getRaw('/moments/$momentId/media');
+    final response = await _apiClient.getRaw('/moments/$momentId/content/media');
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(
         statusCode: response.statusCode,
@@ -312,7 +327,7 @@ class MomentsRemoteDataSource {
   }
 
   String getMomentMediaStreamUrl(String momentId) {
-    return _apiClient.config.endpoint('/moments/$momentId/media').toString();
+    return _apiClient.config.endpoint('/moments/$momentId/content/media').toString();
   }
 
   Map<String, String> getMomentMediaHeaders() {

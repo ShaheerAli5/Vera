@@ -42,7 +42,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
     setState(() => _currentMoment = updated);
     if (update.deleted ||
         _realtimeNavigationScheduled ||
-        !(!updated.isReadyToOpen && update.isUnlocked == false)) {
+        !(!updated.canAccessContent && (update.isUnlocked == false || update.isApproved == false))) {
       return;
     }
     _realtimeNavigationScheduled = true;
@@ -54,7 +54,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
         return;
       }
       final latest = applyRealtime(_currentMoment);
-      if (latest.isReadyToOpen) return;
+      if (latest.canAccessContent) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
           builder: (_) => LockedMomentScreen(moment: latest),
@@ -88,6 +88,12 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
     _displayName = widget.moment.userName;
     PushNotificationService.instance.latestForegroundMessage.addListener(_onNewForegroundMessage);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_currentMoment.canAccessContent) {
+        Navigator.of(context).pushReplacement(MaterialPageRoute<void>(
+          builder: (_) => LockedMomentScreen(moment: _currentMoment),
+        ));
+        return;
+      }
       _fetchMediaStream();
       _initializeConversation();
     });
@@ -106,7 +112,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
   }
 
   Future<void> _initializeConversation() async {
-    if (!mounted) return;
+    if (!mounted || !_currentMoment.canAccessContent) return;
     setState(() {
       _conversationReady = false;
       _conversationError = null;
@@ -119,7 +125,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
       if (profile.id.isEmpty) throw const FormatException('Missing user identity');
       _currentUserId = profile.id;
       await _fetchFullMoment();
-      if (!mounted) return;
+      if (!mounted || !applyRealtime(_currentMoment).canAccessContent) return;
       setState(() {
         _isCreator = _currentMoment.creatorId != null
             ? _currentMoment.creatorId == profile.id
@@ -156,6 +162,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
   }
 
   Future<void> _fetchThreadMessages([String? knownThreadId]) async {
+    if (!applyRealtime(_currentMoment).canAccessContent) return;
     if (!mounted || !_conversationReady || _isLoadingMessages ||
         _isSendingReply || _currentMoment.id.isEmpty) {
       return;
@@ -233,7 +240,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
   }
 
   Future<void> _fetchMediaStream() async {
-    if (_currentMoment.id.isEmpty || _isLoadingMedia) return;
+    if (!_currentMoment.canAccessContent || _currentMoment.id.isEmpty || _isLoadingMedia || !_currentMoment.hasMedia) return;
     setState(() => _isLoadingMedia = true);
 
     try {
@@ -241,7 +248,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
       final stream = await repo.getMomentMedia(_currentMoment.id);
 
-      if (!mounted) return;
+      if (!mounted || !applyRealtime(_currentMoment).canAccessContent) return;
       setState(() {
         _mediaBytes = stream.bytes;
         _isLoadingMedia = false;
@@ -256,12 +263,14 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
   }
 
   Future<void> _fetchFullMoment() async {
+    if (!_currentMoment.canAccessContent) return;
     if (_isLoading) return;
     setState(() => _isLoading = true);
 
     try {
       final client = ApiClientScope.of(context);
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+      final before = client.momentRealtime.latest(_currentMoment.id);
       final model = await repo.getMomentContent(_currentMoment.id);
       final entity = model.toEntity();
 
@@ -282,6 +291,9 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
           }
         }
         _currentMoment = entity.copyWith(
+          invitationStatus: entity.invitationStatus ?? _currentMoment.invitationStatus,
+          isReadyToOpen: model.serverIsUnlocked ?? _currentMoment.isReadyToOpen,
+          isApproved: model.serverIsApproved ?? _currentMoment.isApproved,
           creatorId: entity.creatorId ?? _currentMoment.creatorId,
           userName: (entity.userName.isNotEmpty && entity.userName != 'You')
               ? entity.userName
@@ -302,8 +314,14 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
           hasMedia: entity.hasMedia || _currentMoment.hasMedia,
           isVideo: entity.isVideo || _currentMoment.isVideo,
         );
+        _currentMoment = model.serverIsUnlocked != null || model.serverIsApproved != null
+            ? client.momentRealtime.reconcileRest(_currentMoment, before)
+            : applyRealtime(_currentMoment);
         _isLoading = false;
       });
+      if (!_currentMoment.canAccessContent) {
+        onMomentRealtime(MomentRealtimeUpdate(momentId: _currentMoment.id, isUnlocked: false));
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -313,6 +331,10 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
   @override
   Widget build(BuildContext context) {
     if (realtimeDeleted) return deletedMomentView();
+    if (!applyRealtime(_currentMoment).canAccessContent) {
+      return Scaffold(appBar: AppBar(title: const Text('Locked moment')),
+        body: const Center(child: Icon(Icons.lock_outline)));
+    }
     _currentMoment = applyRealtime(_currentMoment);
     final moment = _currentMoment;
     final screenWidth = MediaQuery.sizeOf(context).width;
@@ -624,6 +646,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
   }
 
   Future<void> _handleSendReply() async {
+    if (!applyRealtime(_currentMoment).canAccessContent) return;
     final reply = _replyController.text.trim();
     if (reply.isEmpty || _isSendingReply || _isLoadingMessages ||
         !_conversationReady || (_isCreator && _selectedRecipientId == null)) {
@@ -1166,7 +1189,7 @@ class _VideoPreviewState extends State<_VideoPreview> {
           if (widget.streamUrl.isNotEmpty) {
             final netController = VideoPlayerController.networkUrl(
               Uri.parse(widget.streamUrl),
-              httpHeaders: widget.streamHeaders,
+              httpHeaders: repo.getMomentMediaHeaders(),
             );
             await netController.initialize().timeout(const Duration(seconds: 8));
             controller = netController;

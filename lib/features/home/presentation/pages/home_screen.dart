@@ -68,6 +68,10 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _hasLoadedOnce = false;
   MomentRealtimeService? _realtime;
   StreamSubscription<MomentRealtimeUpdate>? _realtimeSubscription;
+  StreamSubscription<void>? _socketConnections;
+  bool _refreshingInbox = false;
+  bool _refreshInboxAgain = false;
+  final Set<String> _countdownRefreshes = {};
 
   void _onMomentRealtime(MomentRealtimeUpdate update) {
     if (!mounted) return;
@@ -93,6 +97,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _selectedTabIndex = widget.initialTabIndex;
     _selectedNavIndex = widget.initialNavIndex;
     _selectedMessageTab = widget.initialMessageTabIndex;
+    PushNotificationService.instance.latestForegroundMessage.addListener(_onPushInboxRefresh);
     ServerTimeManager.instance.ticker.addListener(_onTick);
     ServerTimeManager.instance.addResumedListener(_onResumed);
   }
@@ -100,6 +105,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _realtimeSubscription?.cancel();
+    _socketConnections?.cancel();
+    PushNotificationService.instance.latestForegroundMessage.removeListener(_onPushInboxRefresh);
     ServerTimeManager.instance.ticker.removeListener(_onTick);
     ServerTimeManager.instance.removeResumedListener(_onResumed);
     super.dispose();
@@ -110,41 +117,48 @@ class _HomeScreenState extends State<HomeScreen> {
     _fetchMoments();
   }
 
+  void _onPushInboxRefresh() { _refreshInbox(); }
+
+  Future<void> _refreshInbox() async {
+    if (!mounted) return;
+    if (_refreshingInbox) { _refreshInboxAgain = true; return; }
+    _refreshingInbox = true;
+    try {
+      do {
+        _refreshInboxAgain = false;
+        final client = ApiClientScope.of(context);
+        final before = client.momentRealtime.snapshot;
+        final response = await MomentsRemoteDataSource(client).getInboxMoments();
+        if (!mounted) return;
+        final received = response.moments.map((m) {
+          final entity = m.toEntity();
+          return client.momentRealtime.reconcileRest(entity, before[entity.id]);
+        }).where((m) => m.status != 'DELETED').toList();
+        setState(() {
+          _fetchedInboxMoments = received;
+          for (final list in [_fetchedForYouMoments, _fetchedDiscoverMoments, _fetchedYourMoments]) {
+            for (var i = 0; i < list.length; i++) {
+              final matches = received.where((m) => m.id == list[i].id);
+              if (matches.isNotEmpty) list[i] = matches.first;
+            }
+          }
+        });
+      } while (_refreshInboxAgain && mounted);
+    } catch (_) {
+      // Preserve the current inbox on temporary network failure.
+    } finally { _refreshingInbox = false; }
+  }
+
   void _onTick() {
     if (!mounted) return;
     final now = ServerTimeManager.instance.now;
-    bool needsUpdate = false;
-
-    List<Moment> checkAndUpdate(List<Moment> list) {
-      return list.map((m) {
-        final latest = _realtime?.latest(m.id);
-        if (latest != null) {
-          final updated = latest.apply(m);
-          needsUpdate |= updated.isReadyToOpen != m.isReadyToOpen || updated.status != m.status;
-          return updated;
-        }
-        if (!m.isReadyToOpen && m.status == 'PUBLISHED' && m.unlockAt != null) {
-          if (!now.isBefore(m.unlockAt!)) {
-            needsUpdate = true;
-            return m.copyWith(isReadyToOpen: true);
-          }
-        }
-        return m;
-      }).toList();
-    }
-
-    final newForYou = checkAndUpdate(_fetchedForYouMoments);
-    final newDiscover = checkAndUpdate(_fetchedDiscoverMoments);
-    final newYour = checkAndUpdate(_fetchedYourMoments);
-    final newInbox = checkAndUpdate(_fetchedInboxMoments);
-
-    if (needsUpdate) {
-      setState(() {
-        _fetchedForYouMoments = newForYou;
-        _fetchedDiscoverMoments = newDiscover;
-        _fetchedYourMoments = newYour;
-        _fetchedInboxMoments = newInbox;
-      });
+    for (final moment in [..._fetchedForYouMoments, ..._fetchedInboxMoments]) {
+      if (moment.unlockType == MomentUnlockType.time &&
+          !moment.needsInvitationAcceptance && !moment.canAccessContent &&
+          moment.unlockAt != null && !now.isBefore(moment.unlockAt!)) {
+        final key = '${moment.id}:${moment.unlockAt}';
+        if (_countdownRefreshes.add(key)) _refreshInbox();
+      }
     }
   }
 
@@ -154,6 +168,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final realtime = ApiClientScope.of(context).momentRealtime;
     if (!identical(realtime, _realtime)) {
       _realtimeSubscription?.cancel();
+      _socketConnections?.cancel();
+      _socketConnections = realtime.connections.listen((_) => _refreshInbox());
       _realtime = realtime;
       _realtimeSubscription = realtime.updates.listen(_onMomentRealtime);
     }
@@ -204,6 +220,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       final client = ApiClientScope.of(context);
+      final before = client.momentRealtime.snapshot;
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
 
       final results = await Future.wait([
@@ -246,7 +263,10 @@ class _HomeScreenState extends State<HomeScreen> {
       final mappedForYou = forYouResponse.moments.map((m) => m.toEntity()).toList();
       final mappedDiscover = discoverResponse.moments.map((m) => m.toEntity()).toList();
       final mappedYour = yourMomentsResponse.moments.map((m) => m.toEntity()).toList();
-      final mappedInbox = inboxMomentsResponse.moments.map((m) => m.toEntity()).toList();
+      final mappedInbox = inboxMomentsResponse.moments.map((m) {
+        final entity = m.toEntity();
+        return client.momentRealtime.reconcileRest(entity, before[entity.id]);
+      }).toList();
 
       if (!mounted) return;
       setState(() {
@@ -570,7 +590,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   final moment = currentList[index];
                                   final result = await Navigator.of(context).push<Moment>(
                                     MaterialPageRoute<Moment>(
-                                      builder: (_) => moment.isReadyToOpen
+                                      builder: (_) => moment.canAccessContent
                                           ? UnlockedMomentScreen(moment: moment)
                                           : LockedMomentScreen(moment: moment),
                                     ),
