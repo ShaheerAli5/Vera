@@ -9,6 +9,9 @@ import '../../data/repositories/admin_repository_impl.dart';
 import 'admin_review_moment_screen.dart';
 import '../utils/admin_media_utils.dart';
 import '../utils/admin_live_refresh.dart';
+import '../../../../core/realtime/admin_moderation_update.dart';
+import '../../../../core/realtime/admin_moderation_diagnostics.dart';
+import '../../../../core/network/api_exception.dart';
 
 class AdminModerationQueueScreen extends StatefulWidget {
   const AdminModerationQueueScreen({super.key, this.isActive = true});
@@ -22,8 +25,19 @@ class AdminModerationQueueScreen extends StatefulWidget {
 class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen> with WidgetsBindingObserver, AdminLiveRefresh<AdminModerationQueueScreen> {
   @override
   bool get adminRefreshActive => widget.isActive;
+  int? _pendingTotal;
+  int _filteredTotal = 0;
   @override
-  Iterable<String> get adminWatchedMomentIds => _moments.map((m) => m.id);
+  bool onAdminModeration(AdminModerationUpdate update) {
+    setState(() {
+      _pendingTotal = liveModerationCounts?.pendingReview ?? _pendingTotal;
+      if (update.removesFromQueue) {
+        _moments.removeWhere((moment) => moment.id == update.momentId);
+        _filteredTotal = _moments.length;
+      }
+    });
+    return update.isTransition;
+  }
   List<MomentModel> _moments = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -60,15 +74,32 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
     try {
       final client = ApiClientScope.of(context);
       final repo = AdminRepositoryImpl(AdminRemoteDataSource(client));
+      final beforeRevision = client.momentRealtime.moderationRevision;
       final response = await repo.getPendingMoments(
         search: _searchQuery.isNotEmpty ? _searchQuery : null,
       );
       if (!mounted) return;
+      final filtered = response.moments.where((moment) {
+        final latest = moderationState(moment.id);
+        return latest == null || !latest.removesFromQueue ||
+            (latest.transition != 'DELETED' && latest.version != null && moment.version > latest.version!);
+      }).toList();
+      final removed = response.moments.length - filtered.length;
+      final pending = response.total >= removed ? response.total - removed : 0;
+      final total = _searchQuery.isEmpty
+          ? client.momentRealtime.reconcilePendingTotal(pending, beforeRevision)
+          : liveModerationCounts?.pendingReview;
       setState(() {
-        _moments = response.moments;
+        _moments = filtered;
+        _pendingTotal = total ?? _pendingTotal;
+        _filteredTotal = _moments.length;
         _isLoading = false;
       });
     } catch (e) {
+      logAdminModeration('queue_fetch_failed', {
+        'errorType': e.runtimeType.toString(),
+        if (e is ApiException) 'httpStatus': e.statusCode,
+      });
       if (!mounted) return;
       setState(() {
         _errorMessage = e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
@@ -92,7 +123,7 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
           Padding(
             padding: EdgeInsets.fromLTRB(16 * scale, 16 * scale, 16 * scale, 8 * scale),
             child: Text(
-              'Moderation Queue (${_isLoading ? '...' : _moments.length})',
+              'Moderation Queue (${_isLoading ? '...' : _searchQuery.isNotEmpty ? _filteredTotal : _pendingTotal ?? _moments.length})',
               style: TextStyle(
                 color: const Color(0xFFF7F5FF),
                 fontSize: 24 * scale,

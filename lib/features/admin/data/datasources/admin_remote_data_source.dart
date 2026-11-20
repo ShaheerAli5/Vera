@@ -224,13 +224,9 @@ class AdminRemoteDataSource {
             ? response['data'] as Map<String, dynamic>
             : response;
         return {
-          'totalUsers': (data['totalUsers'] as num?)?.toInt() ?? 0,
-          'activeUsers': (data['activeUsers'] as num?)?.toInt() ?? 0,
-          'suspendedUsers': (data['suspendedUsers'] as num?)?.toInt() ?? 0,
-          if (data['pendingMoments'] is num)
-            'pendingMoments': (data['pendingMoments'] as num).toInt(),
-          'approvedMoments': (data['approvedMoments'] as num?)?.toInt() ?? 0,
-          'rejectedMoments': (data['rejectedMoments'] as num?)?.toInt() ?? 0,
+          for (final key in ['totalUsers', 'activeUsers', 'suspendedUsers',
+            'pendingMoments', 'approvedMoments', 'rejectedMoments'])
+            if (data[key] is num) key: (data[key] as num).toInt(),
         };
       }
     } catch (_) {}

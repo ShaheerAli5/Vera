@@ -8,7 +8,8 @@ socket origin, while retaining the namespace and path.
 Moment cards, user locked/unlocked details, and both admin review screens watch their moment
 while visible. Navigating away emits `moment:unwatch` with the moment ID;
 returning or reconnecting emits `moment:watch` again. Dialogs retain the watch.
-Shared watches use reference counts. The last watcher releases the connection.
+Private watches and admin-feed subscriptions use reference counts. The last
+consumer releases the shared connection.
 
 All six requested events are handled: `moment:status`, `moment:submitted`,
 `moment:approved`, `moment:rejected`, `moment:unlocked`, `moment:deleted`.
@@ -18,14 +19,17 @@ are supported. The unlock flag must be a JSON boolean under
 Missing flags preserve previous availability; explicit false overrides local
 timestamps and delayed API responses. Deleted moments hide their content.
 Loaded home lists consume the same updates so returning to the feed preserves
-status and removes deleted items.
+status and removes deleted items. Card moderation subtitles are derived from
+current status and invitation state, rather than retaining the label from the
+original API response. Approval and rejection therefore update sender-card
+badges without opening the detail route or issuing another API request.
 
 API token rotation disposes the old socket and creates a fresh manager with the
 new access token. Watched rooms are restored on connect. Logout clears cached
 socket state and disconnects. Debug logs use `[MOMENT_REALTIME]` and contain only
 event names, with no token, post content, or raw server errors.
 
-The full suite passes 58 tests. Realtime tests use a fake socket and cover transport configuration, room lifecycle,
+The full suite passes 73 tests. Realtime tests use a fake socket and cover transport configuration, room lifecycle,
 reconnects, API token refresh, malformed/unrelated events, authoritative false,
 all six events, screen transitions, and deletion. Run `flutter test`.
 Live delivery still needs verification against the deployed server: open a
@@ -41,21 +45,49 @@ transitive packages were adjusted by pub along with adding socket_io_client.
 
 ## Admin dashboard and queue
 
-The active admin tab reloads on entry, after returning from a review route, and
-when the application resumes. Loaded pending IDs are watched for socket events;
-these invalidate the active tab's data with a short debounce. New submissions
-cannot be discovered through an unknown moment ID: the supplied server contract
-has no admin-wide subscription. A 15-second foreground-only read discovers new
-pending moments even when the queue is empty. Instant discovery would require a
-backend admin-wide event feed.
+The active admin tab emits `admin:moderation:subscribe` on the existing
+`/moments` connection, even when the pending queue is empty. Each reconnect or
+access-token rotation restores this subscription. Leaving moderation tabs,
+covering the admin route, entering the background, or disposing the screen
+releases the subscription with `admin:moderation:unsubscribe`. Private moment
+watches can continue sharing the socket independently.
 
-Reads are serialized and repeated invalidations retain only one follow-up.
-Hidden tabs, covered routes, and background apps release watches and stop the
-periodic check. Automatic reads preserve visible content. Manual pull-to-refresh,
-the queue button beside search, and the dashboard refresh button remain available.
-Dashboard pending count uses the stats total, falling back to the queue's total
-rather than just the first page length. Admin regression tests cover discovery,
-moderation events, tab switching, route return, resume, totals, and slow requests.
+`admin:moderation:subscribed` supplies the initial `moderationCounts` and
+`serverTime`. The client handles named `submitted`, `approved`, `rejected`, and
+`deleted` events plus the alternative `admin:moderation:update`. Matching
+moment/version/transition duplicates are applied once; older moment versions
+are ignored. Older timestamped count snapshots cannot replace newer totals.
+No admin event grants recipient access to private content.
+
+Dashboard badges replace pending/approved/rejected values directly from
+`moderationCounts`. All mounted moderation tabs retain these updates, including
+hidden local lists. Approved, rejected, and deleted rows leave the pending queue
+immediately. Submitted events trigger a debounced, serialized fetch of the
+pending list, preserving its current search query and obtaining full records.
+A bounded transition ledger prevents stale in-flight API responses from
+reintroducing moderated rows; a newer resubmission version remains eligible.
+
+Socket events provide immediate updates. No periodic dashboard or queue refresh
+runs. Entry, route return, resume, reconnect, and transition events synchronize
+full API records. Manual pull-to-refresh and both refresh buttons remain available.
+
+Cached socket totals do not override every future API response. Fresh queue
+pagination totals reconcile pending badges (even if `/admin/stats` reports an
+outdated zero), unless a newer socket event arrived during the read. Missing
+stats fields preserve known values instead of inventing zero. Reconciled totals
+also update hidden moderation tabs. Stale moderated rows remain filtered out. Server-side role,
+active-status, and deletion checks authorize the admin feed. Logs contain only
+`[ADMIN_MODERATION]` delivery metadata, without tokens or payload contents.
+`subscribe_sent` confirms the client emitted the request;
+`admin:moderation:subscribed` confirms the acknowledgement. `payload_rejected`
+identifies a contract mismatch. Connection errors report a safe category;
+`http_counts_reconciled` and `pending_totals_disagree` identify count
+reconciliation and inconsistent backend totals. A transport `connected` log
+alone does not confirm that the admin subscription was acknowledged.
+
+Regression tests cover empty-queue submission discovery, initial counts, all
+transitions, duplicate delivery, stale responses, shared socket lifetime,
+reconnects, token rotation, logout, background pausing, and slow requests.
 
 ## Private invitation access contract
 

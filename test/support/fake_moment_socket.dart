@@ -10,8 +10,8 @@ class FakeMomentSocket implements MomentSocket {
   void on(String event, void Function(dynamic) listener) =>
       handlers[event] = listener;
   @override
-  void emit(String event, Map<String, dynamic> payload) =>
-      emissions.add((event, payload));
+  void emit(String event, [Map<String, dynamic>? payload]) =>
+      emissions.add((event, payload ?? {}));
   @override
   void connect() {}
   void receive(String event, [dynamic payload]) {

@@ -4,22 +4,28 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/realtime/moment_realtime_route.dart';
 import '../../../../core/realtime/moment_realtime_service.dart';
+import '../../../../core/realtime/admin_moderation_update.dart';
+import '../../../../core/utils/server_time_manager.dart';
 import '../../../../main.dart' show ApiClientScope;
 
-/// Admin-wide discovery has no documented socket room. Periodic reads discover
-/// new IDs; per-moment socket watches invalidate already loaded queue entries.
+/// Keeps the active admin tab subscribed, including when the queue is empty.
 mixin AdminLiveRefresh<T extends StatefulWidget> on State<T>
     implements RouteAware, WidgetsBindingObserver {
   bool get adminRefreshActive;
-  Iterable<String> get adminWatchedMomentIds;
+
+  /// Return true when full REST records need refreshing after this event.
+  bool onAdminModeration(AdminModerationUpdate update) => update.isTransition;
+  ModerationCounts? get liveModerationCounts => _realtime?.moderationCounts;
+  AdminModerationUpdate? moderationState(String id) =>
+      _realtime?.moderationState(id);
   Future<void> loadAdminData({required bool showLoading});
 
   MomentRealtimeService? _realtime;
-  StreamSubscription<MomentRealtimeUpdate>? _subscription;
+  StreamSubscription<AdminModerationUpdate>? _subscription;
+  StreamSubscription<void>? _connections;
   PageRoute<dynamic>? _route;
-  Timer? _timer;
   Timer? _debounce;
-  final Set<String> _watchedIds = {};
+  bool _subscribed = false;
   bool _foreground = true;
   bool _routeVisible = true;
   bool _fetching = false;
@@ -38,12 +44,18 @@ mixin AdminLiveRefresh<T extends StatefulWidget> on State<T>
     }
     final service = ApiClientScope.of(context).momentRealtime;
     if (!identical(service, _realtime)) {
-      _releaseWatches();
+      _unsubscribe();
       _subscription?.cancel();
-      _timer?.cancel();
-      _timer = null;
       _realtime = service;
-      _subscription = service.updates.listen((_) => _scheduleRefresh());
+      _subscription = service.moderationUpdates.listen((update) {
+        if (!mounted) return;
+        if (update.serverTime != null) {
+          ServerTimeManager.instance.updateServerTime(update.serverTime!);
+        }
+        if (onAdminModeration(update)) _scheduleRefresh();
+      });
+      _connections?.cancel();
+      _connections = service.connections.listen((_) => _scheduleRefresh());
     }
     final route = ModalRoute.of(context);
     if (route is PageRoute && !identical(route, _route)) {
@@ -63,18 +75,20 @@ mixin AdminLiveRefresh<T extends StatefulWidget> on State<T>
 
   void _updateActivity() {
     if (!_active) {
-      _timer?.cancel();
-      _timer = null;
       _debounce?.cancel();
-      _releaseWatches();
+      _unsubscribe();
       return;
     }
-    if (_timer != null) return;
-    _syncWatches();
-    _timer = Timer.periodic(const Duration(seconds: 15), (_) {
-      refreshAdmin(showLoading: false);
-    });
+    if (_subscribed) return;
+    _subscribed = true;
+    _realtime?.subscribeModeration();
     _scheduleRefresh();
+  }
+
+  void _unsubscribe() {
+    if (!_subscribed) return;
+    _subscribed = false;
+    _realtime?.unsubscribeModeration();
   }
 
   void _scheduleRefresh() {
@@ -97,34 +111,11 @@ mixin AdminLiveRefresh<T extends StatefulWidget> on State<T>
       do {
         _fetchAgain = false;
         await loadAdminData(showLoading: showLoading);
-        if (mounted) _syncWatches();
         showLoading = false;
       } while (_fetchAgain && _active);
     } finally {
       _fetching = false;
     }
-  }
-
-  void _syncWatches() {
-    final next = _active
-        ? adminWatchedMomentIds.where((id) => id.isNotEmpty).toSet()
-        : <String>{};
-    for (final id in _watchedIds.difference(next)) {
-      _realtime?.unwatch(id);
-    }
-    for (final id in next.difference(_watchedIds)) {
-      _realtime?.watch(id);
-    }
-    _watchedIds
-      ..clear()
-      ..addAll(next);
-  }
-
-  void _releaseWatches() {
-    for (final id in _watchedIds) {
-      _realtime?.unwatch(id);
-    }
-    _watchedIds.clear();
   }
 
   @override
@@ -159,10 +150,10 @@ mixin AdminLiveRefresh<T extends StatefulWidget> on State<T>
 
   @override
   void dispose() {
-    _timer?.cancel();
     _debounce?.cancel();
     _subscription?.cancel();
-    _releaseWatches();
+    _connections?.cancel();
+    _unsubscribe();
     momentRouteObserver.unsubscribe(this);
     if (_observing) WidgetsBinding.instance.removeObserver(this);
     super.dispose();

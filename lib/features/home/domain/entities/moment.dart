@@ -13,7 +13,7 @@ class Moment {
     this.isReadyToOpen = false,
     this.isApproved,
     this.sentBadgeTitle,
-    this.sentBadgeSubtitle,
+    String? sentBadgeSubtitle,
     this.isPublicSentMoment = false,
     this.message,
     this.title,
@@ -31,7 +31,7 @@ class Moment {
     this.isVideo = false,
     this.contentType,
     this.hasMedia = true,
-  });
+  }) : _sentBadgeSubtitle = sentBadgeSubtitle;
 
   final String id;
   final String? creatorId;
@@ -48,7 +48,40 @@ class Moment {
   bool get canAccessContent =>
       isReadyToOpen && !needsInvitationAcceptance && isApproved != false;
   final String? sentBadgeTitle;
-  final String? sentBadgeSubtitle;
+  final String? _sentBadgeSubtitle;
+  // Derived at display time so socket status updates cannot retain an old label.
+  String? get sentBadgeSubtitle => badgeSubtitleFor(
+    invitationStatus: invitationStatus,
+    status: status,
+    fallback: _sentBadgeSubtitle,
+  );
+
+  static String? badgeSubtitleFor({
+    String? invitationStatus,
+    String? status,
+    String? fallback,
+  }) {
+    switch (invitationStatus?.toUpperCase()) {
+      case 'PENDING':
+        return 'Pending invitation';
+      case 'ACCEPTED':
+        return 'Invitation accepted';
+      case 'DECLINED':
+        return 'Invitation declined';
+    }
+    switch (status?.toUpperCase()) {
+      case 'PENDING_REVIEW':
+        return 'Pending review';
+      case 'DRAFT':
+        return 'Draft';
+      case 'PUBLISHED':
+        return 'Published';
+      case 'REJECTED':
+        return 'Rejected';
+    }
+    return fallback;
+  }
+
   final bool isPublicSentMoment;
   final String? message;
   final String? title;

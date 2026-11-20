@@ -495,21 +495,10 @@ class MomentModel {
       isReadyToOpen: isReadyToOpen,
       isApproved: approved,
       sentBadgeTitle: badgeTitle,
-      sentBadgeSubtitle: invitationStatus == 'PENDING'
-          ? 'Pending invitation'
-          : (invitationStatus == 'ACCEPTED'
-              ? 'Invitation accepted'
-              : (invitationStatus == 'DECLINED'
-                  ? 'Invitation declined'
-                  : (status == 'PENDING_REVIEW'
-                      ? 'Pending review'
-                      : (status == 'DRAFT'
-                          ? 'Draft'
-                          : (status == 'PUBLISHED'
-                              ? 'Published'
-                              : (status == 'REJECTED'
-                                  ? 'Rejected'
-                                  : (isPriv ? timeAgoText : 'Pending review'))))))),
+      sentBadgeSubtitle: Moment.badgeSubtitleFor(
+        invitationStatus: invitationStatus, status: status,
+        fallback: isPriv ? timeAgoText : 'Pending review',
+      ),
       isPublicSentMoment: !isPriv,
       message: message,
       title: title,

@@ -7,6 +7,9 @@ import '../../data/models/admin_audit_log_model.dart';
 import '../../data/repositories/admin_repository_impl.dart';
 import 'admin_reports_screen.dart';
 import '../utils/admin_live_refresh.dart';
+import '../../../../core/realtime/admin_moderation_update.dart';
+import '../../../../core/realtime/admin_moderation_diagnostics.dart';
+import '../../../../core/network/api_exception.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key, this.isActive = true});
@@ -20,9 +23,18 @@ class AdminDashboardScreen extends StatefulWidget {
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> with WidgetsBindingObserver, AdminLiveRefresh<AdminDashboardScreen> {
   @override
   bool get adminRefreshActive => widget.isActive;
-  final List<String> _pendingIds = [];
   @override
-  Iterable<String> get adminWatchedMomentIds => _pendingIds;
+  bool onAdminModeration(AdminModerationUpdate update) {
+    final counts = liveModerationCounts;
+    if (counts != null) {
+      setState(() {
+      _pendingMomentsCount = counts.pendingReview;
+      _approvedMoments = counts.approved;
+      _rejectedMoments = counts.rejected;
+      });
+    }
+    return update.isTransition;
+  }
   int _pendingMomentsCount = 0;
   int _totalUsers = 0;
   int _activeUsers = 0;
@@ -40,24 +52,44 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
     try {
       final client = ApiClientScope.of(context);
       final repo = AdminRepositoryImpl(AdminRemoteDataSource(client));
+      final beforeRevision = client.momentRealtime.moderationRevision;
       
       final pendingRes = await repo.getPendingMoments(limit: 50);
       final statsMap = await repo.getModerationStats();
       final logsRes = await repo.getAuditLogs(limit: 5);
 
       if (!mounted) return;
+      final removed = pendingRes.moments.where((moment) {
+        final latest = moderationState(moment.id);
+        return latest != null && latest.removesFromQueue &&
+            (latest.transition == 'DELETED' || latest.version == null || moment.version <= latest.version!);
+      }).length;
+      final pending = pendingRes.total >= removed ? pendingRes.total - removed : 0;
+      final counts = client.momentRealtime.reconcileModerationCounts(ModerationCounts(
+        pendingReview: pending,
+        approved: statsMap['approvedMoments'] ?? liveModerationCounts?.approved ?? _approvedMoments,
+        rejected: statsMap['rejectedMoments'] ?? liveModerationCounts?.rejected ?? _rejectedMoments,
+      ), beforeRevision);
+      if (statsMap['pendingMoments'] != null && statsMap['pendingMoments'] != pending) {
+        logAdminModeration('pending_totals_disagree', {
+          'queueTotal': pending, 'statsTotal': statsMap['pendingMoments'],
+        });
+      }
       setState(() {
-        _pendingIds..clear()..addAll(pendingRes.moments.map((m) => m.id));
-        _pendingMomentsCount = statsMap['pendingMoments'] ?? pendingRes.total;
-        _totalUsers = statsMap['totalUsers'] ?? 0;
-        _activeUsers = statsMap['activeUsers'] ?? 0;
-        _suspendedUsers = statsMap['suspendedUsers'] ?? 0;
-        _approvedMoments = statsMap['approvedMoments'] ?? 0;
-        _rejectedMoments = statsMap['rejectedMoments'] ?? 0;
+        _pendingMomentsCount = counts.pendingReview;
+        _totalUsers = statsMap['totalUsers'] ?? _totalUsers;
+        _activeUsers = statsMap['activeUsers'] ?? _activeUsers;
+        _suspendedUsers = statsMap['suspendedUsers'] ?? _suspendedUsers;
+        _approvedMoments = counts.approved;
+        _rejectedMoments = counts.rejected;
         _recentActivities = logsRes.items;
         _isLoading = false;
       });
-    } catch (_) {
+    } catch (error) {
+      logAdminModeration('dashboard_fetch_failed', {
+        'errorType': error.runtimeType.toString(),
+        if (error is ApiException) 'httpStatus': error.statusCode,
+      });
       if (!mounted) return;
       setState(() {
         _isLoading = false;

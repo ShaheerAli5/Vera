@@ -4,11 +4,13 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:flutter/foundation.dart';
 
 import '../../features/home/domain/entities/moment.dart';
+import 'admin_moderation_update.dart';
+import 'admin_moderation_diagnostics.dart';
 
 abstract interface class MomentSocket {
   bool get connected;
   void on(String event, void Function(dynamic) listener);
-  void emit(String event, Map<String, dynamic> payload);
+  void emit(String event, [Map<String, dynamic>? payload]);
   void connect();
   void dispose();
 }
@@ -26,7 +28,7 @@ class _IoMomentSocket implements MomentSocket {
   void on(String event, void Function(dynamic) listener) =>
       socket.on(event, listener);
   @override
-  void emit(String event, Map<String, dynamic> payload) =>
+  void emit(String event, [Map<String, dynamic>? payload]) =>
       socket.emit(event, payload);
   @override
   void connect() => socket.connect();
@@ -161,6 +163,94 @@ class MomentRealtimeService {
   String? _token;
   MomentSocket? _socket;
   final Map<String, int> _watches = {};
+  int _adminSubscribers = 0;
+  int _moderationRevision = 0;
+  int get moderationRevision => _moderationRevision;
+  bool _moderationConfirmed = false;
+  bool get moderationFeedConfirmed =>
+      _moderationConfirmed && _socket?.connected == true;
+
+  void _requestModerationSubscription() {
+    _moderationConfirmed = false;
+    _socket!.emit('admin:moderation:subscribe');
+    logAdminModeration('subscribe_sent');
+  }
+
+  void ensureModerationSubscription() {
+    if (_adminSubscribers > 0 &&
+        _socket?.connected == true &&
+        !_moderationConfirmed) {
+      _requestModerationSubscription();
+    }
+  }
+
+  ModerationCounts reconcileModerationCounts(
+    ModerationCounts counts,
+    int beforeRevision,
+  ) {
+    if (_disposed || _token == null || _token!.isEmpty) return counts;
+    // Only socket updates received during this HTTP read take precedence.
+    if (_moderationRevision != beforeRevision && _moderationCounts != null) {
+      return _moderationCounts!;
+    }
+    _moderationCounts = counts;
+    logAdminModeration('http_counts_reconciled', {
+      'pendingReview': counts.pendingReview,
+      'approved': counts.approved,
+      'rejected': counts.rejected,
+      'feedConfirmed': moderationFeedConfirmed,
+    });
+    // Keep hidden admin tabs synchronized without triggering another HTTP read.
+    _moderationUpdates.add(AdminModerationUpdate(counts: counts));
+    return counts;
+  }
+
+  int reconcilePendingTotal(int pending, int beforeRevision) {
+    final current = _moderationCounts;
+    if (current == null) return pending;
+    return reconcileModerationCounts(
+      ModerationCounts(
+        pendingReview: pending,
+        approved: current.approved,
+        rejected: current.rejected,
+      ),
+      beforeRevision,
+    ).pendingReview;
+  }
+
+  final _moderationUpdates = StreamController<AdminModerationUpdate>.broadcast(
+    sync: true,
+  );
+  Stream<AdminModerationUpdate> get moderationUpdates =>
+      _moderationUpdates.stream;
+  ModerationCounts? _moderationCounts;
+  ModerationCounts? get moderationCounts => _moderationCounts;
+  DateTime? _moderationCountsTime;
+  final Map<String, AdminModerationUpdate> _moderationMoments = {};
+  AdminModerationUpdate? moderationState(String id) => _moderationMoments[id];
+  bool get _hasDemand => _watches.isNotEmpty || _adminSubscribers > 0;
+
+  void subscribeModeration() {
+    if (_disposed) return;
+    _adminSubscribers++;
+    if (_socket == null) {
+      _connect();
+    } else if (_adminSubscribers == 1 && _socket!.connected) {
+      _requestModerationSubscription();
+    }
+  }
+
+  void unsubscribeModeration() {
+    if (_adminSubscribers == 0) return;
+    _adminSubscribers--;
+    if (_adminSubscribers == 0 && _socket?.connected == true) {
+      _socket!.emit('admin:moderation:unsubscribe');
+      _moderationConfirmed = false;
+      logAdminModeration('unsubscribe_sent');
+    }
+    if (!_hasDemand) _disconnect();
+  }
+
   final Map<String, MomentRealtimeUpdate> _latest = {};
   final Map<String, int> _socketVersions = {};
   final Expando<int> _stateSocketVersions = Expando<int>();
@@ -210,8 +300,11 @@ class MomentRealtimeService {
     if (token == null || token.isEmpty) {
       _latest.clear();
       _socketVersions.clear();
+      _moderationCounts = null;
+      _moderationCountsTime = null;
+      _moderationMoments.clear();
     }
-    if (_watches.isNotEmpty) _connect();
+    if (_hasDemand) _connect();
   }
 
   void watch(String id) {
@@ -235,7 +328,7 @@ class MomentRealtimeService {
     if (_socket?.connected == true) {
       _socket!.emit('moment:unwatch', {'momentId': id});
     }
-    if (_watches.isEmpty) _disconnect();
+    if (!_hasDemand) _disconnect();
   }
 
   void _connect() {
@@ -256,13 +349,20 @@ class MomentRealtimeService {
       for (final id in _watches.keys) {
         socket.emit('moment:watch', {'momentId': id});
       }
+      if (_adminSubscribers > 0) _requestModerationSubscription();
       _connections.add(null);
     });
     for (final event in ['connect_error', 'disconnect']) {
-      socket.on(event, (_) {
-        if (identical(socket, _socket) && kDebugMode) {
-          // Do not log server error payloads: they can contain credentials.
-          debugPrint('[MOMENT_REALTIME] $event');
+      socket.on(event, (error) {
+        if (!identical(socket, _socket)) return;
+        _moderationConfirmed = false;
+        if (kDebugMode) debugPrint('[MOMENT_REALTIME] $event');
+        if (_adminSubscribers > 0) {
+          logAdminModeration(event, {
+            'feedConfirmed': false,
+            if (event == 'connect_error')
+              'category': _connectionErrorCategory(error),
+          });
         }
       });
     }
@@ -280,12 +380,83 @@ class MomentRealtimeService {
         _updates.add(combined);
       });
     }
+    for (final event in [
+      'admin:moderation:subscribed',
+      'admin:moderation:submitted',
+      'admin:moderation:approved',
+      'admin:moderation:rejected',
+      'admin:moderation:deleted',
+      'admin:moderation:update',
+    ]) {
+      socket.on(event, (payload) {
+        if (!identical(socket, _socket) || _adminSubscribers == 0) return;
+        final update = AdminModerationUpdate.parse(event, payload);
+        if (update == null) {
+          logAdminModeration('payload_rejected', {
+            'event': event,
+            'isMap': payload is Map,
+          });
+          return;
+        }
+        if (event == 'admin:moderation:subscribed') _moderationConfirmed = true;
+        if (update.isTransition) {
+          final previous = _moderationMoments[update.momentId];
+          if (previous?.version != null && update.version != null) {
+            if (update.version! < previous!.version!) return;
+            if (update.version == previous.version &&
+                update.transition == previous.transition) {
+              return;
+            }
+          }
+          _moderationMoments.remove(update.momentId);
+          _moderationMoments[update.momentId!] = update;
+          // Bound the transition ledger for long-lived admin sessions.
+          if (_moderationMoments.length > 512) {
+            _moderationMoments.remove(_moderationMoments.keys.first);
+          }
+        }
+        if (update.counts != null &&
+            (_moderationCountsTime == null ||
+                update.serverTime == null ||
+                !update.serverTime!.isBefore(_moderationCountsTime!))) {
+          _moderationCounts = update.counts;
+          _moderationCountsTime = update.serverTime;
+        }
+        _moderationRevision++;
+        logAdminModeration(event, {
+          'hasCounts': update.counts != null,
+          'hasMomentId': update.momentId != null,
+          'version': update.version,
+          'feedConfirmed': moderationFeedConfirmed,
+        });
+        _moderationUpdates.add(update);
+      });
+    }
     socket.connect();
+  }
+
+  String _connectionErrorCategory(Object? error) {
+    // Classify in memory; never print raw errors, which may contain credentials.
+    final description = error.toString().toLowerCase();
+    if (description.contains('invalid namespace')) return 'invalid_namespace';
+    if (description.contains('unauthorized') ||
+        description.contains('forbidden')) {
+      return 'authorization';
+    }
+    if (description.contains('timeout') || description.contains('timed out')) {
+      return 'timeout';
+    }
+    if (description.contains('websocket') ||
+        description.contains('socketexception')) {
+      return 'transport';
+    }
+    return 'unknown';
   }
 
   void _disconnect() {
     final previous = _socket;
     _socket = null;
+    _moderationConfirmed = false;
     previous?.dispose();
   }
 
@@ -294,9 +465,13 @@ class MomentRealtimeService {
     _disposed = true;
     _disconnect();
     _watches.clear();
+    _adminSubscribers = 0;
+    _moderationMoments.clear();
+    _moderationCounts = null;
     _latest.clear();
     _socketVersions.clear();
     _updates.close();
     _connections.close();
+    _moderationUpdates.close();
   }
 }
