@@ -36,13 +36,14 @@ class _IoMomentSocket implements MomentSocket {
   void dispose() => socket.dispose();
 }
 
-/// Partial socket state: only availability.isUnlocked controls unlocking.
+/// Recipient unlocking uses availability.isUnlocked; preview permission is separate.
 class MomentRealtimeUpdate {
   const MomentRealtimeUpdate({
     required this.momentId,
     this.status,
     this.isUnlocked,
     this.isApproved,
+    this.canPreview,
     this.invitationStatus,
     this.deleted = false,
   });
@@ -50,6 +51,7 @@ class MomentRealtimeUpdate {
   final String? status;
   final bool? isUnlocked;
   final bool? isApproved;
+  final bool? canPreview;
   final String? invitationStatus;
   final bool deleted;
 
@@ -66,6 +68,8 @@ class MomentRealtimeUpdate {
     if (id is! String || id.isEmpty) return null;
     final availability = data['availability'];
     final unlocked = availability is Map ? availability['isUnlocked'] : null;
+    final viewer = data['viewer'];
+    final preview = viewer is Map ? viewer['canPreview'] ?? data['canPreview'] ?? viewer['isCreator'] : data['canPreview'];
     const statuses = {
       'moment:submitted': 'PENDING_REVIEW',
       'moment:approved': 'PUBLISHED',
@@ -81,6 +85,7 @@ class MomentRealtimeUpdate {
       isApproved: availability is Map && availability['isApproved'] is bool
           ? availability['isApproved'] as bool
           : null,
+      canPreview: preview is bool ? preview : null,
       invitationStatus: data['invitationStatus'] is String
           ? (data['invitationStatus'] as String).toUpperCase()
           : null,
@@ -94,6 +99,7 @@ class MomentRealtimeUpdate {
         status: newer.status ?? status,
         isUnlocked: newer.isUnlocked ?? isUnlocked,
         isApproved: newer.isApproved ?? isApproved,
+        canPreview: newer.canPreview ?? canPreview,
         invitationStatus: newer.invitationStatus ?? invitationStatus,
         deleted: deleted || newer.deleted,
       );
@@ -108,6 +114,11 @@ class MomentRealtimeUpdate {
       ...data,
       'id': momentId,
       if (invitationStatus != null) 'invitationStatus': invitationStatus,
+      if (canPreview != null || deleted)
+        'viewer': {
+          if (data['viewer'] is Map) ...Map<String, dynamic>.from(data['viewer'] as Map),
+          'canPreview': deleted ? false : canPreview,
+        },
       if (status != null) 'status': deleted ? 'DELETED' : status,
       if (isUnlocked != null || isApproved != null || deleted)
         'availability': {
@@ -124,16 +135,17 @@ class MomentRealtimeUpdate {
     if (moment.id != momentId) return moment;
     final invite = invitationStatus ?? moment.invitationStatus;
     final approved = isApproved ?? moment.isApproved;
+    final preview = !deleted && (canPreview ?? moment.canPreview);
+    final previewRevoked = moment.canPreview && canPreview == false;
+    final unlocked = isUnlocked ?? (!previewRevoked && moment.isReadyToOpen);
+    final recipientAccess = approved != false &&
+        invite != 'PENDING' && invite != 'DECLINED' && unlocked;
     return moment.copyWith(
       status: deleted ? 'DELETED' : status,
       invitationStatus: invite,
       isApproved: approved,
-      isReadyToOpen:
-          !deleted &&
-          approved != false &&
-          invite != 'PENDING' &&
-          invite != 'DECLINED' &&
-          (isUnlocked ?? moment.isReadyToOpen),
+      canPreview: preview,
+      isReadyToOpen: !deleted && (preview || recipientAccess),
     );
   }
 }

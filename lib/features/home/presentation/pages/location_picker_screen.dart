@@ -1,14 +1,13 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/theme.dart';
+import '../../data/datasources/location_geocoding_data_source.dart';
 
 class SelectedMomentLocation {
   const SelectedMomentLocation({
@@ -25,9 +24,10 @@ class SelectedMomentLocation {
 }
 
 class LocationPickerScreen extends StatefulWidget {
-  const LocationPickerScreen({super.key, this.initialLocation});
+  const LocationPickerScreen({super.key, this.initialLocation, this.geocoding});
 
   final SelectedMomentLocation? initialLocation;
+  final LocationGeocodingDataSource? geocoding;
 
   @override
   State<LocationPickerScreen> createState() => _LocationPickerScreenState();
@@ -38,11 +38,6 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     'MAP_TILE_URL',
     defaultValue: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
   );
-  static const _geocoderBaseUrl = String.fromEnvironment(
-    'GEOCODING_BASE_URL',
-    defaultValue: 'https://nominatim.openstreetmap.org',
-  );
-
   final MapController _mapController = MapController();
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
@@ -54,21 +49,70 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   bool _locating = false;
   String? _error;
   List<_PlaceResult> _results = const [];
-  DateTime? _lastSearchAt;
+  late final LocationGeocodingDataSource _geocoding;
+  Timer? _nameLookupTimer;
+  int _nameLookupRevision = 0;
+  bool _resolvingName = false;
+
+  void _setPoint(LatLng point) {
+    _nameLookupTimer?.cancel();
+    final revision = ++_nameLookupRevision;
+    setState(() {
+      _selectedPoint = point;
+      _nameController.clear();
+      _results = const [];
+      _error = null;
+      _resolvingName = true;
+    });
+    _nameLookupTimer = Timer(const Duration(milliseconds: 350), () async {
+      try {
+        final name = await _geocoding.reverseName(point.latitude, point.longitude);
+        if (!mounted || revision != _nameLookupRevision) return;
+        setState(() {
+          _resolvingName = false;
+          if (name != null) _nameController.text = _limitedPlaceName(name);
+          if (name == null) _error = 'No address found. Enter a name for this pin.';
+        });
+      } catch (_) {
+        if (!mounted || revision != _nameLookupRevision) return;
+        setState(() {
+          _resolvingName = false;
+          _error = 'Could not find the address. Enter a name for this pin.';
+        });
+      }
+    });
+  }
+
+  void _onNameEdited(String _) {
+    _nameLookupTimer?.cancel();
+    _nameLookupRevision++;
+    setState(() {
+      _resolvingName = false;
+      _error = null;
+    });
+  }
 
   @override
   void initState() {
     super.initState();
+    _geocoding = widget.geocoding ?? LocationGeocodingDataSource();
     final initial = widget.initialLocation;
     if (initial != null) {
       _selectedPoint = LatLng(initial.latitude, initial.longitude);
       _radiusM = initial.radiusM.clamp(50, 1000).toInt();
       _nameController.text = initial.name;
+      if (initial.name.trim().isEmpty || initial.name == 'Pinned location') {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _setPoint(LatLng(initial.latitude, initial.longitude));
+        });
+      }
     }
   }
 
   @override
   void dispose() {
+    _nameLookupTimer?.cancel();
+    if (widget.geocoding == null) _geocoding.close();
     _searchController.dispose();
     _nameController.dispose();
     _mapController.dispose();
@@ -91,36 +135,14 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       return;
     }
 
-    final sinceLast = _lastSearchAt == null
-        ? const Duration(seconds: 2)
-        : DateTime.now().difference(_lastSearchAt!);
-    if (sinceLast < const Duration(seconds: 1)) {
-      await Future<void>.delayed(const Duration(seconds: 1) - sinceLast);
-    }
-    if (!mounted) return;
+    if (_searching) return;
     setState(() {
       _searching = true;
       _error = null;
     });
-    _lastSearchAt = DateTime.now();
 
     try {
-      final uri = Uri.parse('$_geocoderBaseUrl/search').replace(
-        queryParameters: {
-          'q': query,
-          'format': 'jsonv2',
-          'addressdetails': '1',
-          'limit': '5',
-        },
-      );
-      final response = await http.get(uri, headers: const {
-        'Accept': 'application/json',
-        'User-Agent': 'VERA/1.0 (+https://vera.aptechmedia.com)',
-      }).timeout(const Duration(seconds: 12));
-      if (response.statusCode != 200) {
-        throw Exception('Place search is temporarily unavailable.');
-      }
-      final decoded = jsonDecode(response.body);
+      final decoded = await _geocoding.search(query);
       final results = decoded is List
           ? decoded
               .whereType<Map<String, dynamic>>()
@@ -145,6 +167,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   }
 
   Future<void> _useCurrentLocation() async {
+    final revision = _nameLookupRevision;
     setState(() {
       _locating = true;
       _error = null;
@@ -168,12 +191,8 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         ),
       );
       final point = LatLng(position.latitude, position.longitude);
-      if (!mounted) return;
-      setState(() {
-        _selectedPoint = point;
-        _nameController.text = 'Pinned location';
-        _results = const [];
-      });
+      if (!mounted || revision != _nameLookupRevision) return;
+      _setPoint(point);
       _mapController.move(point, 17);
     } catch (error) {
       if (mounted) {
@@ -186,7 +205,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
   void _selectPlace(_PlaceResult place) {
     final point = LatLng(place.latitude, place.longitude);
+    _nameLookupTimer?.cancel();
+    _nameLookupRevision++;
     setState(() {
+      _resolvingName = false;
       _selectedPoint = point;
       _nameController.text = _limitedPlaceName(place.name);
       _results = const [];
@@ -295,13 +317,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                   initialZoom: selected == null ? 12 : 17,
                   minZoom: 3,
                   maxZoom: 19,
-                  onTap: (_, point) {
-                    setState(() {
-                      _selectedPoint = point;
-                      _nameController.text = 'Pinned location';
-                      _results = const [];
-                    });
-                  },
+                  onTap: (_, point) => _setPoint(point),
                 ),
                 children: [
                   TileLayer(
@@ -371,9 +387,15 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                   const SizedBox(height: 8),
                   TextField(
                     controller: _nameController,
+                    onChanged: _onNameEdited,
                     maxLength: 120,
                     style: const TextStyle(color: Colors.white),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
+                      hintText: _resolvingName ? 'Finding address…' : 'Enter a location name',
+                      suffixIcon: _resolvingName ? const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                      ) : null,
                       labelText: 'Location or building name',
                       labelStyle: TextStyle(color: Color(0xFF8A8EB3)),
                       filled: true,

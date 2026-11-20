@@ -15,6 +15,7 @@ class Moment {
     this.unlockType = MomentUnlockType.location,
     this.isReadyToOpen = false,
     this.isApproved,
+    this.canPreview = false,
     this.sentBadgeTitle,
     String? sentBadgeSubtitle,
     this.isPublicSentMoment = false,
@@ -50,10 +51,13 @@ class Moment {
   final MomentUnlockType unlockType;
   final bool isReadyToOpen;
   final bool? isApproved;
+  /// Server-granted preview access, independent of recipient unlocking.
+  final bool canPreview;
   bool get needsInvitationAcceptance =>
       invitationStatus == 'PENDING' || invitationStatus == 'DECLINED';
   bool get canAccessContent =>
-      isReadyToOpen && !needsInvitationAcceptance && isApproved != false;
+      status != 'DELETED' && (canPreview ||
+          (isReadyToOpen && !needsInvitationAcceptance && isApproved != false));
   final String? sentBadgeTitle;
   final String? _sentBadgeSubtitle;
   // Derived at display time so socket status updates cannot retain an old label.
@@ -121,6 +125,7 @@ class Moment {
     MomentUnlockType? unlockType,
     bool? isReadyToOpen,
     bool? isApproved,
+    bool? canPreview,
     String? sentBadgeTitle,
     String? sentBadgeSubtitle,
     bool? isPublicSentMoment,
@@ -155,6 +160,7 @@ class Moment {
       unlockType: unlockType ?? this.unlockType,
       isReadyToOpen: isReadyToOpen ?? this.isReadyToOpen,
       isApproved: isApproved ?? this.isApproved,
+      canPreview: canPreview ?? this.canPreview,
       sentBadgeTitle: sentBadgeTitle ?? this.sentBadgeTitle,
       sentBadgeSubtitle: sentBadgeSubtitle ?? this.sentBadgeSubtitle,
       isPublicSentMoment: isPublicSentMoment ?? this.isPublicSentMoment,

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../core/layout/responsive.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/network/moment_upload_diagnostics.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/utils/server_time_manager.dart';
 import '../../../../core/widgets/vera_popup.dart';
@@ -1748,8 +1749,9 @@ class _ReviewMomentScreenState extends State<ReviewMomentScreen> {
             Uint8List? capturedBytes;
             MomentModel? uploadedMoment;
             if (widget.mediaBytes != null || widget.mediaFile != null) {
-              final rawBytes = widget.mediaBytes ??
-                  await widget.mediaFile!.readAsBytes();
+              final rawBytes = await traceMomentUpload('read_media', () async =>
+                  widget.mediaBytes ?? await widget.mediaFile!.readAsBytes(),
+                  metadata: {'momentId': result.id});
               capturedBytes = rawBytes;
               final filename = widget.mediaFile?.name ??
                   (widget.isVideo ? 'moment.mp4' : 'moment.jpg');
@@ -1776,6 +1778,7 @@ class _ReviewMomentScreenState extends State<ReviewMomentScreen> {
             );
           }(),
           onSuccess: (creation) {
+            logMomentUpload('completed', {'momentId': creation.result.id});
             Navigator.of(modalContext).pop();
             final result = creation.result;
             final finalModel =
@@ -1839,6 +1842,7 @@ class _ReviewMomentScreenState extends State<ReviewMomentScreen> {
             );
           },
           onError: (error) {
+            logMomentUpload('upload_error_shown', momentUploadError(error));
             Navigator.of(modalContext).pop();
             final msg = error is ApiException
                 ? error.message

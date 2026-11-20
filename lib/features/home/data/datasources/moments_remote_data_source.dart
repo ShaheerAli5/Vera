@@ -5,6 +5,7 @@ import 'package:http_parser/http_parser.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/network/moment_upload_diagnostics.dart';
 import '../../../../core/network/unlock_diagnostics.dart';
 import '../models/chat_message_model.dart';
 import '../models/create_moment_params.dart';
@@ -22,7 +23,7 @@ class MomentsRemoteDataSource {
 
   final ApiClient _apiClient;
 
-  Future<CreateMomentResult> createMoment(CreateMomentParams params) async {
+  Future<CreateMomentResult> createMoment(CreateMomentParams params) => traceMomentUpload('create', () async {
     final response = await _apiClient.post(
       '/moments',
       body: params.toJson(),
@@ -30,8 +31,18 @@ class MomentsRemoteDataSource {
     if (response is! Map<String, dynamic>) {
       throw const FormatException('Create moment response must be a JSON object.');
     }
-    return CreateMomentResult.fromJson(response);
-  }
+    final result = CreateMomentResult.fromJson(response);
+    logMomentUpload('created', {'momentId': result.id, 'version': result.version});
+    return result;
+  }, metadata: {
+    'visibility': params.visibility == 'PUBLIC' ? 'PUBLIC' : 'PRIVATE',
+    'unlockType': params.unlockRule.type == 'LOCATION' ? 'LOCATION' : 'DATE',
+    'recipientCount': params.recipientUserIds.length,
+    'inviteCount': params.inviteEmails.length,
+    'hasCoordinates': params.unlockRule.latitude != null && params.unlockRule.longitude != null,
+    'hasPlaceName': params.unlockRule.placeName?.isNotEmpty == true,
+    'hasUnlockTime': params.unlockRule.unlockAt?.isNotEmpty == true,
+  });
 
   Future<MomentsListResponse> getHomeFeed({
     required String tab,
@@ -170,7 +181,7 @@ class MomentsRemoteDataSource {
   Future<MomentModel> publishMoment({
     required String momentId,
     required int version,
-  }) async {
+  }) => traceMomentUpload('publish', () async {
     final response = await _apiClient.post(
       '/moments/$momentId/publish',
       body: {
@@ -181,7 +192,7 @@ class MomentsRemoteDataSource {
       throw const FormatException('Publish moment response must be a JSON object.');
     }
     return MomentModel.fromJson(response);
-  }
+  }, metadata: {'momentId': momentId, 'version': version});
 
   Future<ResendInviteResult> resendInvite(String momentId) async {
     final response = await _apiClient.post('/moments/$momentId/resend-invite');
@@ -275,8 +286,12 @@ class MomentsRemoteDataSource {
     required int version,
     required List<int> bytes,
     required String filename,
-  }) async {
+  }) => traceMomentUpload('media_upload', () async {
     final mediaType = _resolveMediaType(filename);
+    logMomentUpload('media_prepared', {
+      'momentId': momentId, 'version': version,
+      'mediaSizeBytes': bytes.length, 'mediaType': mediaType.toString(),
+    });
     final file = http.MultipartFile.fromBytes(
       'media',
       bytes,
@@ -296,7 +311,7 @@ class MomentsRemoteDataSource {
       throw const FormatException('Upload moment media response must be a JSON object.');
     }
     return MomentModel.fromJson(response);
-  }
+  }, metadata: {'momentId': momentId, 'version': version, 'mediaSizeBytes': bytes.length});
 
   Future<MomentModel> deleteMomentMedia({
     required String momentId,

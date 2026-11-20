@@ -9,6 +9,7 @@ import '../auth/auth_diagnostics.dart';
 import '../realtime/moment_realtime_service.dart';
 import '../services/push_notification_service.dart';
 import 'api_exception.dart';
+import 'moment_upload_diagnostics.dart';
 import 'unlock_diagnostics.dart';
 
 class ApiClient {
@@ -426,6 +427,15 @@ class ApiClient {
   }
 
   Future<Object?> _executeRequest(http.BaseRequest request) async {
+    final uploadStage = request.method != 'POST' ? null
+        : request.url.path == config.endpoint('/moments').path ? 'create'
+        : RegExp(r'/moments/[^/]+/media$').hasMatch(request.url.path) ? 'media_upload'
+        : RegExp(r'/moments/[^/]+/publish$').hasMatch(request.url.path) ? 'publish' : null;
+    final uploadTimer = Stopwatch()..start();
+    if (uploadStage != null) {
+      logMomentUpload('http_request', {'stage': uploadStage,
+        'hasAccessToken': _authToken?.isNotEmpty == true});
+    }
     final authDiagnostic = ['/auth/verify-email', '/auth/resend-otp', '/auth/login', '/auth/refresh', '/profile']
         .any((path) => request.url.path == config.endpoint(path).path);
     final authTimer = Stopwatch()..start();
@@ -465,6 +475,10 @@ class ApiClient {
       final response = await http.Response.fromStream(
         streamed,
       ).timeout(receiveTimeout);
+      if (uploadStage != null) {
+        logMomentUpload('http_response', {'stage': uploadStage,
+          'httpStatus': response.statusCode, 'elapsedMs': uploadTimer.elapsedMilliseconds});
+      }
       if (authDiagnostic) {
         logAuthFlow('http_response', {
           'path': request.url.path, 'httpStatus': response.statusCode,

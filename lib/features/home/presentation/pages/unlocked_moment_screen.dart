@@ -44,7 +44,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
     setState(() => _currentMoment = updated);
     if (update.deleted ||
         _realtimeNavigationScheduled ||
-        !(!updated.canAccessContent && (update.isUnlocked == false || update.isApproved == false))) {
+        !(!updated.canAccessContent && (update.isUnlocked == false || update.isApproved == false || update.canPreview == false))) {
       return;
     }
     _realtimeNavigationScheduled = true;
@@ -296,6 +296,7 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
           invitationStatus: entity.invitationStatus ?? _currentMoment.invitationStatus,
           isReadyToOpen: model.serverIsUnlocked ?? _currentMoment.isReadyToOpen,
           isApproved: model.serverIsApproved ?? _currentMoment.isApproved,
+          canPreview: model.serverCanPreview ?? model.serverIsCreator ?? _currentMoment.canPreview,
           creatorId: entity.creatorId ?? _currentMoment.creatorId,
           userName: (entity.userName.isNotEmpty && entity.userName != 'You')
               ? entity.userName

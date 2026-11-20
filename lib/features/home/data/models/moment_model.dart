@@ -124,6 +124,8 @@ class MomentModel {
     this.openedAt,
     this.serverIsUnlocked,
     this.serverIsApproved,
+    this.serverCanPreview,
+    this.serverIsCreator,
     this.isVideo = false,
     this.timeAgo,
     this.contentType,
@@ -162,6 +164,8 @@ class MomentModel {
   /// Null means the endpoint did not provide availability information.
   final bool? serverIsUnlocked;
   final bool? serverIsApproved;
+  final bool? serverCanPreview;
+  final bool? serverIsCreator;
   final bool isVideo;
   final String? timeAgo;
   final String? contentType;
@@ -409,6 +413,8 @@ class MomentModel {
       openedAt: openedAtStr != null ? DateTime.tryParse(openedAtStr) : null,
       serverIsUnlocked: serverIsUnlocked,
       serverIsApproved: availability?['isApproved'] as bool?,
+      serverCanPreview: viewer?['canPreview'] as bool? ?? json['canPreview'] as bool?,
+      serverIsCreator: viewer?['isCreator'] as bool?,
       isVideo: isVideo,
       contentType: contentType,
       hasMedia: hasMedia,
@@ -423,8 +429,10 @@ class MomentModel {
     final invitationAllowed = invitationStatus != 'PENDING' && invitationStatus != 'DECLINED';
     // Time on the phone controls display/refresh only, never final access.
     final approved = serverIsApproved ?? (status == null ? null : status?.toUpperCase() == 'PUBLISHED');
-    final isReadyToOpen = invitationAllowed && approved != false &&
-        (serverIsUnlocked ?? (unlockedAt != null));
+    final canPreview = serverCanPreview ?? serverIsCreator ?? false;
+    final isReadyToOpen = status != 'DELETED' && (canPreview ||
+        (invitationAllowed && approved != false &&
+            (serverIsUnlocked ?? (unlockedAt != null))));
 
     String conditionText;
     if (isDateUnlock && unlockAt != null) {
@@ -512,6 +520,7 @@ class MomentModel {
       unlockType: isDateUnlock ? MomentUnlockType.time : MomentUnlockType.location,
       isReadyToOpen: isReadyToOpen,
       isApproved: approved,
+      canPreview: canPreview,
       sentBadgeTitle: badgeTitle,
       sentBadgeSubtitle: Moment.badgeSubtitleFor(
         invitationStatus: invitationStatus, status: status,
