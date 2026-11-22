@@ -6,8 +6,6 @@ import '../../../../core/layout/responsive.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
-import '../../../../shared/widgets/vera_logo.dart';
-import '../../../account/presentation/pages/sign_in_screen.dart';
 import '../../../splash/presentation/pages/splash_screen.dart';
 import '../widgets/admin_bottom_nav_bar.dart';
 
@@ -80,64 +78,6 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
           children: [
             Column(
               children: [
-                // Top Bar
-                Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 20 * scale,
-                    vertical: 8 * scale,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          VeraLogo(height: 18 * scale),
-                          SizedBox(width: 8 * scale),
-                          Container(
-                            padding: EdgeInsets.symmetric(horizontal: 6 * scale, vertical: 2 * scale),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF9044FB).withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(4 * scale),
-                            ),
-                            child: Text(
-                              'ADMIN',
-                              style: TextStyle(
-                                color: const Color(0xFFC857FF),
-                                fontSize: 10 * scale,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          IconButton(
-                            onPressed: () async {
-                              final client = ApiClientScope.of(context);
-                              await client.clearTokens();
-                              if (!context.mounted) return;
-                              Navigator.of(context).pushAndRemoveUntil(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => const SignInScreen(),
-                                ),
-                                (route) => false,
-                              );
-                            },
-                            icon: Icon(
-                              Icons.exit_to_app,
-                              color: Colors.white,
-                              size: 22 * scale,
-                            ),
-                            tooltip: 'Logout',
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
                 // Active Screen Content
                 Expanded(
                   child: IndexedStack(

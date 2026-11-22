@@ -89,6 +89,17 @@ flutter:
     - assets/images/profile_received.png
     - assets/images/profile_replies.png
     - assets/images/send-2.png
+    - assets/images/send.png
+    - assets/images/send1.png
+    - assets/images/inbox.png
+    - assets/images/users.png
+    - assets/images/users-nav.png
+    - assets/images/shield.png
+    - assets/images/sliders.png
+    - assets/images/home.svg
+    - assets/images/home enabled.svg
+    - assets/images/Broadcast Action.png
+    - assets/images/flag.png
     - assets/images/sms-notification.png
     - assets/images/blur bg.svg
     - assets/images/blur bg.png
