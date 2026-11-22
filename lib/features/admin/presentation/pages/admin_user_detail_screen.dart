@@ -29,39 +29,6 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
     _user = widget.user;
   }
 
-  Future<void> _updateRole(String newRole) async {
-    if (_isSaving) return;
-    setState(() => _isSaving = true);
-
-    try {
-      final client = ApiClientScope.of(context);
-      final repo = AdminRepositoryImpl(AdminRemoteDataSource(client));
-      final updated = await repo.updateUserRole(
-        _user.id,
-        role: newRole,
-        version: _user.version,
-      );
-      if (!mounted) return;
-
-      setState(() {
-        _user = updated;
-        _isSaving = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('User role updated to ${updated.role}.'), backgroundColor: Colors.green),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to update role: ${e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '')}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
   Future<void> _updateStatus(bool newIsActive) async {
     if (_isSaving) return;
     setState(() => _isSaving = true);
@@ -98,121 +65,143 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
     }
   }
 
-  void _showRoleDialog() {
-    final isAdmin = _user.role.toUpperCase() == 'ADMIN';
-    String selectedRole = isAdmin ? 'ADMIN' : 'USER';
-
-    showModalBottomSheet(
+  void _showSuspendDialog() {
+    final isSuspended = !_user.isActive;
+    showDialog(
       context: context,
-      backgroundColor: const Color(0xFF161626),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          return Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Change Role', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 24),
-                ListTile(
-                  title: const Text('USER', style: TextStyle(color: Colors.white)),
-                  leading: Radio<String>(
-                    value: 'USER',
-                    groupValue: selectedRole,
-                    activeColor: const Color(0xFF9044FB),
-                    onChanged: (val) => setSheetState(() => selectedRole = val!),
-                  ),
-                  onTap: () => setSheetState(() => selectedRole = 'USER'),
+      barrierColor: Colors.black54,
+      builder: (ctx) => Dialog(
+        backgroundColor: const Color(0xFF111426),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(28),
+          side: const BorderSide(color: Color(0x28FFFFFF), width: 1.5),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF4E7E).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
                 ),
-                ListTile(
-                  title: const Text('ADMIN', style: TextStyle(color: Colors.white)),
-                  leading: Radio<String>(
-                    value: 'ADMIN',
-                    groupValue: selectedRole,
-                    activeColor: const Color(0xFF9044FB),
-                    onChanged: (val) => setSheetState(() => selectedRole = val!),
-                  ),
-                  onTap: () => setSheetState(() => selectedRole = 'ADMIN'),
+                child: const Icon(
+                  Icons.block_rounded,
+                  color: Color(0xFFFF4E7E),
+                  size: 24,
                 ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: () {
+              ),
+              const SizedBox(height: 16),
+              Text(
+                isSuspended ? 'Activate ${_user.displayName}?' : 'Suspend ${_user.displayName}?',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w500,
+                  height: 28 / 20,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                isSuspended
+                    ? 'They will regain access to send or open moments immediately.'
+                    : 'They won’t be able to send or open moments until you lift the suspension. They’ll be notified by email.',
+                style: const TextStyle(
+                  color: Color(0xFFA2A5C2),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  height: 22 / 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              // Suspend / Activate Button
+              Container(
+                width: double.infinity,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: const Color(0x1FFF6B6B),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: const Color(0xB3FF6B6B),
+                    width: 1.5,
+                  ),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
                       Navigator.pop(ctx);
-                      _updateRole(selectedRole);
+                      _updateStatus(!_user.isActive);
                     },
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF9044FB)),
-                    child: const Text('Save Changes', style: TextStyle(color: Colors.white, fontSize: 16)),
+                    borderRadius: BorderRadius.circular(999),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.block_rounded, color: Color(0xFFFF6B6B), size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          isSuspended ? 'Activate account' : 'Suspend account',
+                          style: const TextStyle(
+                            color: Color(0xFFFF6B6B),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                )
-              ],
-            ),
-          );
-        },
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Cancel Button
+              Container(
+                width: double.infinity,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: const Color(0x12FFFFFF),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: const Color(0x28FFFFFF),
+                    width: 1.5,
+                  ),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => Navigator.pop(ctx),
+                    borderRadius: BorderRadius.circular(999),
+                    child: const Center(
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  void _showStatusDialog() {
-    String selectedStatus = _user.isActive ? 'Active' : 'Suspended';
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF161626),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          return Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Change Status', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 24),
-                ListTile(
-                  title: const Text('Active', style: TextStyle(color: Colors.white)),
-                  leading: Radio<String>(
-                    value: 'Active',
-                    groupValue: selectedStatus,
-                    activeColor: const Color(0xFF9044FB),
-                    onChanged: (val) => setSheetState(() => selectedStatus = val!),
-                  ),
-                  onTap: () => setSheetState(() => selectedStatus = 'Active'),
-                ),
-                ListTile(
-                  title: const Text('Suspended', style: TextStyle(color: Colors.white)),
-                  leading: Radio<String>(
-                    value: 'Suspended',
-                    groupValue: selectedStatus,
-                    activeColor: const Color(0xFF9044FB),
-                    onChanged: (val) => setSheetState(() => selectedStatus = val!),
-                  ),
-                  onTap: () => setSheetState(() => selectedStatus = 'Suspended'),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      _updateStatus(selectedStatus == 'Active');
-                    },
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF9044FB)),
-                    child: const Text('Save Changes', style: TextStyle(color: Colors.white, fontSize: 16)),
-                  ),
-                )
-              ],
-            ),
-          );
-        },
-      ),
-    );
+  String _getInitials(String name) {
+    if (name.isEmpty) return 'U';
+    final parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    }
+    return name.substring(0, name.length >= 2 ? 2 : 1).toUpperCase();
   }
 
   @override
@@ -220,8 +209,9 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
     final screen = MediaQuery.sizeOf(context);
     final scale = VeraResponsive.scale(screen.width);
 
-    final isAdmin = _user.role.toUpperCase() == 'ADMIN';
-    final createdDateStr = _user.createdAt.split('T').first;
+    final initials = _getInitials(_user.displayName);
+    final joinedDate = _user.createdAt.isNotEmpty ? _user.createdAt.split('T').first : 'Oct 2, 2026';
+    final isSuspended = !_user.isActive;
 
     return Scaffold(
       backgroundColor: VeraTheme.background,
@@ -232,42 +222,51 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
             SizedBox(
               height: 56 * scale,
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12 * scale),
+                padding: EdgeInsets.symmetric(horizontal: 24 * scale),
                 child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     GestureDetector(
                       onTap: () => Navigator.of(context).maybePop(_user),
                       behavior: HitTestBehavior.opaque,
                       child: Container(
-                        width: 48 * scale,
-                        height: 48 * scale,
+                        width: 40 * scale,
+                        height: 40 * scale,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(24 * scale),
+                          color: const Color(0x12FFFFFF),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0x24FFFFFF), width: 1.2),
                         ),
                         child: Center(
                           child: Icon(
-                            Icons.arrow_back_ios_new_rounded,
+                            Icons.arrow_back_rounded,
                             color: Colors.white,
                             size: 18 * scale,
                           ),
                         ),
                       ),
                     ),
-                    Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(left: 16 * scale),
-                        child: SizedBox(
-                          height: 24 * scale,
-                          child: Text(
-                            'User Profile',
-                            style: TextStyle(
-                              color: const Color(0xFFF7F5FF),
-                              fontSize: 16 * scale,
-                              fontWeight: FontWeight.w600,
-                              height: 24 / 16,
-                              letterSpacing: 0,
-                            ),
-                          ),
+                    Text(
+                      'User',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16 * scale,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Container(
+                      width: 40 * scale,
+                      height: 40 * scale,
+                      decoration: BoxDecoration(
+                        color: const Color(0x12FFFFFF),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0x24FFFFFF), width: 1.2),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.more_horiz_rounded,
+                          color: Colors.white,
+                          size: 18 * scale,
                         ),
                       ),
                     ),
@@ -277,60 +276,189 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
             ),
             Expanded(
               child: SingleChildScrollView(
-                padding: EdgeInsets.all(24 * scale),
+                padding: EdgeInsets.fromLTRB(24 * scale, 12 * scale, 24 * scale, 40 * scale),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Center(
-                      child: Column(
-                        children: [
-                          CircleAvatar(
-                            radius: 48 * scale,
-                            backgroundColor: const Color(0xFF1B152E),
-                            child: Icon(Icons.person, color: const Color(0xFFC68CFF), size: 48 * scale),
+                    // Hero Section (Fill 342px, Hug 180px, gap 6px)
+                    Column(
+                      children: [
+                        Container(
+                          width: 88 * scale,
+                          height: 88 * scale,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFF58C3F4), Color(0xFF8E37FF)],
+                            ),
                           ),
-                          SizedBox(height: 16 * scale),
-                          Text(
-                            _user.displayName,
-                            style: TextStyle(color: Colors.white, fontSize: 24 * scale, fontWeight: FontWeight.bold),
+                          child: Center(
+                            child: Text(
+                              initials,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 32 * scale,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
-                          SizedBox(height: 4 * scale),
-                          Text(
-                            _user.email,
-                            style: TextStyle(color: const Color(0xFFA2A5C2), fontSize: 16 * scale),
+                        ),
+                        SizedBox(height: 12 * scale),
+                        Text(
+                          _user.displayName,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22 * scale,
+                            fontWeight: FontWeight.bold,
                           ),
-                        ],
+                        ),
+                        SizedBox(height: 2 * scale),
+                        Text(
+                          '@${_user.email.split('@').first}',
+                          style: TextStyle(
+                            color: const Color(0xFF8A8EB3),
+                            fontSize: 14 * scale,
+                          ),
+                        ),
+                        SizedBox(height: 8 * scale),
+                        Container(
+                          padding: EdgeInsets.symmetric(horizontal: 12 * scale, vertical: 4 * scale),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFF4E7E).withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(999 * scale),
+                          ),
+                          child: Text(
+                            isSuspended ? 'Suspended' : 'Flagged',
+                            style: TextStyle(
+                              color: const Color(0xFFFF4E7E),
+                              fontSize: 11 * scale,
+                              height: 14 / 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 24 * scale),
+
+                    // Counts Section (Fill 342px, Hug 72px, space-between)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(child: _buildStatColumn(scale, 'assets/images/send.png', 'Created', '24')),
+                        Expanded(child: _buildStatColumn(scale, 'assets/images/inbox.png', 'Received', '31')),
+                        Expanded(child: _buildStatColumn(scale, 'assets/images/profile_replies.png', 'Replies', '12')),
+                      ],
+                    ),
+                    SizedBox(height: 24 * scale),
+
+                    // Account Info Card (Fill 342px, Hug 195px, radius 20px, border 1.5px 14% white, bg 6% white, padding 4 top/bottom, 16 left/right)
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0x0FFFFFFF), // 6% white
+                        borderRadius: BorderRadius.circular(20 * scale),
+                        border: Border.all(
+                          color: const Color(0x24FFFFFF), // 14% white border
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16 * scale, vertical: 4 * scale),
+                        child: Column(
+                          children: [
+                            _buildDetailRow(scale, 'Email', _user.email),
+                            Divider(height: 1, color: const Color(0x24FFFFFF)),
+                            _buildDetailRow(scale, 'Joined', joinedDate),
+                            Divider(height: 1, color: const Color(0x24FFFFFF)),
+                            _buildDetailRow(scale, 'Last active', '2 hours ago'),
+                            Divider(height: 1, color: const Color(0x24FFFFFF)),
+                            _buildDetailRow(scale, 'Reports against', '3 open', isRed: true),
+                          ],
+                        ),
                       ),
                     ),
-                    SizedBox(height: 32 * scale),
-                    _buildInfoRow('Email', _user.email, scale),
-                    _buildInfoRow('Registration Date', createdDateStr, scale),
-                    _buildInfoRow('Current Role', isAdmin ? 'Admin' : 'User', scale),
-                    _buildInfoRow('Account Status', _user.isActive ? 'Active' : 'Suspended', scale),
+                    SizedBox(height: 24 * scale),
 
-                    SizedBox(height: 48 * scale),
-                    Text('Account Actions', style: TextStyle(color: const Color(0xFFF7F5FF), fontSize: 18 * scale, fontWeight: FontWeight.bold)),
-                    SizedBox(height: 16 * scale),
-
+                    // Action Buttons
                     if (_isSaving)
-                      const Center(child: CircularProgressIndicator(color: Color(0xFF9044FB)))
+                      const CircularProgressIndicator(color: Color(0xFF58C3F4))
                     else ...[
-                      ListTile(
-                        onTap: _showRoleDialog,
-                        tileColor: const Color(0xFF161626),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16 * scale), side: const BorderSide(color: Color(0xFF282842))),
-                        leading: Icon(Icons.security, color: const Color(0xFF9044FB), size: 24 * scale),
-                        title: Text('Change User Role', style: TextStyle(color: Colors.white, fontSize: 15 * scale)),
-                        trailing: Icon(Icons.chevron_right, color: const Color(0xFFA2A5C2), size: 20 * scale),
+                      // Button / Danger (Fill 342px, Fixed 52px, radius 999px, border 1.5px #FF6B6B at 70%, bg #FF6B6B at 12%)
+                      Container(
+                        width: double.infinity,
+                        height: 52 * scale,
+                        decoration: BoxDecoration(
+                          color: const Color(0x1FFF6B6B), // 12% #FF6B6B
+                          borderRadius: BorderRadius.circular(999 * scale),
+                          border: Border.all(
+                            color: const Color(0xB3FF6B6B), // 70% #FF6B6B
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _showSuspendDialog,
+                            borderRadius: BorderRadius.circular(999 * scale),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.block_rounded, color: const Color(0xFFFF6B6B), size: 20 * scale),
+                                SizedBox(width: 8 * scale),
+                                Text(
+                                  isSuspended ? 'Activate account' : 'Suspend account',
+                                  style: TextStyle(
+                                    color: const Color(0xFFFF6B6B),
+                                    fontSize: 15 * scale,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                       SizedBox(height: 12 * scale),
-                      ListTile(
-                        onTap: _showStatusDialog,
-                        tileColor: const Color(0xFF161626),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16 * scale), side: const BorderSide(color: Color(0xFF282842))),
-                        leading: Icon(Icons.gavel, color: const Color(0xFFC057FF), size: 24 * scale),
-                        title: Text('Change Account Status', style: TextStyle(color: Colors.white, fontSize: 15 * scale)),
-                        trailing: Icon(Icons.chevron_right, color: const Color(0xFFA2A5C2), size: 20 * scale),
+                      // Button / Secondary (Fill 342px, Fixed 52px, radius 999px, border 1.5px 16% white, bg 7% white)
+                      Container(
+                        width: double.infinity,
+                        height: 52 * scale,
+                        decoration: BoxDecoration(
+                          color: const Color(0x12FFFFFF), // 7% white
+                          borderRadius: BorderRadius.circular(999 * scale),
+                          border: Border.all(
+                            color: const Color(0x28FFFFFF), // 16% white border
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Warning sent to user.'), backgroundColor: Colors.purple),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(999 * scale),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.mail_outline_rounded, color: Colors.white, size: 20 * scale),
+                                SizedBox(width: 8 * scale),
+                                Text(
+                                  'Send warning',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15 * scale,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ],
@@ -343,14 +471,58 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
     );
   }
 
-  Widget _buildInfoRow(String label, String value, double scale) {
+  Widget _buildStatColumn(double scale, String assetPath, String label, String value) {
+    return Column(
+      children: [
+        Image.asset(
+          assetPath,
+          width: 20 * scale,
+          height: 20 * scale,
+        ),
+        SizedBox(height: 4 * scale),
+        Text(
+          label,
+          style: TextStyle(
+            color: const Color(0xFF8A8EB3),
+            fontSize: 12 * scale,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        SizedBox(height: 2 * scale),
+        Text(
+          value,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20 * scale,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailRow(double scale, String label, String value, {bool isRed = false}) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 16 * scale),
+      padding: EdgeInsets.symmetric(vertical: 11 * scale),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: const Color(0xFF8A8EB3), fontSize: 14 * scale)),
-          Text(value, style: TextStyle(color: Colors.white, fontSize: 14 * scale, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: TextStyle(
+              color: const Color(0xFF8A8EB3),
+              fontSize: 14 * scale,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              color: isRed ? const Color(0xFFFF6B6B) : Colors.white,
+              fontSize: 14 * scale,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
