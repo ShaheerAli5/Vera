@@ -1,5 +1,6 @@
 import '../../../../core/network/api_client.dart';
 import '../../../home/data/models/moment_model.dart';
+import '../../../home/data/models/notification_model.dart';
 import '../models/admin_audit_log_model.dart';
 import '../models/admin_report_model.dart';
 import '../models/admin_user_model.dart';
@@ -330,5 +331,47 @@ class AdminRemoteDataSource {
 
     if (lastError != null) throw lastError;
     throw const FormatException('Invalid report resolution response');
+  }
+
+  Future<NotificationsListResponse> getAdminNotifications({
+    int limit = 50,
+  }) async {
+    try {
+      final response = await _apiClient.get(
+        '/admin/notifications',
+        queryParameters: {'limit': limit.toString()},
+      );
+      return NotificationsListResponse.fromJson(response);
+    } catch (_) {
+      try {
+        final response = await _apiClient.get(
+          '/notifications',
+          queryParameters: {'limit': limit.toString()},
+        );
+        return NotificationsListResponse.fromJson(response);
+      } catch (_) {
+        return const NotificationsListResponse(items: []);
+      }
+    }
+  }
+
+  Future<void> markAdminNotificationAsRead(String notificationId) async {
+    try {
+      await _apiClient.patch('/admin/notifications/$notificationId/read');
+    } catch (_) {
+      try {
+        await _apiClient.patch('/notifications/$notificationId/read');
+      } catch (_) {}
+    }
+  }
+
+  Future<void> markAllAdminNotificationsAsRead() async {
+    try {
+      await _apiClient.post('/admin/notifications/read-all');
+    } catch (_) {
+      try {
+        await _apiClient.post('/notifications/read-all');
+      } catch (_) {}
+    }
   }
 }

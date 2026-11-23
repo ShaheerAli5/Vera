@@ -106,6 +106,44 @@ class AdminReportModel {
             ? (map['resolvedBy'] as Map<String, dynamic>)
             : null);
 
+    final rId = map['reporterId']?.toString() ??
+        map['reporter_id']?.toString() ??
+        reporterObj?['id']?.toString();
+
+    final rAvatar = map['reporterAvatar']?.toString() ??
+        map['reporter_avatar']?.toString() ??
+        reporterObj?['avatarUrl']?.toString() ??
+        reporterObj?['avatar_url']?.toString() ??
+        reporterObj?['avatarPath']?.toString() ??
+        reporterObj?['avatar_path']?.toString() ??
+        reporterObj?['profilePicture']?.toString() ??
+        reporterObj?['image']?.toString();
+
+    final resolvedReporterAvatar = (rAvatar != null && rAvatar.trim().isNotEmpty)
+        ? rAvatar.trim()
+        : (rId != null && rId.isNotEmpty ? '/admin/users/$rId/avatar' : null);
+
+    final tId = map['targetUserId']?.toString() ??
+        map['target_user_id']?.toString() ??
+        map['reportedUserId']?.toString() ??
+        map['reported_user_id']?.toString() ??
+        map['creatorId']?.toString() ??
+        map['creator_id']?.toString() ??
+        creatorObj?['id']?.toString();
+
+    final tAvatar = map['targetUserAvatar']?.toString() ??
+        map['target_user_avatar']?.toString() ??
+        creatorObj?['avatarUrl']?.toString() ??
+        creatorObj?['avatar_url']?.toString() ??
+        creatorObj?['avatarPath']?.toString() ??
+        creatorObj?['avatar_path']?.toString() ??
+        creatorObj?['profilePicture']?.toString() ??
+        creatorObj?['image']?.toString();
+
+    final resolvedTargetAvatar = (tAvatar != null && tAvatar.trim().isNotEmpty)
+        ? tAvatar.trim()
+        : (tId != null && tId.isNotEmpty ? '/admin/users/$tId/avatar' : null);
+
     return AdminReportModel(
       id: map['id']?.toString() ?? map['_id']?.toString() ?? '',
       type: map['type']?.toString().toUpperCase() ?? 'MOMENT',
@@ -140,11 +178,7 @@ class AdminReportModel {
           momentObj?['media_url']?.toString() ??
           momentObj?['imageUrl']?.toString() ??
           momentObj?['url']?.toString(),
-      targetUserId: map['targetUserId']?.toString() ??
-          map['target_user_id']?.toString() ??
-          map['reportedUserId']?.toString() ??
-          map['reported_user_id']?.toString() ??
-          creatorObj?['id']?.toString(),
+      targetUserId: tId,
       targetUserName: map['targetUserName']?.toString() ??
           map['target_user_name']?.toString() ??
           creatorObj?['displayName']?.toString() ??
@@ -155,12 +189,7 @@ class AdminReportModel {
       targetUserEmail: map['targetUserEmail']?.toString() ??
           map['target_user_email']?.toString() ??
           creatorObj?['email']?.toString(),
-      targetUserAvatar: map['targetUserAvatar']?.toString() ??
-          map['target_user_avatar']?.toString() ??
-          creatorObj?['avatarUrl']?.toString() ??
-          creatorObj?['avatar_url']?.toString() ??
-          creatorObj?['profilePicture']?.toString() ??
-          creatorObj?['image']?.toString(),
+      targetUserAvatar: resolvedTargetAvatar,
       creatorId: map['creatorId']?.toString() ??
           map['creator_id']?.toString() ??
           creatorObj?['id']?.toString(),
@@ -173,15 +202,8 @@ class AdminReportModel {
       creatorEmail: map['creatorEmail']?.toString() ??
           map['creator_email']?.toString() ??
           creatorObj?['email']?.toString(),
-      creatorAvatar: map['creatorAvatar']?.toString() ??
-          map['creator_avatar']?.toString() ??
-          creatorObj?['avatarUrl']?.toString() ??
-          creatorObj?['avatar_url']?.toString() ??
-          creatorObj?['profilePicture']?.toString() ??
-          creatorObj?['image']?.toString(),
-      reporterId: map['reporterId']?.toString() ??
-          map['reporter_id']?.toString() ??
-          reporterObj?['id']?.toString(),
+      creatorAvatar: resolvedTargetAvatar,
+      reporterId: rId,
       reporterName: map['reporterName']?.toString() ??
           map['reporter_name']?.toString() ??
           reporterObj?['displayName']?.toString() ??
@@ -191,12 +213,7 @@ class AdminReportModel {
       reporterEmail: map['reporterEmail']?.toString() ??
           map['reporter_email']?.toString() ??
           reporterObj?['email']?.toString(),
-      reporterAvatar: map['reporterAvatar']?.toString() ??
-          map['reporter_avatar']?.toString() ??
-          reporterObj?['avatarUrl']?.toString() ??
-          reporterObj?['avatar_url']?.toString() ??
-          reporterObj?['profilePicture']?.toString() ??
-          reporterObj?['image']?.toString(),
+      reporterAvatar: resolvedReporterAvatar,
       resolvedById: map['resolvedById']?.toString() ??
           map['resolved_by_id']?.toString() ??
           resolvedByObj?['id']?.toString(),
@@ -247,14 +264,24 @@ class AdminReportsResponse {
       final pagination = json['pagination'] is Map<String, dynamic>
           ? json['pagination'] as Map<String, dynamic>
           : <String, dynamic>{};
+      final totalVal = (json['total'] as num?)?.toInt() ??
+          (pagination['total'] as num?)?.toInt() ??
+          list.length;
+      final pageVal = (json['page'] as num?)?.toInt() ??
+          (pagination['page'] as num?)?.toInt() ??
+          1;
+      final limitVal = (json['limit'] as num?)?.toInt() ??
+          (pagination['limit'] as num?)?.toInt() ??
+          20;
+
       return AdminReportsResponse(
         items: list
             .whereType<Map<String, dynamic>>()
             .map(AdminReportModel.fromJson)
             .toList(),
-        total: (pagination['total'] as num?)?.toInt() ?? list.length,
-        page: (pagination['page'] as num?)?.toInt() ?? 1,
-        limit: (pagination['limit'] as num?)?.toInt() ?? 20,
+        total: totalVal,
+        page: pageVal,
+        limit: limitVal,
       );
     }
     return const AdminReportsResponse(items: []);

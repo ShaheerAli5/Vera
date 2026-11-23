@@ -20,19 +20,29 @@ class CreatorAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final trimmedName = name.trim();
     final initial = trimmedName.isEmpty ? '?' : trimmedName.characters.first.toUpperCase();
-    final placeholder = ColoredBox(
-      color: const Color(0xFF6B42FF),
+    final placeholder = Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF58C3F4), Color(0xFF8E37FF)],
+        ),
+      ),
       child: Center(
         child: Text(
           initial,
           style: TextStyle(
             color: Colors.white,
-            fontSize: size * 0.48,
-            fontWeight: FontWeight.w600,
+            fontSize: size * 0.44,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),
     );
+
     final url = avatarUrl?.trim() ?? '';
     return SizedBox.square(
       dimension: size,

@@ -123,6 +123,10 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
     });
     try {
       final client = ApiClientScope.of(context);
+      final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
+      try {
+        await repo.unlockMoment(momentId: _currentMoment.id);
+      } catch (_) {}
       final accountRepo = AccountRepositoryImpl(AccountRemoteDataSource(client));
       final profile = await accountRepo.getProfile();
       if (!mounted) return;
@@ -201,12 +205,30 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
         setState(() => _isLoadingMessages = false);
         return;
       }
-      final threadId = knownThreadId ?? _threadId ??
-          _recipientThreadIds[_selectedRecipientId] ??
-          (await repo.createOrGetMomentThread(
+      String? threadId = knownThreadId ?? _threadId ?? _recipientThreadIds[_selectedRecipientId];
+      if (threadId == null || threadId.isEmpty) {
+        try {
+          threadId = (await repo.createOrGetMomentThread(
             momentId: _currentMoment.id,
             recipientUserId: _isCreator ? _selectedRecipientId : null,
           )).id;
+        } catch (e) {
+          final errStr = e.toString().toLowerCase();
+          if (errStr.contains('unlock') || errStr.contains('400') || errStr.contains('403')) {
+            try {
+              await repo.unlockMoment(momentId: _currentMoment.id);
+              threadId = (await repo.createOrGetMomentThread(
+                momentId: _currentMoment.id,
+                recipientUserId: _isCreator ? _selectedRecipientId : null,
+              )).id;
+            } catch (_) {
+              rethrow;
+            }
+          } else {
+            rethrow;
+          }
+        }
+      }
       _threadId = threadId;
 
       if (threadId.isNotEmpty) {
@@ -704,18 +726,61 @@ class _UnlockedMomentScreenState extends State<UnlockedMomentScreen> with Moment
       final client = ApiClientScope.of(context);
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
 
-      final threadId = _threadId ?? (await repo.createOrGetMomentThread(
-        momentId: _currentMoment.id,
-        recipientUserId: _isCreator ? _selectedRecipientId : null,
-      )).id;
+      String? threadId = _threadId;
+      if (threadId == null || threadId.isEmpty) {
+        try {
+          threadId = (await repo.createOrGetMomentThread(
+            momentId: _currentMoment.id,
+            recipientUserId: _isCreator ? _selectedRecipientId : null,
+          )).id;
+        } catch (e) {
+          final errStr = e.toString().toLowerCase();
+          if (errStr.contains('unlock') || errStr.contains('400') || errStr.contains('403')) {
+            try {
+              await repo.unlockMoment(momentId: _currentMoment.id);
+              threadId = (await repo.createOrGetMomentThread(
+                momentId: _currentMoment.id,
+                recipientUserId: _isCreator ? _selectedRecipientId : null,
+              )).id;
+            } catch (_) {
+              rethrow;
+            }
+          } else {
+            rethrow;
+          }
+        }
+      }
       if (threadId.isEmpty) throw const FormatException('Missing conversation');
       _threadId = threadId;
 
       if (threadId.isNotEmpty) {
-        final sentMsg = await repo.sendThreadMessage(
-          chatThreadId: threadId,
-          text: reply,
-        );
+        ChatMessageModel sentMsg;
+        try {
+          sentMsg = await repo.sendThreadMessage(
+            chatThreadId: threadId,
+            text: reply,
+          );
+        } catch (e) {
+          final errStr = e.toString().toLowerCase();
+          if (errStr.contains('unlock') || errStr.contains('400') || errStr.contains('403')) {
+            try {
+              await repo.unlockMoment(momentId: _currentMoment.id);
+              threadId = (await repo.createOrGetMomentThread(
+                momentId: _currentMoment.id,
+                recipientUserId: _isCreator ? _selectedRecipientId : null,
+              )).id;
+              _threadId = threadId;
+              sentMsg = await repo.sendThreadMessage(
+                chatThreadId: threadId,
+                text: reply,
+              );
+            } catch (_) {
+              rethrow;
+            }
+          } else {
+            rethrow;
+          }
+        }
 
         if (!mounted) return;
         _replyController.clear();

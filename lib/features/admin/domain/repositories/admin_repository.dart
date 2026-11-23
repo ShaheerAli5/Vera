@@ -1,4 +1,5 @@
 import '../../../home/data/models/moment_model.dart';
+import '../../../home/data/models/notification_model.dart';
 import '../../data/models/admin_audit_log_model.dart';
 import '../../data/models/admin_report_model.dart';
 import '../../data/models/admin_user_model.dart';
@@ -69,4 +70,8 @@ abstract class AdminRepository {
     required String resolution,
     String? note,
   });
+
+  Future<NotificationsListResponse> getAdminNotifications({int limit = 50});
+  Future<void> markAdminNotificationAsRead(String notificationId);
+  Future<void> markAllAdminNotificationsAsRead();
 }
