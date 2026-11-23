@@ -409,6 +409,7 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
     final responsiveScale = (screenWidth / 393).clamp(.82, 1.12);
     showModalBottomSheet<void>(
       context: context,
+      useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: const Color(0xB3090A17),
@@ -551,6 +552,7 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
 
     showModalBottomSheet<void>(
       context: context,
+      useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: const Color(0xB3090A17),
@@ -689,6 +691,7 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
 
     showModalBottomSheet<void>(
       context: context,
+      useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: const Color(0xB3090A17),
@@ -768,19 +771,19 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
                   String? details;
-                  if (entry.value == 'OTHER') {
-                    if (context.mounted) {
-                      details = await _promptReportDetails(context, responsiveScale);
-                      if (details == null || details.trim().isEmpty) {
-                        return;
-                      }
-                    }
+                  if (context.mounted) {
+                    details = await _promptReportDetails(context, responsiveScale);
                   }
+                  if (details == null && entry.value == 'OTHER') return;
+                  final finalDetails = (details != null && details.trim().isNotEmpty)
+                      ? details.trim()
+                      : (entry.value == 'OTHER' ? 'Other policy violation' : null);
+
                   try {
                     await momentsRepo.reportMoment(
                       momentId: widget.moment.id,
                       reason: entry.value,
-                      details: details,
+                      details: finalDetails,
                     );
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -792,9 +795,10 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
                     }
                   } catch (e) {
                     if (context.mounted) {
+                      final msg = e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Report submission failed: $e'),
+                          content: Text('Report submission failed: $msg'),
                           backgroundColor: Colors.redAccent,
                         ),
                       );
@@ -827,6 +831,7 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
 
     showModalBottomSheet<void>(
       context: context,
+      useSafeArea: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: const Color(0xB3090A17),
@@ -907,19 +912,19 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
                 onTap: () async {
                   Navigator.of(sheetContext).pop();
                   String? details;
-                  if (entry.value == 'OTHER') {
-                    if (context.mounted) {
-                      details = await _promptReportDetails(context, responsiveScale);
-                      if (details == null || details.trim().isEmpty) {
-                        return;
-                      }
-                    }
+                  if (context.mounted) {
+                    details = await _promptReportDetails(context, responsiveScale);
                   }
+                  if (details == null && entry.value == 'OTHER') return;
+                  final finalDetails = (details != null && details.trim().isNotEmpty)
+                      ? details.trim()
+                      : (entry.value == 'OTHER' ? 'Other policy violation' : null);
+
                   try {
                     await accountRepo.reportUser(
                       userId: targetUserId,
                       reason: entry.value,
-                      details: details,
+                      details: finalDetails,
                     );
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -931,9 +936,10 @@ class _MomentCardState extends State<MomentCard> with MomentRealtimeRoute<Moment
                     }
                   } catch (e) {
                     if (context.mounted) {
+                      final msg = e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '');
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Report submission failed: $e'),
+                          content: Text('Report submission failed: $msg'),
                           backgroundColor: Colors.redAccent,
                         ),
                       );

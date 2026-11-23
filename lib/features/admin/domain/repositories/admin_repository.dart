@@ -25,6 +25,9 @@ abstract class AdminRepository {
     int version = 1,
   });
 
+  Future<void> deleteUser(String userId);
+  Future<void> revokeUserSessions(String userId);
+
   Future<AdminAuditLogResponse> getAuditLogs({
     int page = 1,
     int limit = 20,
@@ -58,6 +61,8 @@ abstract class AdminRepository {
     String? status,
     String? type,
   });
+
+  Future<AdminReportModel> getReportById(String reportId);
 
   Future<AdminReportModel> resolveReport({
     required String reportId,

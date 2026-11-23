@@ -7,6 +7,7 @@ import '../../../../main.dart' show ApiClientScope;
 import '../../data/datasources/admin_remote_data_source.dart';
 import '../../data/models/admin_report_model.dart';
 import '../../data/repositories/admin_repository_impl.dart';
+import 'admin_report_detail_screen.dart';
 
 class AdminReportsScreen extends StatefulWidget {
   const AdminReportsScreen({super.key});
@@ -129,7 +130,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
       },
     );
 
-    if (confirm != true) return;
+    if (confirm != true || !mounted) return;
 
     try {
       final client = ApiClientScope.of(context);
@@ -301,7 +302,19 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
     final isUserReport = report.type == 'USER';
     final isPending = report.status == 'PENDING';
 
-    return Container(
+    return InkWell(
+      onTap: () async {
+        final res = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) => AdminReportDetailScreen(report: report),
+          ),
+        );
+        if (res == true) {
+          _fetchReports();
+        }
+      },
+      borderRadius: BorderRadius.circular(14 * scale),
+      child: Container(
       padding: EdgeInsets.all(14 * scale),
       decoration: BoxDecoration(
         color: const Color(0xFF141324),
@@ -463,7 +476,8 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
           ],
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildEmptyState(double scale) {

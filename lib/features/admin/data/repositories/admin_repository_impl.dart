@@ -56,6 +56,16 @@ class AdminRepositoryImpl implements AdminRepository {
   }
 
   @override
+  Future<void> deleteUser(String userId) {
+    return _remoteDataSource.deleteUser(userId);
+  }
+
+  @override
+  Future<void> revokeUserSessions(String userId) {
+    return _remoteDataSource.revokeUserSessions(userId);
+  }
+
+  @override
   Future<AdminAuditLogResponse> getAuditLogs({
     int page = 1,
     int limit = 20,
@@ -128,6 +138,11 @@ class AdminRepositoryImpl implements AdminRepository {
       status: status,
       type: type,
     );
+  }
+
+  @override
+  Future<AdminReportModel> getReportById(String reportId) {
+    return _remoteDataSource.getReportById(reportId);
   }
 
   @override

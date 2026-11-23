@@ -68,8 +68,12 @@ class MomentsRepositoryImpl implements MomentsRepository {
   }
 
   @override
-  Future<NotificationsListResponse> getNotifications({int page = 1, int limit = 20}) {
-    return _remoteDataSource.getNotifications(page: page, limit: limit);
+  Future<NotificationsListResponse> getNotifications({
+    int limit = 20,
+    String status = 'ALL',
+    String? cursor,
+  }) {
+    return _remoteDataSource.getNotifications(limit: limit, status: status, cursor: cursor);
   }
 
   @override

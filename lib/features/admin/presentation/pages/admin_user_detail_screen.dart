@@ -29,6 +29,21 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
     _user = widget.user;
   }
 
+  String _formatRelativeTime(String? dateStr) {
+    if (dateStr == null || dateStr.trim().isEmpty) return 'Recently';
+    try {
+      final date = DateTime.parse(dateStr).toLocal();
+      final diff = DateTime.now().difference(date);
+      if (diff.inSeconds < 45) return 'Just now';
+      if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+      if (diff.inHours < 24) return '${diff.inHours}h ago';
+      if (diff.inDays < 7) return '${diff.inDays}d ago';
+      return '${date.day}/${date.month}/${date.year}';
+    } catch (_) {
+      return 'Recently';
+    }
+  }
+
   Future<void> _updateStatus(bool newIsActive) async {
     if (_isSaving) return;
     setState(() => _isSaving = true);
@@ -65,6 +80,176 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
     }
   }
 
+  void _showRoleDialog() {
+    final isOwner = _user.role?.toUpperCase() == 'OWNER';
+    final isAdmin = _user.role?.toUpperCase() == 'ADMIN';
+
+    if (isOwner) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot change the role of the Owner.'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    final newRole = isAdmin ? 'USER' : 'ADMIN';
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (ctx) => Dialog(
+        backgroundColor: const Color(0xFF111426),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(28),
+          side: const BorderSide(color: Color(0x28FFFFFF), width: 1.5),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF58C3F4).withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.admin_panel_settings_rounded,
+                  color: Color(0xFF58C3F4),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                isAdmin ? 'Demote ${_user.displayName}?' : 'Promote ${_user.displayName}?',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w500,
+                  height: 28 / 20,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                isAdmin
+                    ? 'They will lose access to the Admin Dashboard and all moderation privileges.'
+                    : 'They will gain access to the Admin Dashboard and moderation privileges.',
+                style: const TextStyle(
+                  color: Color(0xFFA2A5C2),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  height: 22 / 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              // Confirm Button
+              Container(
+                width: double.infinity,
+                height: 52,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF8E37FF), Color(0xFF58C3F4)],
+                  ),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _updateRole(newRole);
+                    },
+                    borderRadius: BorderRadius.circular(999),
+                    child: Center(
+                      child: Text(
+                        isAdmin ? 'Demote to User' : 'Promote to Admin',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Cancel Button
+              Container(
+                width: double.infinity,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: const Color(0x12FFFFFF),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: const Color(0x28FFFFFF),
+                    width: 1.5,
+                  ),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => Navigator.pop(ctx),
+                    borderRadius: BorderRadius.circular(999),
+                    child: const Center(
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateRole(String newRole) async {
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+
+    try {
+      final client = ApiClientScope.of(context);
+      final repo = AdminRepositoryImpl(AdminRemoteDataSource(client));
+      final updated = await repo.updateUserRole(
+        _user.id,
+        role: newRole,
+        version: _user.version ?? 1,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _user = updated;
+        _isSaving = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('User role updated to ${updated.role}.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update role: ${e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '')}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   void _showSuspendDialog() {
     final isSuspended = !_user.isActive;
     showDialog(
@@ -85,12 +270,12 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFF4E7E).withValues(alpha: 0.15),
+                  color: (isSuspended ? const Color(0xFF00FF85) : const Color(0xFFFF4E7E)).withOpacity(0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.block_rounded,
-                  color: Color(0xFFFF4E7E),
+                child: Icon(
+                  isSuspended ? Icons.check_circle_outline_rounded : Icons.block_rounded,
+                  color: isSuspended ? const Color(0xFF00FF85) : const Color(0xFFFF4E7E),
                   size: 24,
                 ),
               ),
@@ -124,10 +309,10 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                 width: double.infinity,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: const Color(0x1FFF6B6B),
+                  color: isSuspended ? const Color(0x1F00FF85) : const Color(0x1FFF6B6B),
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(
-                    color: const Color(0xB3FF6B6B),
+                    color: isSuspended ? const Color(0xB300FF85) : const Color(0xB3FF6B6B),
                     width: 1.5,
                   ),
                 ),
@@ -142,12 +327,16 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.block_rounded, color: Color(0xFFFF6B6B), size: 20),
+                        Icon(
+                          isSuspended ? Icons.check_circle_outline_rounded : Icons.block_rounded,
+                          color: isSuspended ? const Color(0xFF00FF85) : const Color(0xFFFF6B6B),
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           isSuspended ? 'Activate account' : 'Suspend account',
-                          style: const TextStyle(
-                            color: Color(0xFFFF6B6B),
+                          style: TextStyle(
+                            color: isSuspended ? const Color(0xFF00FF85) : const Color(0xFFFF6B6B),
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                           ),
@@ -193,6 +382,78 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _revokeSessions() async {
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+    try {
+      final client = ApiClientScope.of(context);
+      final repo = AdminRepositoryImpl(AdminRemoteDataSource(client));
+      await repo.revokeUserSessions(_user.id);
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('User active sessions revoked.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to revoke sessions: ${e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '')}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF111426),
+        title: const Text('Delete Account', style: TextStyle(color: Colors.white)),
+        content: Text('Are you sure you want to permanently delete ${_user.displayName}\'s account?', style: const TextStyle(color: Color(0xFFA2A5C2))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel', style: TextStyle(color: Colors.white))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF4E7E)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || _isSaving) return;
+    setState(() => _isSaving = true);
+
+    try {
+      final client = ApiClientScope.of(context);
+      final repo = AdminRepositoryImpl(AdminRemoteDataSource(client));
+      await repo.deleteUser(_user.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('User account permanently deleted.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete account: ${e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '')}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   String _getInitials(String name) {
@@ -254,21 +515,48 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    Container(
-                      width: 40 * scale,
-                      height: 40 * scale,
-                      decoration: BoxDecoration(
-                        color: const Color(0x12FFFFFF),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0x24FFFFFF), width: 1.2),
-                      ),
-                      child: Center(
-                        child: Icon(
-                          Icons.more_horiz_rounded,
-                          color: Colors.white,
-                          size: 18 * scale,
+                    PopupMenuButton<String>(
+                      icon: Container(
+                        width: 40 * scale,
+                        height: 40 * scale,
+                        decoration: BoxDecoration(
+                          color: const Color(0x12FFFFFF),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0x24FFFFFF), width: 1.2),
+                        ),
+                        child: Center(
+                          child: Icon(
+                            Icons.more_horiz_rounded,
+                            color: Colors.white,
+                            size: 18 * scale,
+                          ),
                         ),
                       ),
+                      color: const Color(0xFF1B152E),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12 * scale)),
+                      onSelected: (action) {
+                        if (action == 'admin') {
+                          _showRoleDialog();
+                        } else if (action == 'user') {
+                          _showRoleDialog();
+                        }
+                      },
+                      itemBuilder: (context) {
+                        final isOwner = _user.role?.toUpperCase() == 'OWNER';
+                        final isAdmin = _user.role?.toUpperCase() == 'ADMIN';
+                        return [
+                          if (!isOwner && !isAdmin)
+                            PopupMenuItem(
+                              value: 'admin',
+                              child: Text('Promote to Admin', style: TextStyle(color: Colors.white, fontSize: 13 * scale)),
+                            ),
+                          if (!isOwner && isAdmin)
+                            PopupMenuItem(
+                              value: 'user',
+                              child: Text('Demote to User', style: TextStyle(color: Colors.white, fontSize: 13 * scale)),
+                            ),
+                        ];
+                      },
                     ),
                   ],
                 ),
@@ -326,16 +614,16 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                         Container(
                           padding: EdgeInsets.symmetric(horizontal: 12 * scale, vertical: 4 * scale),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFF4E7E).withValues(alpha: 0.16),
+                            color: (isSuspended ? const Color(0xFFFF4E7E) : const Color(0xFF00FF85)).withOpacity(0.16),
                             borderRadius: BorderRadius.circular(999 * scale),
                           ),
                           child: Text(
-                            isSuspended ? 'Suspended' : 'Flagged',
+                            isSuspended ? 'Suspended' : 'Active',
                             style: TextStyle(
-                              color: const Color(0xFFFF4E7E),
+                              color: isSuspended ? const Color(0xFFFF4E7E) : const Color(0xFF00FF85),
                               fontSize: 11 * scale,
                               height: 14 / 11,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -372,7 +660,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                             Divider(height: 1, color: const Color(0x24FFFFFF)),
                             _buildDetailRow(scale, 'Joined', joinedDate),
                             Divider(height: 1, color: const Color(0x24FFFFFF)),
-                            _buildDetailRow(scale, 'Last active', '2 hours ago'),
+                            _buildDetailRow(scale, 'Last active', _formatRelativeTime(_user.updatedAt ?? _user.createdAt)),
                             Divider(height: 1, color: const Color(0x24FFFFFF)),
                             _buildDetailRow(scale, 'Reports against', '3 open', isRed: true),
                           ],
@@ -390,10 +678,10 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                         width: double.infinity,
                         height: 52 * scale,
                         decoration: BoxDecoration(
-                          color: const Color(0x1FFF6B6B), // 12% #FF6B6B
+                          color: isSuspended ? const Color(0x1F00FF85) : const Color(0x1FFF6B6B),
                           borderRadius: BorderRadius.circular(999 * scale),
                           border: Border.all(
-                            color: const Color(0xB3FF6B6B), // 70% #FF6B6B
+                            color: isSuspended ? const Color(0xB300FF85) : const Color(0xB3FF6B6B),
                             width: 1.5,
                           ),
                         ),
@@ -405,12 +693,16 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.block_rounded, color: const Color(0xFFFF6B6B), size: 20 * scale),
+                                Icon(
+                                  isSuspended ? Icons.check_circle_outline_rounded : Icons.block_rounded,
+                                  color: isSuspended ? const Color(0xFF00FF85) : const Color(0xFFFF6B6B),
+                                  size: 20 * scale,
+                                ),
                                 SizedBox(width: 8 * scale),
                                 Text(
                                   isSuspended ? 'Activate account' : 'Suspend account',
                                   style: TextStyle(
-                                    color: const Color(0xFFFF6B6B),
+                                    color: isSuspended ? const Color(0xFF00FF85) : const Color(0xFFFF6B6B),
                                     fontSize: 15 * scale,
                                     fontWeight: FontWeight.w600,
                                   ),

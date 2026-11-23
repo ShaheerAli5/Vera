@@ -449,15 +449,21 @@ class MomentsRemoteDataSource {
   }
 
   Future<NotificationsListResponse> getNotifications({
-    int page = 1,
     int limit = 20,
+    String status = 'ALL',
+    String? cursor,
   }) async {
-    // This endpoint uses cursor pagination and rejects a `page` query field.
-    // An empty notification list is authoritative; do not fabricate events
-    // from inbox moments or hide API failures behind unrelated endpoints.
+    final queryParameters = {
+      'limit': limit.toString(),
+      'status': status,
+    };
+    if (cursor != null && cursor.isNotEmpty) {
+      queryParameters['cursor'] = cursor;
+    }
+    
     final response = await _apiClient.get(
       '/notifications',
-      queryParameters: {'limit': limit.toString()},
+      queryParameters: queryParameters,
     );
     return NotificationsListResponse.fromJson(response);
   }

@@ -8,13 +8,14 @@ import 'package:vera/features/home/data/datasources/moments_remote_data_source.d
 
 void main() {
   test(
-    'notification request uses supported limit and no page parameter',
+    'notification request uses supported limit and status parameters without page parameter',
     () async {
       final client = ApiClient(
         config: const AppConfig(apiBaseUrl: 'https://example.com'),
         httpClient: MockClient((request) async {
           expect(request.url.path, '/api/v1/notifications');
-          expect(request.url.queryParameters, {'limit': '20'});
+          expect(request.url.queryParameters['limit'], '20');
+          expect(request.url.queryParameters['status'], 'ALL');
           return http.Response(
             '{"items":[{"id":"event","title":"Approved","type":"ADMIN_APPROVAL"}]}',
             200,
@@ -22,7 +23,7 @@ void main() {
         }),
       );
       addTearDown(client.close);
-      final result = await MomentsRemoteDataSource(client).getNotifications();
+      final result = await MomentsRemoteDataSource(client).getNotifications(limit: 20, status: 'ALL');
       expect(result.items.single.id, 'event');
     },
   );

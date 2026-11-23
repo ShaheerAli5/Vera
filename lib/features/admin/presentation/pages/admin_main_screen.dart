@@ -12,7 +12,7 @@ import '../widgets/admin_bottom_nav_bar.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_moderation_queue_screen.dart';
 import 'admin_user_list_screen.dart';
-import 'admin_audit_log_screen.dart';
+import 'admin_settings_screen.dart';
 
 class AdminMainScreen extends StatefulWidget {
   const AdminMainScreen({super.key});
@@ -28,7 +28,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     AdminDashboardScreen(isActive: _currentIndex == 0),
     AdminModerationQueueScreen(isActive: _currentIndex == 1),
     const AdminUserListScreen(),
-    const AdminAuditLogScreen(),
+    const AdminSettingsScreen(),
   ];
 
   @override

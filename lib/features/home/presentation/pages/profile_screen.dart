@@ -107,6 +107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final profile = _profile;
     showModalBottomSheet<void>(
       context: context,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
@@ -298,6 +299,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     showModalBottomSheet<void>(
       context: context,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
@@ -633,6 +635,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _showAvatarPickerSheet(double scale) {
     showModalBottomSheet<void>(
       context: context,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
