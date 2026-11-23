@@ -12,6 +12,7 @@ import '../../../account/data/models/profile_settings.dart';
 import '../../../account/data/models/user_profile.dart';
 import '../../../account/data/repositories/account_repository_impl.dart';
 import '../../../account/presentation/pages/sign_in_screen.dart';
+import '../widgets/creator_avatar.dart';
 
 class PrivacySettingsScreen extends StatefulWidget {
   const PrivacySettingsScreen({super.key});
@@ -430,26 +431,10 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                               if (i > 0) SizedBox(height: 16 * scale),
                               Row(
                                 children: [
-                                  ClipOval(
-                                    child: _blockedUsers[i].avatarUrl != null && _blockedUsers[i].avatarUrl!.isNotEmpty
-                                        ? Image.network(
-                                            _blockedUsers[i].avatarUrl!,
-                                            width: 36 * scale,
-                                            height: 36 * scale,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (context, error, stackTrace) => Container(
-                                              width: 36 * scale,
-                                              height: 36 * scale,
-                                              color: const Color(0xFF6B42FF),
-                                              child: const Icon(Icons.person, color: Colors.white, size: 18),
-                                            ),
-                                          )
-                                        : Container(
-                                            width: 36 * scale,
-                                            height: 36 * scale,
-                                            color: const Color(0xFF6B42FF),
-                                            child: const Icon(Icons.person, color: Colors.white, size: 18),
-                                          ),
+                                  CreatorAvatar(
+                                    name: _blockedUsers[i].displayName,
+                                    avatarUrl: _blockedUsers[i].avatarUrl,
+                                    size: 36 * scale,
                                   ),
                                   SizedBox(width: 12 * scale),
                                   Expanded(

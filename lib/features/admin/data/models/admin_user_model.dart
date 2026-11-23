@@ -27,17 +27,21 @@ class AdminUserModel {
 
   factory AdminUserModel.fromJson(Map<String, dynamic> json) {
     return AdminUserModel(
-      id: json['id'] as String,
-      email: json['email'] as String,
-      displayName: json['displayName'] as String,
-      avatarPath: json['avatarPath'] as String?,
-      emailVerifiedAt: json['emailVerifiedAt'] as String?,
-      role: json['role'] as String,
-      isActive: json['isActive'] as bool,
-      version: json['version'] as int,
-      createdAt: json['createdAt'] as String,
-      updatedAt: json['updatedAt'] as String,
-      deletedAt: json['deletedAt'] as String?,
+      id: json['id']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      displayName: json['displayName']?.toString() ?? json['display_name']?.toString() ?? json['name']?.toString() ?? 'User',
+      avatarPath: json['avatarPath']?.toString() ??
+          json['avatar_path']?.toString() ??
+          json['avatarUrl']?.toString() ??
+          json['avatar_url']?.toString() ??
+          json['profilePicture']?.toString(),
+      emailVerifiedAt: json['emailVerifiedAt']?.toString(),
+      role: json['role']?.toString() ?? 'USER',
+      isActive: (json['isActive'] as bool?) ?? true,
+      version: (json['version'] as num?)?.toInt() ?? 1,
+      createdAt: json['createdAt']?.toString() ?? '',
+      updatedAt: json['updatedAt']?.toString() ?? '',
+      deletedAt: json['deletedAt']?.toString(),
     );
   }
 }

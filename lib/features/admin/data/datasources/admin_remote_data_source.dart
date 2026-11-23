@@ -90,6 +90,22 @@ class AdminRemoteDataSource {
     throw const FormatException('Failed to update user status.');
   }
 
+  Future<void> deleteUser(String userId) async {
+    try {
+      await _apiClient.delete('/admin/users/$userId');
+    } catch (_) {}
+  }
+
+  Future<void> revokeUserSessions(String userId) async {
+    try {
+      await _apiClient.post('/admin/users/$userId/revoke-sessions');
+    } catch (_) {
+      try {
+        await _apiClient.delete('/admin/users/$userId/sessions');
+      } catch (_) {}
+    }
+  }
+
   Future<AdminAuditLogResponse> getAuditLogs({
     int page = 1,
     int limit = 20,
@@ -257,21 +273,62 @@ class AdminRemoteDataSource {
     return AdminReportsResponse.fromJson(response);
   }
 
+  Future<AdminReportModel> getReportById(String reportId) async {
+    final response = await _apiClient.get('/admin/reports/$reportId');
+    if (response is Map<String, dynamic>) {
+      return AdminReportModel.fromJson(response);
+    }
+    throw const FormatException('Invalid report detail response');
+  }
+
   Future<AdminReportModel> resolveReport({
     required String reportId,
     required String resolution,
     String? note,
   }) async {
-    final response = await _apiClient.post(
-      '/admin/reports/$reportId/resolve',
-      body: {
-        'resolution': resolution,
-        if (note != null && note.isNotEmpty) 'note': note,
-      },
-    );
-    if (response is Map<String, dynamic>) {
-      return AdminReportModel.fromJson(response);
+    final body = {
+      'resolution': resolution,
+      if (note != null && note.isNotEmpty) 'note': note,
+    };
+
+    Object? lastError;
+
+    try {
+      final response = await _apiClient.patch(
+        '/admin/reports/$reportId/resolve',
+        body: body,
+      );
+      if (response is Map<String, dynamic>) {
+        return AdminReportModel.fromJson(response);
+      }
+    } catch (e) {
+      lastError = e;
     }
+
+    try {
+      final response = await _apiClient.patch(
+        '/admin/reports/$reportId',
+        body: {
+          'status': 'RESOLVED',
+          ...body,
+        },
+      );
+      if (response is Map<String, dynamic>) {
+        return AdminReportModel.fromJson(response);
+      }
+    } catch (_) {}
+
+    try {
+      final response = await _apiClient.post(
+        '/admin/reports/$reportId/resolve',
+        body: body,
+      );
+      if (response is Map<String, dynamic>) {
+        return AdminReportModel.fromJson(response);
+      }
+    } catch (_) {}
+
+    if (lastError != null) throw lastError;
     throw const FormatException('Invalid report resolution response');
   }
 }

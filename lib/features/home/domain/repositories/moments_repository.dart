@@ -29,8 +29,9 @@ abstract class MomentsRepository {
   Future<MomentsListResponse> getMoments({int page = 1, int limit = 20});
   Future<MomentsListResponse> getInboxMoments({int page = 1, int limit = 20});
   Future<NotificationsListResponse> getNotifications({
-    int page = 1,
     int limit = 20,
+    String status = 'ALL',
+    String? cursor,
   });
   Future<MomentModel> getMomentById(String momentId);
   Future<MomentModel> updateMoment(String momentId, UpdateMomentParams params);

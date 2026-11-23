@@ -41,7 +41,6 @@ class _AdminReviewMomentMediaScreenState extends State<AdminReviewMomentMediaScr
   }
 
   bool _isLoading = false;
-  bool _isSubmitting = false;
 
   VideoPlayerController? _videoController;
   bool _isVideoInitializing = false;
@@ -184,126 +183,7 @@ class _AdminReviewMomentMediaScreenState extends State<AdminReviewMomentMediaScr
     }
   }
 
-  Future<void> _approve() async {
-    if (_isSubmitting) return;
-    setState(() => _isSubmitting = true);
 
-    try {
-      final client = ApiClientScope.of(context);
-      final repo = AdminRepositoryImpl(AdminRemoteDataSource(client));
-      final moment = _moment;
-      await repo.approveMoment(
-        widget.momentId,
-        version: moment?.version ?? 1,
-      );
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Moment approved successfully.')),
-      );
-      Navigator.pop(context, true);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to approve moment: ${e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '')}')),
-      );
-    }
-  }
-
-  Future<void> _reject() async {
-    if (_isSubmitting) return;
-
-    String? reason = 'Inappropriate content';
-    final customReasonController = TextEditingController();
-    final reasons = ['Inappropriate content', 'Spam', 'Copyright violation', 'Other'];
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDlgState) {
-          return AlertDialog(
-            backgroundColor: const Color(0xFF161626),
-            title: const Text('Reject Moment', style: TextStyle(color: Colors.white)),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Select a reason for rejection:', style: TextStyle(color: Color(0xFFA2A5C2))),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: reason,
-                  dropdownColor: const Color(0xFF161626),
-                  style: const TextStyle(color: Colors.white),
-                  items: reasons.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
-                  onChanged: (val) => setDlgState(() => reason = val),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: const Color(0xFF080914),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                ),
-                if (reason == 'Other') ...[
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: customReasonController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'Enter specific reason...',
-                      hintStyle: const TextStyle(color: Color(0xFF535370)),
-                      filled: true,
-                      fillColor: const Color(0xFF080914),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel', style: TextStyle(color: Color(0xFFA2A5C2))),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE53935)),
-                child: const Text('Reject', style: TextStyle(color: Colors.white)),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-
-    if (confirm != true || !mounted) return;
-    final client = ApiClientScope.of(context);
-    final finalReason = (reason == 'Other' && customReasonController.text.trim().isNotEmpty)
-        ? customReasonController.text.trim()
-        : (reason ?? 'Inappropriate content');
-
-    setState(() => _isSubmitting = true);
-
-    try {
-      final repo = AdminRepositoryImpl(AdminRemoteDataSource(client));
-      final moment = _moment;
-      await repo.rejectMoment(
-        widget.momentId,
-        reason: finalReason,
-        version: moment?.version ?? 1,
-      );
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Moment rejected: $finalReason')),
-      );
-      Navigator.pop(context, true);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to reject moment: ${e.toString().replaceFirst(RegExp(r'^[A-Za-z]+Exception:\s*'), '')}')),
-      );
-    }
-  }
 
   String _formatDuration(Duration duration) {
     final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
@@ -520,59 +400,23 @@ class _AdminReviewMomentMediaScreenState extends State<AdminReviewMomentMediaScr
             ),
           ),
 
-          // Bottom Controls & Actions
-          Positioned(
-            bottom: MediaQuery.paddingOf(context).bottom + 16,
-            left: 16,
-            right: 16,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isVideo && _isVideoInitialized && _videoController != null) ...[
-                  VideoProgressIndicator(
-                    _videoController!,
-                    allowScrubbing: true,
-                    colors: const VideoProgressColors(
-                      playedColor: Color(0xFF9044FB),
-                      bufferedColor: Colors.white24,
-                      backgroundColor: Colors.white10,
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                _isSubmitting
-                    ? const Center(child: CircularProgressIndicator(color: Colors.white))
-                    : Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: _reject,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFE53935),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                              ),
-                              child: const Text('Reject', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: _approve,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF22C55E),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                              ),
-                              child: const Text('Approve', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                            ),
-                          ),
-                        ],
-                      ),
-              ],
+          // Bottom Controls
+          if (isVideo && _isVideoInitialized && _videoController != null)
+            Positioned(
+              bottom: MediaQuery.paddingOf(context).bottom + 16,
+              left: 16,
+              right: 16,
+              child: VideoProgressIndicator(
+                _videoController!,
+                allowScrubbing: true,
+                colors: const VideoProgressColors(
+                  playedColor: Color(0xFF9044FB),
+                  bufferedColor: Colors.white24,
+                  backgroundColor: Colors.white10,
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+              ),
             ),
-          ),
         ],
       ),
     );

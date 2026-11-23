@@ -12,14 +12,24 @@ class AdminReportModel {
     this.momentId,
     this.momentTitle,
     this.momentStatus,
+    this.momentMediaUrl,
     this.targetUserId,
     this.targetUserName,
+    this.targetUserEmail,
+    this.targetUserAvatar,
     this.creatorId,
     this.creatorName,
+    this.creatorEmail,
+    this.creatorAvatar,
     this.reporterId,
     this.reporterName,
+    this.reporterEmail,
+    this.reporterAvatar,
     this.resolvedById,
     this.resolvedByName,
+    this.severity,
+    this.openReportsCount,
+    this.warningsCount,
   });
 
   final String id;
@@ -34,41 +44,175 @@ class AdminReportModel {
   final String? momentId;
   final String? momentTitle;
   final String? momentStatus;
+  final String? momentMediaUrl;
   final String? targetUserId;
   final String? targetUserName;
+  final String? targetUserEmail;
+  final String? targetUserAvatar;
   final String? creatorId;
   final String? creatorName;
+  final String? creatorEmail;
+  final String? creatorAvatar;
   final String? reporterId;
   final String? reporterName;
+  final String? reporterEmail;
+  final String? reporterAvatar;
   final String? resolvedById;
   final String? resolvedByName;
+  final String? severity;
+  final int? openReportsCount;
+  final int? warningsCount;
 
   factory AdminReportModel.fromJson(Map<String, dynamic> json) {
+    final map = (json['data'] is Map<String, dynamic>)
+        ? (json['data'] as Map<String, dynamic>)
+        : ((json['report'] is Map<String, dynamic>)
+            ? (json['report'] as Map<String, dynamic>)
+            : json);
+
+    final reporterObj = (map['reporter'] is Map<String, dynamic>)
+        ? (map['reporter'] as Map<String, dynamic>)
+        : (json['reporter'] is Map<String, dynamic>
+            ? (json['reporter'] as Map<String, dynamic>)
+            : null);
+
+    final momentObj = (map['moment'] is Map<String, dynamic>)
+        ? (map['moment'] as Map<String, dynamic>)
+        : (json['moment'] is Map<String, dynamic>
+            ? (json['moment'] as Map<String, dynamic>)
+            : null);
+
+    final creatorObj = (map['creator'] is Map<String, dynamic>)
+        ? (map['creator'] as Map<String, dynamic>)
+        : (json['creator'] is Map<String, dynamic>
+            ? (json['creator'] as Map<String, dynamic>)
+            : (map['targetUser'] is Map<String, dynamic>
+                ? (map['targetUser'] as Map<String, dynamic>)
+                : (json['targetUser'] is Map<String, dynamic>
+                    ? (json['targetUser'] as Map<String, dynamic>)
+                    : null)));
+
+    final resolutionObj = (map['resolution'] is Map<String, dynamic>)
+        ? (map['resolution'] as Map<String, dynamic>)
+        : (map['resolutionDetails'] is Map<String, dynamic>
+            ? (map['resolutionDetails'] as Map<String, dynamic>)
+            : (json['resolution'] is Map<String, dynamic>
+                ? (json['resolution'] as Map<String, dynamic>)
+                : null));
+
+    final resolvedByObj = resolutionObj != null && resolutionObj['resolvedBy'] is Map<String, dynamic>
+        ? resolutionObj['resolvedBy'] as Map<String, dynamic>
+        : (map['resolvedBy'] is Map<String, dynamic>
+            ? (map['resolvedBy'] as Map<String, dynamic>)
+            : null);
+
     return AdminReportModel(
-      id: json['id']?.toString() ?? '',
-      type: json['type']?.toString().toUpperCase() ?? 'MOMENT',
-      reason: json['reason']?.toString() ?? 'OTHER',
-      details: json['details']?.toString(),
-      status: json['status']?.toString().toUpperCase() ?? 'PENDING',
-      resolution: json['resolution']?.toString(),
-      resolutionNote: json['resolutionNote']?.toString(),
-      createdAt: json['createdAt']?.toString() ?? json['created_at']?.toString(),
-      resolvedAt: json['resolvedAt']?.toString() ?? json['resolved_at']?.toString(),
-      momentId: json['momentId']?.toString() ?? json['moment_id']?.toString(),
-      momentTitle: json['momentTitle']?.toString() ?? json['moment_title']?.toString(),
-      momentStatus: json['momentStatus']?.toString() ?? json['moment_status']?.toString(),
-      targetUserId: json['targetUserId']?.toString() ??
-          json['reportedUserId']?.toString() ??
-          json['reported_user_id']?.toString(),
-      targetUserName: json['targetUserName']?.toString() ??
-          json['target_user_name']?.toString() ??
-          json['creatorName']?.toString(),
-      creatorId: json['creatorId']?.toString() ?? json['creator_id']?.toString(),
-      creatorName: json['creatorName']?.toString() ?? json['creator_name']?.toString(),
-      reporterId: json['reporterId']?.toString() ?? json['reporter_id']?.toString(),
-      reporterName: json['reporterName']?.toString() ?? json['reporter_name']?.toString(),
-      resolvedById: json['resolvedById']?.toString() ?? json['resolved_by_id']?.toString(),
-      resolvedByName: json['resolvedByName']?.toString() ?? json['resolved_by_name']?.toString(),
+      id: map['id']?.toString() ?? map['_id']?.toString() ?? '',
+      type: map['type']?.toString().toUpperCase() ?? 'MOMENT',
+      reason: map['reason']?.toString() ?? 'OTHER',
+      details: map['details']?.toString() ?? map['note']?.toString() ?? map['description']?.toString(),
+      status: map['status']?.toString().toUpperCase() ?? 'PENDING',
+      resolution: map['resolution'] is String
+          ? map['resolution'].toString()
+          : (resolutionObj?['type']?.toString() ?? resolutionObj?['resolution']?.toString()),
+      resolutionNote: map['resolutionNote']?.toString() ??
+          map['resolution_note']?.toString() ??
+          resolutionObj?['note']?.toString() ??
+          resolutionObj?['details']?.toString(),
+      createdAt: map['createdAt']?.toString() ?? map['created_at']?.toString(),
+      resolvedAt: map['resolvedAt']?.toString() ??
+          map['resolved_at']?.toString() ??
+          resolutionObj?['resolvedAt']?.toString() ??
+          resolutionObj?['resolved_at']?.toString(),
+      momentId: map['momentId']?.toString() ??
+          map['moment_id']?.toString() ??
+          momentObj?['id']?.toString(),
+      momentTitle: map['momentTitle']?.toString() ??
+          map['moment_title']?.toString() ??
+          momentObj?['title']?.toString() ??
+          momentObj?['caption']?.toString(),
+      momentStatus: map['momentStatus']?.toString() ??
+          map['moment_status']?.toString() ??
+          momentObj?['status']?.toString(),
+      momentMediaUrl: map['momentMediaUrl']?.toString() ??
+          map['moment_media_url']?.toString() ??
+          momentObj?['mediaUrl']?.toString() ??
+          momentObj?['media_url']?.toString() ??
+          momentObj?['imageUrl']?.toString() ??
+          momentObj?['url']?.toString(),
+      targetUserId: map['targetUserId']?.toString() ??
+          map['target_user_id']?.toString() ??
+          map['reportedUserId']?.toString() ??
+          map['reported_user_id']?.toString() ??
+          creatorObj?['id']?.toString(),
+      targetUserName: map['targetUserName']?.toString() ??
+          map['target_user_name']?.toString() ??
+          creatorObj?['displayName']?.toString() ??
+          creatorObj?['display_name']?.toString() ??
+          creatorObj?['username']?.toString() ??
+          creatorObj?['name']?.toString() ??
+          map['creatorName']?.toString(),
+      targetUserEmail: map['targetUserEmail']?.toString() ??
+          map['target_user_email']?.toString() ??
+          creatorObj?['email']?.toString(),
+      targetUserAvatar: map['targetUserAvatar']?.toString() ??
+          map['target_user_avatar']?.toString() ??
+          creatorObj?['avatarUrl']?.toString() ??
+          creatorObj?['avatar_url']?.toString() ??
+          creatorObj?['profilePicture']?.toString() ??
+          creatorObj?['image']?.toString(),
+      creatorId: map['creatorId']?.toString() ??
+          map['creator_id']?.toString() ??
+          creatorObj?['id']?.toString(),
+      creatorName: map['creatorName']?.toString() ??
+          map['creator_name']?.toString() ??
+          creatorObj?['displayName']?.toString() ??
+          creatorObj?['display_name']?.toString() ??
+          creatorObj?['username']?.toString() ??
+          creatorObj?['name']?.toString(),
+      creatorEmail: map['creatorEmail']?.toString() ??
+          map['creator_email']?.toString() ??
+          creatorObj?['email']?.toString(),
+      creatorAvatar: map['creatorAvatar']?.toString() ??
+          map['creator_avatar']?.toString() ??
+          creatorObj?['avatarUrl']?.toString() ??
+          creatorObj?['avatar_url']?.toString() ??
+          creatorObj?['profilePicture']?.toString() ??
+          creatorObj?['image']?.toString(),
+      reporterId: map['reporterId']?.toString() ??
+          map['reporter_id']?.toString() ??
+          reporterObj?['id']?.toString(),
+      reporterName: map['reporterName']?.toString() ??
+          map['reporter_name']?.toString() ??
+          reporterObj?['displayName']?.toString() ??
+          reporterObj?['display_name']?.toString() ??
+          reporterObj?['username']?.toString() ??
+          reporterObj?['name']?.toString(),
+      reporterEmail: map['reporterEmail']?.toString() ??
+          map['reporter_email']?.toString() ??
+          reporterObj?['email']?.toString(),
+      reporterAvatar: map['reporterAvatar']?.toString() ??
+          map['reporter_avatar']?.toString() ??
+          reporterObj?['avatarUrl']?.toString() ??
+          reporterObj?['avatar_url']?.toString() ??
+          reporterObj?['profilePicture']?.toString() ??
+          reporterObj?['image']?.toString(),
+      resolvedById: map['resolvedById']?.toString() ??
+          map['resolved_by_id']?.toString() ??
+          resolvedByObj?['id']?.toString(),
+      resolvedByName: map['resolvedByName']?.toString() ??
+          map['resolved_by_name']?.toString() ??
+          resolvedByObj?['displayName']?.toString() ??
+          resolvedByObj?['display_name']?.toString() ??
+          resolvedByObj?['username']?.toString() ??
+          resolvedByObj?['name']?.toString(),
+      severity: map['severity']?.toString() ?? 'High',
+      openReportsCount: (map['openReportsCount'] as num?)?.toInt() ??
+          (map['open_reports_count'] as num?)?.toInt() ??
+          (creatorObj?['openReportsCount'] as num?)?.toInt(),
+      warningsCount: (map['warningsCount'] as num?)?.toInt() ??
+          (map['warnings_count'] as num?)?.toInt() ??
+          (creatorObj?['warningsCount'] as num?)?.toInt(),
     );
   }
 }

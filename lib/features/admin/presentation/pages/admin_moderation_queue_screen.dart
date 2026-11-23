@@ -9,7 +9,7 @@ import '../../data/datasources/admin_remote_data_source.dart';
 import '../../data/models/admin_report_model.dart';
 import '../../data/repositories/admin_repository_impl.dart';
 import 'admin_review_moment_screen.dart';
-import 'admin_reports_screen.dart';
+import 'admin_report_detail_screen.dart';
 import '../utils/admin_live_refresh.dart';
 import '../../../../core/realtime/admin_moderation_update.dart';
 import '../../../../core/realtime/admin_moderation_diagnostics.dart';
@@ -28,7 +28,7 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
   @override
   bool get adminRefreshActive => widget.isActive;
   int? _pendingTotal;
-  int _reportsTotal = 14;
+  int _reportsTotal = 0;
 
   @override
   bool onAdminModeration(AdminModerationUpdate update) {
@@ -97,7 +97,7 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
         _moments = filtered;
         _pendingTotal = total;
         _reports = reportsRes.items;
-        _reportsTotal = reportsRes.total > 0 ? reportsRes.total : 14;
+        _reportsTotal = reportsRes.total > 0 ? reportsRes.total : reportsRes.items.length;
         _isLoading = false;
       });
     } catch (e) {
@@ -373,6 +373,27 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
     );
   }
 
+  String _formatTime(String? dateStr, [DateTime? dateTime]) {
+    DateTime? date;
+    if (dateTime != null) {
+      date = dateTime.toLocal();
+    } else if (dateStr != null && dateStr.trim().isNotEmpty) {
+      try {
+        date = DateTime.parse(dateStr).toLocal();
+      } catch (_) {}
+    }
+    if (date == null) return 'Recently';
+
+    final diff = DateTime.now().difference(date);
+    if (diff.inSeconds < 45) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    if (diff.inDays < 30) return '${(diff.inDays / 7).floor()}w ago';
+    if (diff.inDays < 365) return '${(diff.inDays / 30).floor()}mo ago';
+    return '${(diff.inDays / 365).floor()}y ago';
+  }
+
   Widget _buildReportCard(BuildContext context, double scale, AdminReportModel report) {
     final reasonTitle = report.reason.replaceAll('_', ' ');
     final creatorName = report.creatorName ?? report.targetUserName ?? 'user';
@@ -380,6 +401,7 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
     final subtitle = report.type == 'MOMENT'
         ? 'Moment by @$creatorName · reported by @$reporterName'
         : 'Profile @$creatorName · reported by @$reporterName';
+    final timeStr = _formatTime(report.createdAt);
 
     Color priorityColor = const Color(0xFF58C3F4); // Medium
     String priorityText = 'Medium';
@@ -392,12 +414,15 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
     }
 
     return GestureDetector(
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => const AdminReportsScreen(),
+      onTap: () async {
+        final res = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) => AdminReportDetailScreen(report: report),
           ),
         );
+        if (res == true) {
+          loadAdminData(showLoading: false);
+        }
       },
       child: Container(
         padding: EdgeInsets.all(16 * scale),
@@ -434,7 +459,7 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      '12 min ago',
+                      timeStr,
                       style: TextStyle(
                         color: const Color(0xFF8A8EB3),
                         fontSize: 12 * scale,
@@ -474,13 +499,17 @@ class _AdminModerationQueueScreenState extends State<AdminModerationQueueScreen>
   }
 
   Widget _buildModerationCard(BuildContext context, double scale, MomentModel moment) {
-    final creatorName = moment.creatorName ?? 'John Travolta';
+    final creatorName = moment.creatorName ?? 'User';
     final initials = _getInitials(creatorName);
     final isLocked = moment.visibility?.toUpperCase() == 'PRIVATE' || moment.unlockAt != null;
-    final timeStr = moment.createdAt != null ? '2h ago' : 'Yesterday';
+    final timeStr = moment.timeAgo?.isNotEmpty == true
+        ? moment.timeAgo!
+        : _formatTime(null, moment.createdAt);
     final bannerText = moment.unlockAt != null
-        ? 'Opens at ${moment.unlockAt!.toLocal().toString().split('.').first}'
-        : 'Opens when you’re at Tokyo Tower';
+        ? 'Opens at ${_formatTime(null, moment.unlockAt)}'
+        : (moment.locationName?.isNotEmpty == true
+            ? 'Opens when you’re at ${moment.locationName}'
+            : 'Locked moment');
 
     return GestureDetector(
       onTap: () async {

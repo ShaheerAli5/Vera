@@ -12,6 +12,8 @@ import '../../data/repositories/moments_repository_impl.dart';
 import '../../domain/entities/moment.dart';
 import 'locked_moment_screen.dart';
 import 'unlocked_moment_screen.dart';
+import '../../../admin/presentation/pages/admin_review_moment_screen.dart';
+import '../../../../core/auth/user_role.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -35,6 +37,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _openNotificationItem(NotificationModel n, int index) async {
+    debugPrint('ANDROID FCM TOKEN: ${PushNotificationService.instance.fcmToken}');
     if (!n.isRead) {
       if (mounted) {
         setState(() {
@@ -73,6 +76,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
 
     final client = ApiClientScope.of(context);
+    final isOwner = UserRole.parse(client.userRole) == UserRole.owner;
+    final isAdminApproval = n.type == 'ADMIN_APPROVAL' || (isOwner && momentId != null && momentId.isNotEmpty);
+
+    if (isAdminApproval && momentId != null) {
+      if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => AdminReviewMomentScreen(
+              momentId: momentId,
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
 
     MomentModel? momentModel;
@@ -164,7 +183,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     try {
       final client = ApiClientScope.of(context);
       final repo = MomentsRepositoryImpl(MomentsRemoteDataSource(client));
-      final response = await repo.getNotifications();
+      
+      String status = 'ALL';
+      if (_selectedTab == 1) status = 'UNREAD';
+      if (_selectedTab == 2) status = 'READ';
+      
+      final response = await repo.getNotifications(limit: 50, status: status);
 
       if (!mounted) return;
       setState(() {
@@ -184,11 +208,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget build(BuildContext context) {
     final scale = VeraResponsive.scale(MediaQuery.sizeOf(context).width);
 
-    final filteredNotifications = _notifications.where((n) {
-      if (_selectedTab == 1) return !n.isRead;
-      if (_selectedTab == 2) return n.isRead;
-      return true;
-    }).toList();
+    final filteredNotifications = _notifications;
 
     return Scaffold(
       backgroundColor: VeraTheme.background,
@@ -448,7 +468,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     bool isSelected = _selectedTab == index;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _selectedTab = index),
+        onTap: () {
+          if (!isSelected) {
+            setState(() => _selectedTab = index);
+            _fetchNotifications();
+          }
+        },
         behavior: HitTestBehavior.opaque,
         child: SizedBox(
           height: 44 * scale,

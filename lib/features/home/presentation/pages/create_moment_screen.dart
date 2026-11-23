@@ -183,6 +183,7 @@ class _CreateMomentScreenState extends State<CreateMomentScreen> {
   void _showSelectTypeModal(BuildContext context, double scale) {
     showModalBottomSheet<void>(
       context: context,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withAlpha(160),
       isScrollControlled: true,

@@ -6,6 +6,7 @@ import '../../data/datasources/admin_remote_data_source.dart';
 import '../../data/repositories/admin_repository_impl.dart';
 import '../../data/models/admin_user_model.dart';
 import 'admin_user_detail_screen.dart';
+import '../../../home/presentation/widgets/creator_avatar.dart';
 
 class AdminUserListScreen extends StatefulWidget {
   const AdminUserListScreen({super.key});
@@ -369,7 +370,10 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
     final initials = _getInitials(user.displayName);
     final isSuspended = !user.isActive;
     final statusText = isSuspended ? 'Suspended' : 'Active';
-    final statusColor = isSuspended ? const Color(0xFFFF4E7E) : const Color(0xFF58C3F4);
+    final statusColor = isSuspended ? const Color(0xFFFF4E7E) : const Color(0xFF00FF85);
+    final isOwner = user.role?.toUpperCase() == 'OWNER';
+    final isAdmin = user.role?.toUpperCase() == 'ADMIN';
+    final displayRole = isOwner ? 'Owner' : (isAdmin ? 'Admin' : 'User');
 
     return Material(
       color: Colors.transparent,
@@ -389,27 +393,10 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
           child: Row(
             children: [
               // Circular Gradient Avatar with Initials (44x44)
-              Container(
-                width: 44 * scale,
-                height: 44 * scale,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF58C3F4), Color(0xFF8E37FF)],
-                  ),
-                ),
-                child: Center(
-                  child: Text(
-                    initials,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15 * scale,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+              CreatorAvatar(
+                name: user.displayName,
+                avatarUrl: user.avatarPath,
+                size: 44 * scale,
               ),
               SizedBox(width: 12 * scale),
               Expanded(
@@ -426,18 +413,44 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
                       ),
                     ),
                     SizedBox(height: 2 * scale),
-                    Text(
-                      '@${user.email.split('@').first}',
-                      style: TextStyle(
-                        color: const Color(0xFF8A8EB3),
-                        fontSize: 12 * scale,
-                        height: 18 / 12,
-                      ),
-                    ),
+                    Row(
+                      children: [
+                        Text(
+                          displayRole,
+                          style: TextStyle(
+                            color: isOwner ? const Color(0xFF58C3F4) : (isAdmin ? const Color(0xFF9451FF) : const Color(0xFF8A8EB3)),
+                            fontSize: 12 * scale,
+                            fontWeight: (isOwner || isAdmin) ? FontWeight.w600 : FontWeight.w400,
+                          ),
+                        ),
+                        SizedBox(width: 6 * scale),
+                        Container(
+                          width: 4 * scale,
+                          height: 4 * scale,
+                          decoration: const BoxDecoration(
+                            color: Color(0x66FFFFFF),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        SizedBox(width: 6 * scale),
+                        Expanded(
+                          child: Text(
+                            '@${user.email.split('@').first}',
+                            style: TextStyle(
+                              color: const Color(0xFF8A8EB3),
+                              fontSize: 12 * scale,
+                              height: 18 / 12,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    )
                   ],
                 ),
               ),
-              // Status Badge (Hug 51px x 22px, radius 999, padding 4 top/bottom, 10 left/right)
+              // Status Badge
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 10 * scale, vertical: 4 * scale),
                 decoration: BoxDecoration(
@@ -449,17 +462,12 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
                   style: TextStyle(
                     color: statusColor,
                     fontSize: 11 * scale,
-                    height: 14 / 11,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-              SizedBox(width: 12 * scale),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                color: const Color(0xFF8A8EB3),
-                size: 14 * scale,
-              ),
+              SizedBox(width: 8 * scale),
+              Icon(Icons.chevron_right_rounded, color: const Color(0xFF6E6E8F), size: 20 * scale),
             ],
           ),
         ),
