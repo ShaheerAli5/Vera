@@ -7,6 +7,8 @@ import '../../data/models/admin_audit_log_model.dart';
 import '../../data/repositories/admin_repository_impl.dart';
 import 'admin_reports_screen.dart';
 import 'admin_user_list_screen.dart';
+import 'admin_notifications_screen.dart';
+import '../../../../core/services/push_notification_service.dart';
 import '../utils/admin_live_refresh.dart';
 import '../../../../core/realtime/admin_moderation_update.dart';
 import '../../../../core/realtime/admin_moderation_diagnostics.dart';
@@ -39,6 +41,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
   }
 
   int _pendingMomentsCount = 0;
+  int _unreadNotificationsCount = 0;
   int _totalUsers = 0;
   int _activeUsers = 0;
   int _suspendedUsers = 0;
@@ -61,6 +64,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
       final statsMap = await repo.getModerationStats();
       final logsRes = await repo.getAuditLogs(limit: 5);
 
+      int unreadNotifs = 0;
+      try {
+        final notifsRes = await repo.getAdminNotifications();
+        final pendingReports = await repo.getReports(status: 'PENDING');
+        final unreadApi = notifsRes.items.where((n) => !n.isRead).length;
+        unreadNotifs = unreadApi + pendingRes.moments.length + pendingReports.items.length;
+      } catch (_) {
+        unreadNotifs = pendingRes.moments.length;
+      }
+
       if (!mounted) return;
       final removed = pendingRes.moments.where((moment) {
         final latest = moderationState(moment.id);
@@ -76,6 +89,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
 
       setState(() {
         _pendingMomentsCount = counts.pendingReview;
+        _unreadNotificationsCount = unreadNotifs;
         _totalUsers = statsMap['totalUsers'] ?? _totalUsers;
         _activeUsers = statsMap['activeUsers'] ?? _activeUsers;
         _suspendedUsers = statsMap['suspendedUsers'] ?? _suspendedUsers;
@@ -158,40 +172,58 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Widget
                     ),
                   ],
                 ),
-                // Bell (Fixed 44x44, radius 999, border 1.2px 14% white, bg 7% white)
-                Container(
-                  width: 44 * scale,
-                  height: 44 * scale,
-                  decoration: BoxDecoration(
-                    color: const Color(0x12FFFFFF),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: const Color(0x24FFFFFF),
-                      width: 1.2,
-                    ),
-                  ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Icon(
-                        Icons.notifications_none_rounded,
-                        color: Colors.white,
-                        size: 20 * scale,
-                      ),
-                      Positioned(
-                        top: 10 * scale,
-                        right: 11 * scale,
-                        child: Container(
-                          width: 8 * scale,
-                          height: 8 * scale,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFFF4E7E),
-                            shape: BoxShape.circle,
+                // Bell Button
+                ValueListenableBuilder<int>(
+                  valueListenable: PushNotificationService.instance.unreadNotificationsCount,
+                  builder: (context, pushUnread, _) {
+                    final hasUnread = _unreadNotificationsCount > 0 || pushUnread > 0;
+                    return GestureDetector(
+                      onTap: () async {
+                        await Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => const AdminNotificationsScreen(),
+                          ),
+                        );
+                        loadAdminData(showLoading: false);
+                      },
+                      behavior: HitTestBehavior.opaque,
+                      child: Container(
+                        width: 44 * scale,
+                        height: 44 * scale,
+                        decoration: BoxDecoration(
+                          color: const Color(0x12FFFFFF),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0x24FFFFFF),
+                            width: 1.2,
                           ),
                         ),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Icon(
+                              Icons.notifications_none_rounded,
+                              color: Colors.white,
+                              size: 20 * scale,
+                            ),
+                            if (hasUnread)
+                              Positioned(
+                                top: 10 * scale,
+                                right: 11 * scale,
+                                child: Container(
+                                  width: 8 * scale,
+                                  height: 8 * scale,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xFFFF4E7E),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ],
             ),

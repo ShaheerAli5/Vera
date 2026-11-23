@@ -26,22 +26,50 @@ class AdminUserModel {
   final String? deletedAt;
 
   factory AdminUserModel.fromJson(Map<String, dynamic> json) {
+    final map = (json['user'] is Map<String, dynamic>)
+        ? (json['user'] as Map<String, dynamic>)
+        : ((json['data'] is Map<String, dynamic>)
+            ? (json['data'] as Map<String, dynamic>)
+            : json);
+
+    final avatar = map['avatarPath']?.toString() ??
+        map['avatar_path']?.toString() ??
+        map['avatarUrl']?.toString() ??
+        map['avatar_url']?.toString() ??
+        map['profilePicture']?.toString() ??
+        map['profile_picture']?.toString() ??
+        map['avatar']?.toString() ??
+        map['image']?.toString() ??
+        map['photo']?.toString();
+
+    final userId = map['id']?.toString() ?? map['_id']?.toString() ?? '';
+    final resolvedAvatar = (avatar != null && avatar.trim().isNotEmpty)
+        ? avatar.trim()
+        : (userId.isNotEmpty ? '/admin/users/$userId/avatar' : null);
+
+    final statusStr = map['status']?.toString().toUpperCase();
+    final bool active = map['isActive'] is bool
+        ? map['isActive'] as bool
+        : (map['is_active'] is bool
+            ? map['is_active'] as bool
+            : (statusStr != 'SUSPENDED' && statusStr != 'INACTIVE' && statusStr != 'BLOCKED'));
+
     return AdminUserModel(
-      id: json['id']?.toString() ?? '',
-      email: json['email']?.toString() ?? '',
-      displayName: json['displayName']?.toString() ?? json['display_name']?.toString() ?? json['name']?.toString() ?? 'User',
-      avatarPath: json['avatarPath']?.toString() ??
-          json['avatar_path']?.toString() ??
-          json['avatarUrl']?.toString() ??
-          json['avatar_url']?.toString() ??
-          json['profilePicture']?.toString(),
-      emailVerifiedAt: json['emailVerifiedAt']?.toString(),
-      role: json['role']?.toString() ?? 'USER',
-      isActive: (json['isActive'] as bool?) ?? true,
-      version: (json['version'] as num?)?.toInt() ?? 1,
-      createdAt: json['createdAt']?.toString() ?? '',
-      updatedAt: json['updatedAt']?.toString() ?? '',
-      deletedAt: json['deletedAt']?.toString(),
+      id: userId,
+      email: map['email']?.toString() ?? '',
+      displayName: map['displayName']?.toString() ??
+          map['display_name']?.toString() ??
+          map['name']?.toString() ??
+          map['username']?.toString() ??
+          'User',
+      avatarPath: resolvedAvatar,
+      emailVerifiedAt: map['emailVerifiedAt']?.toString() ?? map['email_verified_at']?.toString(),
+      role: map['role']?.toString() ?? 'USER',
+      isActive: active,
+      version: (map['version'] as num?)?.toInt() ?? 1,
+      createdAt: map['createdAt']?.toString() ?? map['created_at']?.toString() ?? '',
+      updatedAt: map['updatedAt']?.toString() ?? map['updated_at']?.toString() ?? '',
+      deletedAt: map['deletedAt']?.toString() ?? map['deleted_at']?.toString(),
     );
   }
 }
@@ -54,9 +82,16 @@ class AdminUserListResponse {
   final List<AdminUserModel> items;
 
   factory AdminUserListResponse.fromJson(Map<String, dynamic> json) {
-    final itemsList = json['items'] as List<dynamic>?;
+    final itemsList = json['items'] is List
+        ? json['items'] as List
+        : (json['users'] is List
+            ? json['users'] as List
+            : (json['data'] is List ? json['data'] as List : <dynamic>[]));
     return AdminUserListResponse(
-      items: itemsList?.map((e) => AdminUserModel.fromJson(e as Map<String, dynamic>)).toList() ?? [],
+      items: itemsList
+          .whereType<Map<String, dynamic>>()
+          .map(AdminUserModel.fromJson)
+          .toList(),
     );
   }
 }

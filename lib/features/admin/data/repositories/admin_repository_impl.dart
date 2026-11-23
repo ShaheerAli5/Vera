@@ -1,4 +1,5 @@
 import '../../../home/data/models/moment_model.dart';
+import '../../../home/data/models/notification_model.dart';
 import '../../domain/repositories/admin_repository.dart';
 import '../datasources/admin_remote_data_source.dart';
 import '../models/admin_audit_log_model.dart';
@@ -156,5 +157,20 @@ class AdminRepositoryImpl implements AdminRepository {
       resolution: resolution,
       note: note,
     );
+  }
+
+  @override
+  Future<NotificationsListResponse> getAdminNotifications({int limit = 50}) {
+    return _remoteDataSource.getAdminNotifications(limit: limit);
+  }
+
+  @override
+  Future<void> markAdminNotificationAsRead(String notificationId) {
+    return _remoteDataSource.markAdminNotificationAsRead(notificationId);
+  }
+
+  @override
+  Future<void> markAllAdminNotificationsAsRead() {
+    return _remoteDataSource.markAllAdminNotificationsAsRead();
   }
 }

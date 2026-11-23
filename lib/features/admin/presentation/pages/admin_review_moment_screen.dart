@@ -177,6 +177,27 @@ class _AdminReviewMomentScreenState extends State<AdminReviewMomentScreen> with 
     return name.substring(0, name.length >= 2 ? 2 : 1).toUpperCase();
   }
 
+  String _formatReason(String reason) {
+    switch (reason.toUpperCase()) {
+      case 'HARASSMENT':
+        return 'Harassment';
+      case 'SPAM':
+        return 'Spam';
+      case 'INAPPROPRIATE_CONTENT':
+      case 'EXPLICIT_CONTENT':
+        return 'Inappropriate content';
+      case 'HATE_SPEECH':
+        return 'Hate speech';
+      case 'OTHER':
+        return 'Other';
+      default:
+        final formatted = reason.replaceAll('_', ' ').toLowerCase();
+        return formatted.isEmpty
+            ? 'Report'
+            : '${formatted[0].toUpperCase()}${formatted.substring(1)}';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (realtimeDeleted) return deletedMomentView();
@@ -318,9 +339,32 @@ class _AdminReviewMomentScreenState extends State<AdminReviewMomentScreen> with 
         ? 'Location · ${moment.locationName}'
         : (moment.unlockRuleType ?? 'Standard');
 
-    final reportCount = moment.raw['reportCount']?.toString() ?? '3';
-    final reasonsRaw = moment.raw['reasons'] as List<dynamic>?;
-    final reasons = reasonsRaw?.map((e) => e.toString()).toList() ?? ['Harassment', 'Spam'];
+    final reasonsRaw = moment.raw['reasons'] as List<dynamic>? ??
+        moment.raw['reports'] as List<dynamic>? ??
+        moment.raw['reportReasons'] as List<dynamic>?;
+
+    final List<String> reasons = [];
+    if (reasonsRaw != null) {
+      for (final item in reasonsRaw) {
+        String? r;
+        if (item is Map) {
+          r = item['reason']?.toString() ?? item['type']?.toString();
+        } else if (item != null) {
+          r = item.toString();
+        }
+        if (r != null && r.trim().isNotEmpty) {
+          final formatted = _formatReason(r.trim());
+          if (!reasons.contains(formatted)) {
+            reasons.add(formatted);
+          }
+        }
+      }
+    }
+
+    final reportCount = moment.raw['reportCount']?.toString() ??
+        moment.raw['report_count']?.toString() ??
+        moment.raw['reportsCount']?.toString() ??
+        reasons.length.toString();
 
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(24 * scale, 12 * scale, 24 * scale, 40 * scale),
@@ -549,37 +593,40 @@ class _AdminReviewMomentScreenState extends State<AdminReviewMomentScreen> with 
           ),
           SizedBox(height: 20 * scale),
 
-          // Reasons Section
-          Text(
-            'Reasons',
-            style: TextStyle(
-              color: const Color(0xFF8A8EB3),
-              fontSize: 14 * scale,
-              fontWeight: FontWeight.w500,
+          // Reasons Section (Only show if real reasons exist)
+          if (reasons.isNotEmpty) ...[
+            Text(
+              'Reasons',
+              style: TextStyle(
+                color: const Color(0xFF8A8EB3),
+                fontSize: 14 * scale,
+                fontWeight: FontWeight.w500,
+              ),
             ),
-          ),
-          SizedBox(height: 10 * scale),
-          Wrap(
-            spacing: 8 * scale,
-            runSpacing: 8 * scale,
-            children: reasons.map((reason) {
-              return Container(
-                padding: EdgeInsets.symmetric(horizontal: 12 * scale, vertical: 6 * scale),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF4E7E).withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(999 * scale),
-                ),
-                child: Text(
-                  reason,
-                  style: TextStyle(
-                    color: const Color(0xFFFF4E7E),
-                    fontSize: 12 * scale,
-                    fontWeight: FontWeight.w600,
+            SizedBox(height: 10 * scale),
+            Wrap(
+              spacing: 8 * scale,
+              runSpacing: 8 * scale,
+              children: reasons.map((reason) {
+                return Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12 * scale, vertical: 6 * scale),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF4E7E).withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(999 * scale),
                   ),
-                ),
-              );
-            }).toList(),
-          ),
+                  child: Text(
+                    reason,
+                    style: TextStyle(
+                      color: const Color(0xFFFF4E7E),
+                      fontSize: 12 * scale,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            SizedBox(height: 20 * scale),
+          ],
           SizedBox(height: 32 * scale),
 
           // Action Buttons (Keep & Remove)
