@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/theme.dart';
+import '../../../../core/utils/location_failure_message.dart';
 import '../../data/datasources/location_geocoding_data_source.dart';
 
 class SelectedMomentLocation {
@@ -196,7 +197,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       _mapController.move(point, 17);
     } catch (error) {
       if (mounted) {
-        setState(() => _error = error.toString().replaceFirst('Exception: ', ''));
+        setState(() => _error = locationFailureMessage(error));
       }
     } finally {
       if (mounted) setState(() => _locating = false);

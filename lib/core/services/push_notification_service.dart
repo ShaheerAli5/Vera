@@ -19,6 +19,7 @@ import '../../features/home/presentation/pages/unlocked_moment_screen.dart';
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  debugPrint('🔥 [FCM BACKGROUND RECEIVED]: id=${message.messageId}, title=${message.notification?.title}, data=${message.data}');
   logPushDiagnostic('received', {
     'state': 'background',
     'hasNotification': message.notification != null,
@@ -166,7 +167,7 @@ class PushNotificationService with WidgetsBindingObserver {
         },
       );
 
-      // Create Android High Importance Notification Channel
+      // Create Android High Importance Notification Channel and request POST_NOTIFICATIONS
       if (Platform.isAndroid) {
         const androidChannel = AndroidNotificationChannel(
           'vera_moments_channel',
@@ -177,11 +178,12 @@ class PushNotificationService with WidgetsBindingObserver {
           playSound: true,
           enableVibration: true,
         );
-        await _localNotificationsPlugin
+        final androidPlugin = _localNotificationsPlugin
             .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin
-            >()
-            ?.createNotificationChannel(androidChannel);
+            >();
+        await androidPlugin?.createNotificationChannel(androidChannel);
+        await androidPlugin?.requestNotificationsPermission();
       }
 
       // Request permissions (Alert, Badge, Sound, POST_NOTIFICATIONS on Android 13+)
@@ -249,6 +251,7 @@ class PushNotificationService with WidgetsBindingObserver {
     });
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint('🔥 [FCM FOREGROUND RECEIVED]: id=${message.messageId}, title=${message.notification?.title}, body=${message.notification?.body}, data=${message.data}');
       logPushDiagnostic('received', {
         'state': 'foreground',
         'hasNotification': message.notification != null,
@@ -295,6 +298,12 @@ class PushNotificationService with WidgetsBindingObserver {
       'platform': Platform.operatingSystem,
       'hasFcmToken': _fcmToken != null && _fcmToken!.isNotEmpty,
     });
+    if (_fcmToken != null && _fcmToken!.isNotEmpty) {
+      debugPrint('\n======================================================');
+      debugPrint('🔥 [FCM TOKEN FOR THIS ANDROID DEVICE]:');
+      debugPrint(_fcmToken);
+      debugPrint('======================================================\n');
+    }
     if (_fcmToken != null && _fcmToken!.isNotEmpty) {
       _tokenRetry?.cancel();
       _tokenRetry = null;
@@ -358,6 +367,7 @@ class PushNotificationService with WidgetsBindingObserver {
       );
       logPushDiagnostic('local_display_requested', {'state': 'foreground'});
     } catch (e) {
+      debugPrint('❌ [LOCAL NOTIFICATION ERROR]: $e');
       logPushDiagnostic('display_failed', {
         'errorType': e.runtimeType.toString(),
       });

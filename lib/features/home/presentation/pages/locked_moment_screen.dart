@@ -10,6 +10,7 @@ import '../../../../core/network/api_exception.dart';
 import '../../../../core/theme/theme.dart';
 import '../../../../core/services/push_notification_service.dart';
 import '../../../../core/utils/server_time_manager.dart';
+import '../../../../core/utils/location_failure_message.dart';
 import '../../../../core/widgets/vera_popup.dart';
 import '../../../../main.dart' show ApiClientScope;
 import '../widgets/creator_avatar.dart';
@@ -483,7 +484,7 @@ class _LockedMomentScreenState extends State<LockedMomentScreen> with MomentReal
         VeraPopup.show(
           context,
           title: 'Location unavailable',
-          message: error.toString().replaceFirst('Exception: ', ''),
+          message: locationFailureMessage(error),
           icon: Icons.location_off_outlined,
           accent: VeraTheme.warning,
         );
